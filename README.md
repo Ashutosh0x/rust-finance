@@ -106,6 +106,35 @@ In a separate terminal, launch the Terminal User Interface:
 cargo run -p tui --release
 ```
 
+## Features
+
+* **Real-time Market Data:** Direct integrations with Finnhub and Alpaca WebSocket streams for sub-millisecond market events.
+* **Low-Latency Order Execution:** Hardware-accelerated Solana RPC interactions via intelligent `relay` routing.
+* **Dual AI Decision Engines:**
+    * **Dexter Analyst AI:** Reads fundamental data and market news simultaneously using Anthropic APIs to identify macro catalysts.
+    * **MiroFish Swarm AI:** Simulates 5,000 algorithmic agent iterations to predict micro-price movements and generate actionable probability matrices.
+* **Terminal UI (TUI):** A professional-grade, multi-column dashboard rendered directly in your terminal using Ratatui. Features high-res Braille price charts, real-time depth-of-market order books, and live portfolio P&L tracking.
+* **Decoupled Event Bus:** TCP-based internal broadcasting ensures the TUI, Web Dashboard, and Daemon can crash and restart independently without losing state.
+
+## Detailed Documentation
+
+For a deep dive into the system's internal workings, component integration details, and deployment guides, please refer to the inner documentation:
+
+* [Architecture Overview](./docs/ARCHITECTURE.md) *(Coming Soon)*
+* [AI Analyst Integration](./docs/AI_INTEGRATION.md) *(Coming Soon)*
+* [WebSocket Normalization Strategies](./docs/WSS_INGESTION.md) *(Coming Soon)*
+
+*(Note: Documentation nodes are actively being written and compiled by the contributors.)*
+
+## Contributing
+
+We strictly enforce high professional standards for contributions. 
+
+Please take the time to read our detailed **[Contribution Guidelines](CONTRIBUTING.md)** before submitting a pull request. It contains instructions regarding:
+* Local Environment Setup
+* Cargo Testing and Formatting requirements
+* Commit Message Standards
+
 ## UI and Visual Constraints
 
 The TUI utilizes `Constraint::Length` and custom Ratatui widget styling to enforce a strict immutable grid layout. Custom hex colors have been applied globally to match a proprietary theme design.
