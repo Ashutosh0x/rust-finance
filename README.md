@@ -10,7 +10,7 @@
 </div>
 
 A high-performance, low-latency trading terminal and daemon built completely in Rust. Engineered for direct connection to market data streams (Finnhub, Alpaca), real-time AI signal analysis, and Solana-based trade execution.
-
+https://github.com/Ashutosh0x/rust-finance/blob/main/rust%20terminal.png
 ## System Architecture
 
 ```mermaid
