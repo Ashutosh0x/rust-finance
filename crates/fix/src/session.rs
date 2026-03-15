@@ -4,6 +4,10 @@
 // Manages TCP connection, logon handshake, sequence numbers, heartbeats,
 // and resend requests (Gap Fill).
 
+use crate::{
+    serializer::{FixMessage, FixParser, MsgType},
+    FixError,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -11,7 +15,6 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{interval, Instant};
 use tracing::{error, info, warn};
-use crate::{serializer::{FixMessage, FixParser, MsgType}, FixError};
 
 const SENDER_COMP_ID: &str = "RUSTFORGE_OMS";
 const TARGET_COMP_ID: &str = "EXCHANGE_GW";
@@ -73,7 +76,7 @@ impl FixSession {
                 Ok(mut stream) => {
                     info!("FIX connected to {}", addr);
                     let (mut reader, mut writer) = stream.split();
-                    
+
                     // 1. Send Logon
                     let mut logon = FixMessage::new(MsgType::Logon);
                     logon.set_field(108, &self.config.heartbeat_interval.to_string()); // HeartBtInt
@@ -86,9 +89,13 @@ impl FixSession {
                     }
                     self.build_header(&mut logon);
                     let out_bytes = logon.encode();
-                    writer.write_all(&out_bytes).await.map_err(|e| FixError::Io(e))?;
+                    writer
+                        .write_all(&out_bytes)
+                        .await
+                        .map_err(|e| FixError::Io(e))?;
 
-                    let mut heartbeat_timer = interval(Duration::from_secs(self.config.heartbeat_interval));
+                    let mut heartbeat_timer =
+                        interval(Duration::from_secs(self.config.heartbeat_interval));
                     let mut read_buf = vec![0u8; 8192];
                     let mut parser = FixParser::new();
                     let mut last_rx = Instant::now();
@@ -167,24 +174,32 @@ impl FixSession {
         msg: FixMessage,
         writer: &mut tokio::net::tcp::WriteHalf<'_>,
     ) -> Result<(), FixError> {
-        let incoming_seq: u64 = msg.get_field(34)
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0);
-        
+        let incoming_seq: u64 = msg.get_field(34).and_then(|s| s.parse().ok()).unwrap_or(0);
+
         let expected_seq = self.inbound_seq.load(Ordering::SeqCst) + 1;
 
         if incoming_seq > expected_seq {
-            warn!("FIX SeqNum Gap detected. Expected {}, got {}. Sending ResendRequest.", expected_seq, incoming_seq);
+            warn!(
+                "FIX SeqNum Gap detected. Expected {}, got {}. Sending ResendRequest.",
+                expected_seq, incoming_seq
+            );
             let mut resend = FixMessage::new(MsgType::ResendRequest);
             self.build_header(&mut resend);
             resend.set_field(7, &expected_seq.to_string()); // BeginSeqNo
             resend.set_field(16, "0"); // EndSeqNo (0 = infinity)
-            writer.write_all(&resend.encode()).await.map_err(|e| FixError::Io(e))?;
+            writer
+                .write_all(&resend.encode())
+                .await
+                .map_err(|e| FixError::Io(e))?;
             return Ok(());
         } else if incoming_seq < expected_seq {
             let msg_type = msg.get_field(35).unwrap_or("");
-            if msg_type != "4" { // 4 = SequenceReset
-                error!("FIX Fatal: Incoming seq num {} lower than expected {}", incoming_seq, expected_seq);
+            if msg_type != "4" {
+                // 4 = SequenceReset
+                error!(
+                    "FIX Fatal: Incoming seq num {} lower than expected {}",
+                    incoming_seq, expected_seq
+                );
                 // In production, send Logout + disconnect here
                 return Ok(());
             }
@@ -197,7 +212,8 @@ impl FixSession {
         match msg_type {
             MsgType::Logon => info!("FIX Logon accepted by exchange"),
             MsgType::Logout => warn!("FIX Logout received from exchange"),
-            MsgType::Heartbeat | MsgType::TestRequest => { /* Handled automatically by parser loop tick */ },
+            MsgType::Heartbeat | MsgType::TestRequest => { /* Handled automatically by parser loop tick */
+            }
             MsgType::ResendRequest => {
                 // Should replay historical messages from our store here
                 warn!("Ignoring ResendRequest from exchange (Unimplemented replay buffer)");
@@ -205,7 +221,10 @@ impl FixSession {
                 self.build_header(&mut seq_reset);
                 seq_reset.set_field(36, &(self.outbound_seq.load(Ordering::SeqCst)).to_string()); // NewSeqNo
                 seq_reset.set_field(123, "Y"); // GapFillFlag
-                writer.write_all(&seq_reset.encode()).await.map_err(|e| FixError::Io(e))?;
+                writer
+                    .write_all(&seq_reset.encode())
+                    .await
+                    .map_err(|e| FixError::Io(e))?;
             }
             MsgType::ExecutionReport | MsgType::OrderCancelReject => {
                 // Forward execution reports up to the OMS

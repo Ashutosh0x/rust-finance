@@ -140,9 +140,7 @@ impl CircuitBreaker {
         inner.consecutive_failures += 1;
 
         let should_open = match &inner.state {
-            BreakerState::Closed => {
-                inner.consecutive_failures >= inner.cfg.failure_threshold
-            }
+            BreakerState::Closed => inner.consecutive_failures >= inner.cfg.failure_threshold,
             BreakerState::HalfOpen => true, // Any failure in HalfOpen re-opens
             BreakerState::Open { .. } => false,
         };

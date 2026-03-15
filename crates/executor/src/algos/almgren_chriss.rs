@@ -20,13 +20,13 @@ impl AlmgrenChriss {
     /// Returns a vector of trade sizes.
     pub fn compute_trajectory(&self) -> Vec<f64> {
         let mut trajectory = Vec::with_capacity(self.time_horizon_iters);
-        
+
         // Simplified AC linear liquidation schedule adjusted by risk aversion stub
         // In a full implementation, this uses hyperbolic sine functions derived from market impact coefficients.
-        
+
         let mut remaining = self.total_shares;
         let base_slice = self.total_shares / self.time_horizon_iters as f64;
-        
+
         for i in 0..self.time_horizon_iters {
             if i == self.time_horizon_iters - 1 {
                 trajectory.push(remaining);
@@ -38,7 +38,7 @@ impl AlmgrenChriss {
                 remaining -= slice;
             }
         }
-        
+
         trajectory
     }
 }

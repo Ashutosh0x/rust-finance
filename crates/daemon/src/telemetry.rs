@@ -22,17 +22,12 @@ pub fn init(service_name: &'static str, otlp_endpoint: Option<&str>) {
         let provider = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(exporter)
-            .with_trace_config(
-                opentelemetry_sdk::trace::Config::default().with_resource(
-                    opentelemetry_sdk::Resource::new(vec![
-                        opentelemetry::KeyValue::new("service.name", service_name),
-                        opentelemetry::KeyValue::new(
-                            "service.version",
-                            env!("CARGO_PKG_VERSION"),
-                        ),
-                    ]),
-                ),
-            )
+            .with_trace_config(opentelemetry_sdk::trace::Config::default().with_resource(
+                opentelemetry_sdk::Resource::new(vec![
+                    opentelemetry::KeyValue::new("service.name", service_name),
+                    opentelemetry::KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+                ]),
+            ))
             .install_batch(opentelemetry_sdk::runtime::Tokio)
             .expect("OTLP pipeline");
 
@@ -98,11 +93,7 @@ pub fn ai_analysis_span(analyst: &str, symbol: &str) -> tracing::Span {
 }
 
 pub fn risk_check_span(symbol: &str) -> tracing::Span {
-    tracing::info_span!(
-        "risk_check",
-        symbol = symbol,
-        otel.name = "risk.check",
-    )
+    tracing::info_span!("risk_check", symbol = symbol, otel.name = "risk.check",)
 }
 
 pub fn order_submit_span(symbol: &str, side: &str) -> tracing::Span {

@@ -20,10 +20,10 @@ impl VwapAlgo {
         let mut schedule = Vec::new();
         for vp in &self.volume_profile {
             let slice_size = self.total_size * vp;
-            schedule.push(Action::Buy { 
-                token: self.token.clone(), 
-                size: slice_size, 
-                confidence: 0.9 
+            schedule.push(Action::Buy {
+                token: self.token.clone(),
+                size: slice_size,
+                confidence: 0.9,
             });
         }
         schedule
