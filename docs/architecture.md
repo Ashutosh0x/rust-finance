@@ -1,37 +1,50 @@
-# Architecture Overview
+# RustForge System Architecture
 
-## Data Flow
-1. **Ingestion**: WebSocket connection to Solana RPC (logsSubscribe).
-2. **Parser**: Decodes raw logs into structured `SwapEvent`s.
-3. **Feature**: Computes indicators and metrics (EMA, RSI, buy/sell volume) in real-time.
-4. **Strategy**: Decision engine (Simple Rules or RL Model) produces an `Action`.
-5. **Risk**: Validates action against account limits, drawdown, and confidence thresholds.
-6. **Executor**: Translates action into instructions, signs, and sends transaction.
-Outlining Core Components
+RustForge Terminal is a low-latency, modular trading architecture built heavily upon asynchronous message passing channels and lock-free concurrency.
 
-I'm now zeroing in on the architecture. It seems necessary to define the initial skeleton and interactions for the "health-check / fastest-node selector" in crates/relay and the "web-dashboard scaffold" in crates/web-dashboard. This involves outlining core data structures and potential API endpoints.
+## Core Philosophical Tenets
+1. **Zero-Overhead Parsing:** Data ingestion must never block. `ingestion` yields streams into the EventBus.
+2. **Actor-like Concurrency:** The `daemon` routes state exclusively through channels (`mpsc`, `broadcast`).
+3. **Poka-yoke Safety:** The `KillSwitch` and `RiskManager` exist physically independent of the execution loop so runaway latency cannot block risk cutoff.
+4. **Resiliency over Uptime:** Alpaca WebSockets and TCP EventBus connections feature exponential backoffs (`tokio-retry`) to outlast network drops.
 
-Implementing Persistence & Ingestion
+## Component Flow
+- **Ingestion:** Connects to Finnhub, normalizes ticks, transmits over MPSC to EventBus.
+- **Relay/Bus:** A localized TCP server broadcasting `BotEvent`s to the terminal UI (Ratatui) without coupling them to the Daemon process.
+- **Strategy & AI:** ML models act on the normalized stream. PPO Agents and Statistical Arbitrage evaluate.
+- **Risk Layer:** Daily Loss limits, Drawdown monitors, and Kill Switches filter actions.
+- **Persistence:** Appended sequentially to a SQLite `trades` ledger.
 
-I'm now focusing on implementing the SQLite persistence writer within crates/persistence and robust ingestion with reconnection & replay logic in crates/ingestion. The idea is to create the necessary files and update the Cargo.toml files accordingly. The plan is to proceed component-by-component, which includes updating the workspace dependencies and adding required code.
+## Quantitative Analytics & Pricing (Phase 5)
+RustForge natively integrates Bloomberg-tier financial engineering formulas directly into the `pricing` and `risk` crates, built to execute in microseconds for live terminal display.
 
-Defining Workspace Integration
+### 1. Options Pricing (Black-Scholes-Merton & Heston)
+The system incorporates classical BSM with a closed-form Newton-Raphson IV solver, alongside the **Heston Stochastic Volatility Model** which uses the Gil-Pelaez characteristic function inversion to capture the volatility smile/skew that BSM fails to model:
 
-I'm now clarifying the workspace management. It seems creating a new directory and Cargo.toml isn't enough; I must update the root Cargo.toml to recognize the new components. I'm focusing on defining crates/persistence and crates/ingestion and how they'll be integrated into the workspace. I'll need to create the files and update the Cargo.toml files accordingly. Specifically, I'm working on the persistence crate, starting with its file creation, and ingestion improvements next.
+**Heston Dynamics:**
+- $dS = \mu \cdot S \cdot dt + \sqrt{v} \cdot S \cdot dW_1$
+- $dv = \kappa (\theta - v) dt + \sigma_v \sqrt{v} dW_2$
+- $corr(dW_1, dW_2) = \rho \cdot dt$
 
-Analyzed
-c:\Users\ashut\OneDrive\Documents\rust trading terminal\rl-trading-bot\crates
-Analyzed
-Cargo.toml#L1-28
-Generating
+### 2. Fixed Income (BVAL & Hull-White)
+To capture interest rate term structures and price bond derivatives, the system implements the **Hull-White One-Factor** model wrapped around a Trinomial Tree algorithm to accurately compute American-style early exercise premiums. 
 
-## Concurrency Model
-- **Ingestion**: Async (Tokio).
-- **Processing**: Synchronous hot-path threads communicating via `crossbeam-channel`.
-- **Execution**: Async (Tokio) to handle network latency.
+Additionally, the system replicates the **Bloomberg BVAL 3-Step Process** for bond pricing:
+1. **Direct Observations** (Weighted most heavily)
+2. **Historical Correlations** (Yield curve shifts)
+3. **Comparable Relative Value (RV)** matrices
 
-## Performance Tuning
-- `target-cpu=native` for SIMD optimizations.
-- `LTO = true` for inter-crate optimizations.
-- `panic = abort` to minimize binary size and overhead.
-- Bounded channels to prevent backpressure issues and OOM.
+### 3. Risk & Volatility Forecasting (GARCH)
+Rather than solely relying on historical standard deviations (which lag market shocks), the internal Risk Manager utilizes a rolling **GARCH(1,1)** Maximum Likelihood Estimation engine to forecast variance.
+
+**GARCH(1,1) Conditional Variance formulation:**
+$\sigma_t^2 = \omega + \alpha \cdot \epsilon_{t-1}^2 + \beta \cdot \sigma_{t-1}^2$
+- *Where $\alpha + \beta < 1$ guarantees mean-reversion stationarity.*
+
+### 4. Machine Learning (NeurIPS Interval Regression)
+Classical ML target-mapping breaks down when lit prints are sparse (like in corporate bonds). We incorporated Bloomberg's NeurIPS 2025 finding on **Interval Regression** (`crates/ml/interval_regression.rs`). This custom Neural Network loss function trains *only* on Bid/Ask bounds rather than forcing a naive mid-price assumption.
+
+**Modified Interval Loss Gradient:**
+- `If Prediction < Bid`: $\text{Loss} = (\text{Bid} - \text{Prediction})^2$
+- `If Prediction > Ask`: $\text{Loss} = (\text{Prediction} - \text{Ask})^2$
+- `Else (Inside Spread)`: $\text{Loss} = 0$

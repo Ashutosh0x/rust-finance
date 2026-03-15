@@ -14,6 +14,9 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{info, error, warn};
 
+mod kill_switch;
+use kill_switch::KillSwitch;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -32,7 +35,7 @@ async fn main() -> Result<()> {
     // --- CHANNELS (The Backbone) ---
     let (raw_tx, raw_rx) = bounded::<String>(100000);
     let (event_tx, event_rx) = bounded::<SwapEvent>(50000);
-    let (action_tx, action_rx) = bounded::<Action>(10000);
+    let (action_tx, mut action_rx) = tokio::sync::mpsc::channel::<Action>(10000);
 
     // --- SHARED STATE ---
     let feature_engine = Arc::new(FeatureEngine::new());
@@ -114,24 +117,37 @@ async fn main() -> Result<()> {
     let s_rx = event_rx.clone();
     let s_tx = action_tx.clone();
     let s_features = feature_engine.clone();
+    let kill_switch = Arc::new(KillSwitch::new());
+    let ks_strategy = kill_switch.clone();
+
     thread::Builder::new().name("strategy-worker".into()).spawn(move || {
         let mut strategy = SimpleStrategy::new(1_000_000); 
-        let risk_manager = RiskManager::new(1.0, 0.7);
+        // RiskManager::new(max_pos, min_conf, init_equity, max_daily_loss, max_drawdown_pct)
+        let risk_manager = RiskManager::new(1.0, 0.7, 10000.0, 500.0, 0.05);
         info!("Strategy thread started");
         
         while let Ok(event) = s_rx.recv() {
+            if ks_strategy.is_halted() {
+                continue;
+            }
+
             s_features.process_event(&event);
             let action = strategy.on_event(&event);
+
+            if risk_manager.is_halt_required() {
+                ks_strategy.trigger("Risk limits breached (Daily Loss or Drawdown)");
+            }
+
             if let Ok(approved) = risk_manager.check_action(action) {
-                if !matches!(approved, Action::Hold) {
-                    let _ = s_tx.send(approved);
+                if !matches!(approved, Action::Hold) && !ks_strategy.is_halted() {
+                    let _ = s_tx.blocking_send(approved);
                 }
             }
         }
     })?;
 
     // 3. Executor Task (Async)
-    let e_rx = action_rx.clone();
+    let mut e_rx = action_rx; // move receiver
     let e_exec = executor.clone();
     let e_db = db_tx.clone();
     let e_bus = event_bus.clone();
@@ -196,7 +212,7 @@ async fn main() -> Result<()> {
             let fh = ingestion::FinnhubWs::new(finnhub_key, vec!["BINANCE:BTCUSDT".into()]);
             tokio::spawn(async move {
                 // Mock channel for Finnhub -> EventBus
-                let (fh_tx, mut fh_rx) = mpsc::channel(10000);
+                let (fh_tx, mut fh_rx) = mpsc::unbounded_channel();
                 let fh_eb = event_bus.clone();
                 tokio::spawn(async move {
                     while let Some(ev) = fh_rx.recv().await {

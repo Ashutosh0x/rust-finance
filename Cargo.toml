@@ -21,7 +21,7 @@ members = [
   "crates/web-dashboard",
   "crates/ai",
   "crates/dashboard"
-, "crates/ml"]
+, "crates/ml", "crates/backtest", "crates/compliance", "crates/execution", "crates/alerts", "crates/signals", "crates/pricing"]
 
 [profile.release]
 opt-level = 3

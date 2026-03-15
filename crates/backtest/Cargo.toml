@@ -1,0 +1,11 @@
+[package]
+name = "backtest"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../common" }
+rand = "0.8"
+tracing = "0.1"
+anyhow = "1.0"
+execution = { path = "../execution" }

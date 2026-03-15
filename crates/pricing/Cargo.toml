@@ -1,0 +1,8 @@
+[package]
+name = "pricing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common = { path = "../common" }
+tracing = "0.1"

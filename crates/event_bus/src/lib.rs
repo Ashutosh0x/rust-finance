@@ -6,6 +6,9 @@ use tokio::{
 use common::events::{BotEvent, ControlCommand};
 use tracing::{info, error};
 
+pub mod subscriber;
+pub mod health;
+
 enum BusCmd {
     AddClient(mpsc::Sender<BotEvent>),
     Broadcast(BotEvent),

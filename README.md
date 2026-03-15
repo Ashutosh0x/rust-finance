@@ -8,6 +8,10 @@
   <img src="https://img.shields.io/badge/Ratatui-0A0C0F?style=for-the-badge&logo=Linux&logoColor=white" alt="Ratatui" />
   <img src="https://img.shields.io/badge/WebSocket-010101?style=for-the-badge&logo=socket.io&logoColor=white" alt="WebSocket" />
   <br />
+  <img src="https://img.shields.io/badge/Bloomberg_BVAL-282828?style=for-the-badge&logo=bloomberg&logoColor=white" alt="BVAL" />
+  <img src="https://img.shields.io/badge/NeurIPS_2025-0A2140?style=for-the-badge" alt="NeurIPS" />
+  <img src="https://img.shields.io/badge/Quant_Research-000000?style=for-the-badge&logo=python&logoColor=white" alt="Quant" />
+  <br />
   <img src="https://img.shields.io/badge/NASDAQ-0090F7?style=for-the-badge&logo=nasdaq&logoColor=white" alt="NASDAQ" />
   <img src="https://img.shields.io/badge/NYSE-092140?style=for-the-badge&logo=new-york-stock-exchange&logoColor=white" alt="NYSE" />
   <img src="https://img.shields.io/badge/LSE-000000?style=for-the-badge&logo=london-stock-exchange&logoColor=white" alt="LSE" />
@@ -36,7 +40,7 @@ A high-performance, low-latency trading terminal and daemon built completely in 
 graph TD;
     subgraph "External Feeds"
         FH(Finnhub WS) --> |Market Data| Ingest
-        ALP(Alpaca) --> |Account Data| Ingest
+        ALP(Alpaca WS) --> |Market Data| Ingest
         LLM(Anthropic Claude) <--> AI
     end
 
@@ -44,15 +48,38 @@ graph TD;
         Ingest(Ingestion Engine) --> Relay(Latency Relay)
         Relay --> Bus(TCP Event Bus)
         Bus --> AI(AI Engine - Dexter/MiroFish)
+        
         AI --> Strategy(Strategy Dispatcher)
-        Strategy --> Exec(Execution Guard)
-        Exec --> Blockchain(Solana RPC/Jupiter)
+        Strategy --> RiskGuard(Risk Management)
+        
+        RiskGuard --> |Loss Limit Check| KillSwitch(Kill Switch & Halts)
+        RiskGuard --> Exec(Execution Guard)
+        
+        Exec -.-> |Dry Run Mode| Mock(Paper Trading)
+        Exec --> |Live Mode| Blockchain(Solana RPC/Jupiter)
+        
+        Daemon --> DB[(Persistence - PostgreSQL/SQLite)]
     end
     
     subgraph "Elite Quant Algorithms"
         Strategy --> MM(Avellaneda-Stoikov MM)
         Strategy --> Arb(Z-Score Stat Arb)
         Strategy --> PPO(PPO RL Agent)
+    end
+    
+    subgraph "Bloomberg Tier Analytics"
+        Pricing(Pricing Engine) --> BSM(Black-Scholes-Merton)
+        Pricing --> SABR(Hagan SABR Vol Smile)
+        Pricing --> HESTON(Heston Stoch Vol)
+        Pricing --> HW(Hull-White Rates)
+        Pricing --> BVAL(3-Step Bond Pricer)
+        RiskGuard --> GARCH(GARCH MLE Volatility)
+        AI --> Interval(Interval Regression ML)
+    end
+    
+    subgraph "Validation Layer"
+        Backtest(Backtest Engine) --> Metrics(Sharpe, Sortino, MDD)
+        Backtest --> Strategy
     end
 ```
 
@@ -97,21 +124,25 @@ cargo run -p tui --release
 
 * **Real-time Market Data:** Direct integrations with Finnhub and Alpaca WebSocket streams for sub-millisecond market events.
 * **Low-Latency Order Execution:** Hardware-accelerated Solana RPC interactions via intelligent `relay` routing.
+* **Quantitative Pricing Analytics (`pricing`):** Bloomberg-grade option pricing frameworks including **Black-Scholes-Merton**, **Hagan SABR Volatility**, **Heston Stochastic Vol**, and **Hull-White Trinomial** trees. 
+* **Fixed Income Modeling:** Implemented the exact BVAL 3-step algorithms and corporate WACC default computations native to institutional desks.
+* **Advanced Risk Engines (`risk`):** Automated VaR checks, dynamic Drawdown halts, and **GARCH(1,1) Volatility forecasting**.
 * **Dual AI Decision Engines:**
     * **Dexter Analyst AI:** Reads fundamental data and market news simultaneously using Anthropic APIs to identify macro catalysts.
-    * **MiroFish Swarm AI:** Simulates 5,000 algorithmic agent iterations to predict micro-price movements and generate actionable probability matrices.
-* **Terminal UI (TUI):** A professional-grade, multi-column dashboard rendered directly in your terminal using Ratatui. Features high-res Braille price charts, real-time depth-of-market order books, and live portfolio P&L tracking.
-* **Decoupled Event Bus:** TCP-based internal broadcasting ensures the TUI, Web Dashboard, and Daemon can crash and restart independently without losing state.
+    * **MiroFish Swarm AI:** Simulates 5,000 algorithmic agent iterations to predict micro-price movements.
+    * **NeurIPS 2025 Interval Regression:** Advanced multi-layer perceptron training natively on Bid/Ask spreads without lit prints.
+* **Terminal UI (TUI):** A professional-grade, multi-column dashboard rendered directly in your terminal using Ratatui. Features high-res Braille price charts, live options chains (`options_chain.rs`), and live portfolio P&L tracking.
+* **Institutional Execution Protocol:** Active SEBI pre-trade limits, bracket routing, and native FIX 4.4 serialization.
 
 ## Detailed Documentation
 
 For a deep dive into the system's internal workings, component integration details, and deployment guides, please refer to the inner documentation:
 
-* [Architecture Overview](./docs/ARCHITECTURE.md) *(Coming Soon)*
-* [AI Analyst Integration](./docs/AI_INTEGRATION.md) *(Coming Soon)*
-* [WebSocket Normalization Strategies](./docs/WSS_INGESTION.md) *(Coming Soon)*
+* [Architecture Overview](./docs/ARCHITECTURE.md)
+* [AI Analyst Integration](./docs/AI_INTEGRATION.md)
+* [WebSocket Normalization Strategies](./docs/WSS_INGESTION.md)
 
-*(Note: Documentation nodes are actively being written and compiled by the contributors.)*
+*(Note: Documentation nodes are actively updated by the engineering team.)*
 
 ## Contributing
 

@@ -27,29 +27,11 @@ const ORANGE: Color = Color::Rgb(249, 115, 22);
 const BLUE: Color = Color::Rgb(96, 165, 250);
 const PURPLE: Color = Color::Rgb(167, 139, 250);
 
-// App State
-struct App {
-    quit: bool,
-    chart_data: Vec<(f64, f64)>,
-    connection_status: String,
-}
+mod app;
+mod event_handler;
+pub mod widgets;
 
-impl App {
-    fn new() -> Self {
-        let mut chart_data = Vec::new();
-        let mut price = 1430.0;
-        for i in 0..100 {
-            let change = (f64::sin(i as f64 * 0.2) * 5.0) + (f64::cos(i as f64 * 0.1) * 3.0) + (i as f64 * 0.2);
-            chart_data.push((i as f64, price + change));
-        }
-        
-        Self {
-            quit: false,
-            chart_data,
-            connection_status: "Connecting...".to_string(),
-        }
-    }
-}
+use app::App;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -102,13 +84,11 @@ async fn main() -> anyhow::Result<()> {
 
         if crossterm::event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                if key.code == KeyCode::Char('q') || key.code == KeyCode::Esc {
-                    app.quit = true;
-                }
+                event_handler::handle_key(&mut app, key);
             }
         }
 
-        if app.quit {
+        if app.should_quit {
             break;
         }
     }
@@ -131,6 +111,10 @@ fn ui(f: &mut Frame, app: &App) {
     draw_top_bar(f, main_layout[0], app);
     draw_main_content(f, main_layout[1], app);
     draw_bottom_bar(f, main_layout[2]);
+
+    if app.show_help {
+        crate::widgets::help_overlay::render_help_overlay(f);
+    }
 }
 
 fn block_with_title<'a>(title: &'a str) -> Block<'a> {

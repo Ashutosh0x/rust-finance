@@ -5,6 +5,8 @@ use std::sync::mpsc::{self, Sender};
 use std::thread;
 use chrono::{Utc, DateTime};
 
+pub mod repositories;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TradeRecord {
     pub tx_sig: String,

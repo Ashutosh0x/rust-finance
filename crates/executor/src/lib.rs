@@ -14,6 +14,9 @@ use tracing::info;
 
 pub mod algos;
 pub mod strategies;
+pub mod dry_run;
+
+use dry_run::DryRunExecutor;
 
 pub struct ExecutorService {
     selector: Arc<relay::NodeSelector>,
@@ -98,8 +101,9 @@ impl ExecutorService {
         }
 
         if std::env::var("USE_MOCK").is_ok() {
-            info!("MOCK mode: Skipping actual transaction send. Returning dummy signature.");
-            return Ok(Signature::new_unique());
+            let dry_runner = DryRunExecutor;
+            let mock_sig = dry_runner.execute_mock(&Action::Hold); // dummy Action just for sign
+            return Ok(mock_sig);
         }
 
         // 1. Fetch blockhash (In production, subscribe to slot updates for zero-latency hash)
