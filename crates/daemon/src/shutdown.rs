@@ -13,14 +13,14 @@ use tracing::{error, info, warn};
 #[derive(Debug, Clone)]
 pub struct ShutdownSignal;
 
-/// Central shutdown controller.  Clone the `ShutdownReceiver` into every
+/// Central shutdown controller. Pass a `ShutdownReceiver` into every
 /// long-running task and poll `receiver.is_shutdown()` or
-/// `receiver.wait().await` to co-operatively stop.
+/// `receiver.wait().await` to co-operatively stop. For tasks spawned later,
+/// call `ShutdownController::subscribe()` to obtain additional receivers.
 pub struct ShutdownController {
     tx: broadcast::Sender<ShutdownSignal>,
 }
 
-#[derive(Clone)]
 pub struct ShutdownReceiver {
     rx: broadcast::Receiver<ShutdownSignal>,
 }
@@ -55,15 +55,6 @@ impl ShutdownReceiver {
     /// Non-blocking check — true if shutdown signal was already sent.
     pub fn is_shutdown(&mut self) -> bool {
         matches!(self.rx.try_recv(), Ok(_) | Err(broadcast::error::TryRecvError::Closed))
-    }
-}
-
-impl Clone for ShutdownReceiver {
-    fn clone(&self) -> Self {
-        // broadcast::Receiver cannot be cloned directly; the caller should use
-        // ShutdownController::subscribe() for new tasks.  This impl is here for
-        // ergonomics but panics to surface misuse.
-        panic!("Use ShutdownController::subscribe() to get a new ShutdownReceiver");
     }
 }
 

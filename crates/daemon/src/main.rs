@@ -185,28 +185,37 @@ async fn main() -> Result<()> {
                     match exec_clone.execute_action(action.clone()).await {
                         Ok(sig) => {
                             info!("Action executed successfully: {}", sig);
-                            // 1. Persist trade — use actual price from execution, not hardcoded
-                            if let Action::Buy { token, size, .. } = &action {
-                                let fill_price = 0.0; // TODO: Extract from execution result
-                                let record = persistence::TradeRecord {
-                                    tx_sig: sig.to_string(),
-                                    token: token.clone(),
-                                    entry_price: fill_price,
-                                    exit_price: None,
-                                    size: *size,
-                                    pnl: None,
-                                    ts: chrono::Utc::now(),
-                                };
-                                let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
-                                
-                                // 2. Update position manager
-                                {
-                                    let mut pm = pos_clone.write().await;
-                                    pm.apply_fill(token, *size, fill_price, 0.0);
+                            // 1. Persist trade — record that an action was executed, but do not
+                            //    fabricate fill prices or PnL. Actual fills (with real prices)
+                            //    should be recorded by the execution/fills pipeline.
+                            match &action {
+                                Action::Buy { token, size, .. } => {
+                                    let record = persistence::TradeRecord {
+                                        tx_sig: sig.to_string(),
+                                        token: token.clone(),
+                                        entry_price: None,
+                                        exit_price: None,
+                                        size: *size,
+                                        pnl: None,
+                                        ts: chrono::Utc::now(),
+                                    };
+                                    let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
+                                    bus_clone.broadcast(BotEvent::Feed(format!("BUY {} completed: {}", token, sig)));
                                 }
-                                
-                                // 3. Broadcast to TUI
-                                bus_clone.broadcast(BotEvent::Feed(format!("BUY {} completed: {}", token, sig)));
+                                Action::Sell { token, size, .. } => {
+                                    let record = persistence::TradeRecord {
+                                        tx_sig: sig.to_string(),
+                                        token: token.clone(),
+                                        entry_price: None,
+                                        exit_price: None,
+                                        size: *size,
+                                        pnl: None,
+                                        ts: chrono::Utc::now(),
+                                    };
+                                    let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
+                                    bus_clone.broadcast(BotEvent::Feed(format!("SELL {} completed: {}", token, sig)));
+                                }
+                                Action::Hold => {}
                             }
                         }
                         Err(e) => {
