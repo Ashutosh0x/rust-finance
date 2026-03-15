@@ -33,55 +33,25 @@ A high-performance, low-latency trading terminal and daemon built completely in 
 
 ```mermaid
 graph TD;
-    subgraph External Sources
-        NYSE[Market Exchanges]
-        NASDAQ[Market Exchanges]
-        Crypto[Crypto WSS]
+    subgraph "External Feeds"
+        FH(Finnhub WS) --> |Market Data| Ingest
+        ALP(Alpaca) --> |Account Data| Ingest
+        LLM(Anthropic Claude) <--> AI
     end
 
-    subgraph Data Pipeline
-        Ingestion(Ingestion Crate)
-        Normalizer(Normalizer)
-        Ingestion --> Normalizer
+    subgraph "RustForge Daemon"
+        Ingest(Ingestion Engine) --> Relay(Latency Relay)
+        Relay --> Bus(TCP Event Bus)
+        Bus --> AI(AI Engine - Dexter/MiroFish)
+        AI --> Strategy(Strategy Dispatcher)
+        Strategy --> Exec(Execution Guard)
+        Exec --> Blockchain(Solana RPC/Jupiter)
     end
-
-    NYSE --> Ingestion
-    NASDAQ --> Ingestion
-    Crypto --> Ingestion
-
-    subgraph Core Infrastructure
-        EventBus[TCP Event Bus]
-        Daemon((Core Daemon Engine))
-        DB[(Persistence Layer)]
-        
-        Normalizer -- Market Events --> EventBus
-        EventBus <--> Daemon
-        Daemon --> DB
-    end
-
-    subgraph Intelligence & Execution
-        AI_Dexter(Dexter Analyst AI)
-        AI_Miro(MiroFish Swarm AI)
-        AnthropicAPI[Anthropic Claude opus 4.6]
-        
-        Relay(Network Relay & Node Selector)
-        RPC[Solana Mainnet RPC Nodes]
-
-        Daemon <--> AI_Dexter
-        Daemon <--> AI_Miro
-        AI_Dexter <--> AnthropicAPI
-        AI_Miro <--> AnthropicAPI
-        
-        Daemon --> Relay
-        Relay --> RPC
-    end
-
-    subgraph Interfaces
-        TUI[Terminal User Interface - Ratatui]
-        Web[Web Dashboard]
-        
-        EventBus --> TUI
-        EventBus --> Web
+    
+    subgraph "Elite Quant Algorithms"
+        Strategy --> MM(Avellaneda-Stoikov MM)
+        Strategy --> Arb(Z-Score Stat Arb)
+        Strategy --> PPO(PPO RL Agent)
     end
 ```
 
