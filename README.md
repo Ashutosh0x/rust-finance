@@ -134,6 +134,30 @@ cargo run -p tui --release
 * **Terminal UI (TUI):** A professional-grade, multi-column dashboard rendered directly in your terminal using Ratatui. Features high-res Braille price charts, live options chains (`options_chain.rs`), and live portfolio P&L tracking.
 * **Institutional Execution Protocol:** Active SEBI pre-trade limits, bracket routing, and native FIX 4.4 serialization.
 
+## Institutional Quantitative Models (Bloomberg & Jane Street Standards)
+
+RustForge natively implements the top mathematical formulations utilized by elite trading desks and quantitative hedge funds:
+
+### 1. Heston Stochastic Volatility Model
+Used extensively to capture the volatility smile and skew that classical Black-Scholes fails to price correctly.
+*   **Asset Price Dynamics:** $dS = \mu \cdot S \cdot dt + \sqrt{v} \cdot S \cdot dW_1$
+*   **Variance Dynamics:** $dv = \kappa (\theta - v) dt + \sigma_v \sqrt{v} dW_2$
+*   **Brownian Correlation:** $corr(dW_1, dW_2) = \rho \cdot dt$
+
+### 2. GARCH(1,1) Volatility Forecasting
+Used by risk management systems to dynamically forecast volatility using Maximum Likelihood Estimation, prioritizing recent market shocks.
+*   **Conditional Variance Formulation:** $\sigma_t^2 = \omega + \alpha \cdot \epsilon_{t-1}^2 + \beta \cdot \sigma_{t-1}^2$
+
+### 3. Bloomberg NeurIPS 2025 Interval Regression
+A specialized machine learning Neural Network loss function used to price illiquid corporate bonds purely based on bounded Bid/Ask spreads, bypassing the requirement for noisy "mid-price" assumptions.
+*   **Interval Loss Gradient:**
+    *   `If Prediction < Bid:` $\text{Loss} = (\text{Bid} - \text{Prediction})^2$
+    *   `If Prediction > Ask:` $\text{Loss} = (\text{Prediction} - \text{Ask})^2$
+    *   `Else (Inside Spread):` $\text{Loss} = 0$
+
+### 4. Hull-White Trinomial Rate Trees & BVAL
+Proprietary implementation of the **Hull-White One-Factor** model wrapped in a Trinomial Tree algorithm for American interest-rate derivatives, mapping directly against the Bloomberg **BVAL 3-Step** structural bond pricing cascade.
+
 ## Detailed Documentation
 
 For a deep dive into the system's internal workings, component integration details, and deployment guides, please refer to the inner documentation:
