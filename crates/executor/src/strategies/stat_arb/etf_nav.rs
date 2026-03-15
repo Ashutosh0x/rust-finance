@@ -7,11 +7,17 @@ pub struct EtfNavArbitrage {
 
 impl EtfNavArbitrage {
     pub fn new(min_discount_threshold: f64) -> Self {
-        Self { min_discount_threshold }
+        Self {
+            min_discount_threshold,
+        }
     }
 
     /// Calculates if the ETF is trading at a significant discount/premium to its basket
-    pub fn analyze_arbitrage_opportunity(&self, etf_price: f64, computed_nav: f64) -> Option<String> {
+    pub fn analyze_arbitrage_opportunity(
+        &self,
+        etf_price: f64,
+        computed_nav: f64,
+    ) -> Option<String> {
         if computed_nav == 0.0 {
             return None;
         }

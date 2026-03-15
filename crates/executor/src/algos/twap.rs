@@ -21,16 +21,16 @@ impl TwapAlgo {
     pub fn generate_slices(&self) -> Vec<(Action, Duration)> {
         let size_per_slice = self.total_size / (self.slice_count as f64);
         let interval = self.duration / (self.slice_count as u32);
-        
+
         let mut schedule = Vec::new();
         for _ in 0..self.slice_count {
             schedule.push((
-                Action::Buy { 
-                    token: self.token.clone(), 
-                    size: size_per_slice, 
-                    confidence: 0.9 
+                Action::Buy {
+                    token: self.token.clone(),
+                    size: size_per_slice,
+                    confidence: 0.9,
                 },
-                interval
+                interval,
             ));
         }
         schedule

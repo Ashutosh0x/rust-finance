@@ -13,9 +13,9 @@ use tracing::{error, info, warn};
 #[derive(Debug, Clone)]
 pub struct ShutdownSignal;
 
-/// Central shutdown controller.  Clone the `ShutdownReceiver` into every
-/// long-running task and poll `receiver.is_shutdown()` or
-/// `receiver.wait().await` to co-operatively stop.
+/// Central shutdown controller.  Call `subscribe()` to obtain a new
+/// `ShutdownReceiver` for each long-running task and poll
+/// `receiver.is_shutdown()` or `receiver.wait().await` to co-operatively stop.
 pub struct ShutdownController {
     tx: broadcast::Sender<ShutdownSignal>,
 }
@@ -53,7 +53,10 @@ impl ShutdownReceiver {
 
     /// Non-blocking check — true if shutdown signal was already sent.
     pub fn is_shutdown(&mut self) -> bool {
-        matches!(self.rx.try_recv(), Ok(_) | Err(broadcast::error::TryRecvError::Closed))
+        matches!(
+            self.rx.try_recv(),
+            Ok(_) | Err(broadcast::error::TryRecvError::Closed)
+        )
     }
 }
 
@@ -87,9 +90,7 @@ pub async fn wait_for_os_signal() {
 
     #[cfg(not(unix))]
     {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Ctrl-C handler");
+        tokio::signal::ctrl_c().await.expect("Ctrl-C handler");
         info!("Received Ctrl-C");
     }
 }

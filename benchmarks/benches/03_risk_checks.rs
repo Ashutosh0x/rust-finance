@@ -2,15 +2,23 @@
 // Measures atomic kill switch, branchless limits, and GARCH volatility overhead
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hdrhistogram::Histogram;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-pub struct KillSwitch { active: AtomicBool }
+pub struct KillSwitch {
+    active: AtomicBool,
+}
 
 impl KillSwitch {
-    pub fn new() -> Self { Self { active: AtomicBool::new(false) } }
-    #[inline(always)] pub fn is_active(&self) -> bool { self.active.load(Ordering::Relaxed) }
+    pub fn new() -> Self {
+        Self {
+            active: AtomicBool::new(false),
+        }
+    }
+    #[inline(always)]
+    pub fn is_active(&self) -> bool {
+        self.active.load(Ordering::Relaxed)
+    }
 }
 
 #[derive(Clone)]
@@ -32,18 +40,31 @@ pub fn branchless_risk_check(qty: f64, price: f64, limits: &RiskLimits) -> bool 
 
 #[repr(C, align(64))]
 pub struct GarchState {
-    pub omega: f64, pub alpha: f64, pub beta: f64,
-    pub current_variance: f64, pub last_return: f64, pub annualised_vol: f64,
+    pub omega: f64,
+    pub alpha: f64,
+    pub beta: f64,
+    pub current_variance: f64,
+    pub last_return: f64,
+    pub annualised_vol: f64,
     _pad: [u8; 16],
 }
 impl GarchState {
     pub fn new(omega: f64, alpha: f64, beta: f64) -> Self {
-        Self { omega, alpha, beta, current_variance: 0.0001, last_return: 0.0, annualised_vol: 0.0, _pad: [0; 16] }
+        Self {
+            omega,
+            alpha,
+            beta,
+            current_variance: 0.0001,
+            last_return: 0.0,
+            annualised_vol: 0.0,
+            _pad: [0; 16],
+        }
     }
     #[inline(always)]
     pub fn update(&mut self, new_return: f64) -> f64 {
         let epsilon_sq = self.last_return * self.last_return;
-        self.current_variance = self.omega + self.alpha * epsilon_sq + self.beta * self.current_variance;
+        self.current_variance =
+            self.omega + self.alpha * epsilon_sq + self.beta * self.current_variance;
         self.last_return = new_return;
         self.annualised_vol = (self.current_variance * 252.0).sqrt();
         self.annualised_vol
@@ -58,9 +79,20 @@ fn bench_kill_switch_atomic(c: &mut Criterion) {
 }
 
 fn bench_branchless_pre_trade(c: &mut Criterion) {
-    let limits = RiskLimits { max_order_qty: 10_000.0, max_notional: 5_000_000.0, max_position: 50_000.0, daily_turnover_remaining: 100_000_000.0 };
+    let limits = RiskLimits {
+        max_order_qty: 10_000.0,
+        max_notional: 5_000_000.0,
+        max_position: 50_000.0,
+        daily_turnover_remaining: 100_000_000.0,
+    };
     c.bench_function("branchless_risk_check", |b| {
-        b.iter(|| black_box(branchless_risk_check(black_box(100.0), black_box(175.5), black_box(&limits))));
+        b.iter(|| {
+            black_box(branchless_risk_check(
+                black_box(100.0),
+                black_box(175.5),
+                black_box(&limits),
+            ))
+        });
     });
 }
 

@@ -5,9 +5,9 @@
 // Each strategy receives market events and emits trade signals.
 // The daemon routes signals through SEBI + risk checks before execution.
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -232,8 +232,10 @@ impl PluggableStrategy for AiGatedMomentum {
         let has_momentum_down = price_diff < 0.0;
 
         // Ensure AI is strongly confident and aligns with momentum
-        let is_ai_bullish = self.last_ai_action == "BUY" && self.last_ai_confidence >= self.ai_confidence_threshold;
-        let is_ai_bearish = self.last_ai_action == "SELL" && self.last_ai_confidence >= self.ai_confidence_threshold;
+        let is_ai_bullish =
+            self.last_ai_action == "BUY" && self.last_ai_confidence >= self.ai_confidence_threshold;
+        let is_ai_bearish = self.last_ai_action == "SELL"
+            && self.last_ai_confidence >= self.ai_confidence_threshold;
 
         if has_momentum_up && is_ai_bullish && ctx.current_position <= 0.0 {
             // Signal a buy (or cover short and go long)

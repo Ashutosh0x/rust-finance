@@ -78,9 +78,7 @@ impl ReconnectState {
         sleep(Duration::from_millis(sleep_ms)).await;
 
         // Advance delay, capped at max
-        let next = Duration::from_secs_f64(
-            self.current_delay.as_secs_f64() * self.cfg.multiplier,
-        );
+        let next = Duration::from_secs_f64(self.current_delay.as_secs_f64() * self.cfg.multiplier);
         self.current_delay = next.min(self.cfg.max_delay);
 
         true

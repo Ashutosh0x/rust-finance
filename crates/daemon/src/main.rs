@@ -1,18 +1,18 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
+use common::{events::BotEvent, Action, SwapEvent};
 use crossbeam_channel::bounded;
-use parser::ParserService;
-use ingestion::IngestionArgs;
-use strategy::{Strategy, SimpleStrategy};
-use risk::RiskManager;
 use executor::ExecutorService;
 use feature::FeatureEngine;
-use common::{SwapEvent, Action, events::BotEvent};
+use ingestion::IngestionArgs;
+use parser::ParserService;
+use risk::RiskManager;
 use signer::LocalSigner;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use std::sync::Arc;
+use strategy::{SimpleStrategy, Strategy};
 use tokio::sync::mpsc;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 // Modules that exist in crates/daemon/src/
 pub mod ai_pipeline;
@@ -28,10 +28,12 @@ async fn main() -> Result<()> {
     info!("Starting High-Performance RL Trading Bot Daemon");
 
     // --- CONFIGURATION ---
-    let rpc_url = std::env::var("SOL_RPC").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".into());
-    let ws_url = std::env::var("SOL_WS").unwrap_or_else(|_| "wss://api.mainnet-beta.solana.com".into());
+    let rpc_url =
+        std::env::var("SOL_RPC").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".into());
+    let ws_url =
+        std::env::var("SOL_WS").unwrap_or_else(|_| "wss://api.mainnet-beta.solana.com".into());
     let private_key = std::env::var("SOL_PRIVATE_KEY").ok();
-    
+
     let ingestion_args = IngestionArgs {
         ws_url: ws_url.clone(),
         program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(),
@@ -44,65 +46,68 @@ async fn main() -> Result<()> {
 
     // --- SHARED STATE ---
     let feature_engine = Arc::new(FeatureEngine::new());
-    
+
     // Signer — generate mock keypair if no private key
     let signer = if let Some(k) = private_key {
         if let Ok(s) = LocalSigner::from_base58(&k) {
             Some(s)
         } else {
-             warn!("Invalid SOL_PRIVATE_KEY provided. Falling back to mock if enabled.");
-             None 
+            warn!("Invalid SOL_PRIVATE_KEY provided. Falling back to mock if enabled.");
+            None
         }
     } else {
         None
     };
-    
+
     let signer = if let Some(s) = signer {
         Some(s)
     } else {
-         info!("No SOL_PRIVATE_KEY found. Generating random keypair for MOCK mode.");
-         Some(LocalSigner::new(solana_sdk::signature::Keypair::new()))
+        info!("No SOL_PRIVATE_KEY found. Generating random keypair for MOCK mode.");
+        Some(LocalSigner::new(solana_sdk::signature::Keypair::new()))
     };
 
-    // --- OMS (Order Management System) --- Fix #7: Wire OMS into daemon
-    let oms_blotter = Arc::new(
-        oms::blotter::OrderBlotter::new(oms::blotter::ComplianceLimits::default())
-    );
-    let position_manager = Arc::new(tokio::sync::RwLock::new(
-        oms::position::PositionManager::new()
+    // --- OMS, SEBI compliance, and persistence —- infrastructure scaffolding.
+    // These components will be wired into the order flow once an on-chain fill
+    // confirmation listener is integrated (see TODO in the executor task below).
+    let _oms_blotter = Arc::new(oms::blotter::OrderBlotter::new(
+        oms::blotter::ComplianceLimits::default(),
     ));
-
-    // --- SEBI Compliance ---
-    let sebi_compliance = Arc::new(tokio::sync::RwLock::new(
-        oms::sebi::SebiCompliance::new(oms::sebi::SebiConfig::default())
+    let _position_manager = Arc::new(tokio::sync::RwLock::new(
+        oms::position::PositionManager::new(),
     ));
+    let _sebi_compliance = Arc::new(tokio::sync::RwLock::new(oms::sebi::SebiCompliance::new(
+        oms::sebi::SebiConfig::default(),
+    )));
 
     // --- Risk Engine --- Fix #7: Wire risk engine
     let risk_config = risk::kill_switch::RiskConfig::default();
     let (mut risk_engine, _risk_rx) = risk::kill_switch::RiskEngine::new(risk_config);
     let kill_switch_handle = risk_engine.kill_switch_handle();
-    let order_guard = Arc::new(risk::kill_switch::OrderGuard::new(kill_switch_handle.clone()));
+    let order_guard = Arc::new(risk::kill_switch::OrderGuard::new(
+        kill_switch_handle.clone(),
+    ));
 
     // --- SERVICES ---
     // 1. Node Selector
     let nodes = vec![
-        rpc_url.clone(), 
+        rpc_url.clone(),
         "https://api.mainnet-beta.solana.com".to_string(),
     ];
     let selector = Arc::new(relay::NodeSelector::new(nodes));
     selector.clone().start(Duration::from_secs(10));
 
-    let executor = Arc::new(ExecutorService::new(selector.clone(), signer));
+    let executor = Arc::new(ExecutorService::new(selector.clone(), signer).await);
 
     // --- PIPELINE STAGES ---
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<common::events::ControlCommand>(4096);
-    
 
-    // 2. Persistence
+    // --- Persistence writer ---
+    // Runs in the background; will receive InsertTrade commands once fill
+    // prices are confirmed from on-chain data.
     if !std::path::Path::new("data").exists() {
         let _ = std::fs::create_dir("data");
     }
-    let db_tx = persistence::spawn_writer(std::path::Path::new("data/trades.sqlite"))?;
+    let _db_tx = persistence::spawn_writer(std::path::Path::new("data/trades.sqlite"))?;
 
     let event_bus = Arc::new(event_bus::EventBus::start(cmd_tx).await?);
 
@@ -116,17 +121,19 @@ async fn main() -> Result<()> {
     // 1. Parser Worker (Threaded)
     let p_rx = raw_rx.clone();
     let p_tx = event_tx.clone();
-    thread::Builder::new().name("parser-worker".into()).spawn(move || {
-        let parser = ParserService::new(p_rx);
-        info!("Parser thread started");
-        while let Ok(raw) = parser.rx().recv() {
-            if let Ok(events) = parser.process_message(&raw) {
-                for e in events {
-                    let _ = p_tx.send(e);
+    thread::Builder::new()
+        .name("parser-worker".into())
+        .spawn(move || {
+            let parser = ParserService::new(p_rx);
+            info!("Parser thread started");
+            while let Ok(raw) = parser.rx().recv() {
+                if let Ok(events) = parser.process_message(&raw) {
+                    for e in events {
+                        let _ = p_tx.send(e);
+                    }
                 }
             }
-        }
-    })?;
+        })?;
 
     // 2. Strategy & Risk Worker (Threaded)
     let s_rx = event_rx.clone();
@@ -134,101 +141,83 @@ async fn main() -> Result<()> {
     let s_features = feature_engine.clone();
     let ks_guard = order_guard.clone();
 
-    thread::Builder::new().name("strategy-worker".into()).spawn(move || {
-        let mut strategy = SimpleStrategy::new(1_000_000); 
-        // RiskManager::new(max_pos, min_conf, init_equity, max_daily_loss, max_drawdown_pct)
-        let risk_manager = RiskManager::new(1.0, 0.7, 10000.0, 500.0, 0.05);
-        info!("Strategy thread started");
-        
-        let rt = tokio::runtime::Handle::current();
-        
-        while let Ok(event) = s_rx.recv() {
-            // Check kill switch via the async guard
-            if rt.block_on(ks_guard.check()).is_err() {
-                continue;
-            }
+    thread::Builder::new()
+        .name("strategy-worker".into())
+        .spawn(move || {
+            let mut strategy = SimpleStrategy::new(1_000_000);
+            // RiskManager::new(max_pos, min_conf, init_equity, max_daily_loss, max_drawdown_pct)
+            let risk_manager = RiskManager::new(1.0, 0.7, 10000.0, 500.0, 0.05);
+            info!("Strategy thread started");
 
-            s_features.process_event(&event);
-            let action = strategy.on_event(&event);
+            let rt = tokio::runtime::Handle::current();
 
-            if risk_manager.is_halt_required() {
-                warn!("Risk limits breached — kill switch should be triggered");
-            }
+            while let Ok(event) = s_rx.recv() {
+                // Check kill switch via the async guard
+                if rt.block_on(ks_guard.check()).is_err() {
+                    continue;
+                }
 
-            if let Ok(approved) = risk_manager.check_action(action) {
-                if !matches!(approved, Action::Hold) {
-                    let _ = s_tx.blocking_send(approved);
+                s_features.process_event(&event);
+                let action = strategy.on_event(&event);
+
+                if risk_manager.is_halt_required() {
+                    warn!("Risk limits breached — kill switch should be triggered");
+                }
+
+                if let Ok(approved) = risk_manager.check_action(action) {
+                    if !matches!(approved, Action::Hold) {
+                        let _ = s_tx.blocking_send(approved);
+                    }
                 }
             }
-        }
-    })?;
+        })?;
 
-    // 3. Executor Task (Async) — Fix #4: Use actual fill price, not hardcoded 100.0
+    // 3. Executor Task (Async)
     let mut e_rx = action_rx;
     let e_exec = executor.clone();
-    let e_db = db_tx.clone();
     let e_bus = event_bus.clone();
-    let e_blotter = oms_blotter.clone();
-    let e_positions = position_manager.clone();
 
     tokio::spawn(async move {
         info!("Executor task started");
         loop {
             if let Some(action) = e_rx.recv().await {
                 let exec_clone = e_exec.clone();
-                let db_clone = e_db.clone();
                 let bus_clone = e_bus.clone();
-                let blotter_clone = e_blotter.clone();
-                let pos_clone = e_positions.clone();
-                
+
                 tokio::spawn(async move {
                     match exec_clone.execute_action(action.clone()).await {
                         Ok(sig) => {
                             info!("Action executed successfully: {}", sig);
-                            // 1. Persist trade — use actual price from execution, not hardcoded
+                            // Persist trade only when an actual fill price is available.
+                            // Execution currently returns a transaction signature; the real
+                            // fill price must be obtained from an on-chain confirmation
+                            // listener or a fills feed.  Writing a synthetic price here
+                            // would corrupt position/PnL state, so we defer and only
+                            // update the event bus to signal that the order was submitted.
                             match &action {
-                                Action::Buy { token, size, .. } => {
-                                    let fill_price = 100.0; // temporary non-zero fill estimate until execution returns fills
-                                    let record = persistence::TradeRecord {
-                                        tx_sig: sig.to_string(),
-                                        token: token.clone(),
-                                        entry_price: fill_price,
-                                        exit_price: None,
-                                        size: *size,
-                                        pnl: None,
-                                        ts: chrono::Utc::now(),
-                                    };
-                                    let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
-                                    {
-                                        let mut pm = pos_clone.write().await;
-                                        pm.apply_fill(token, *size, fill_price, 0.0);
-                                    }
-                                    bus_clone.broadcast(BotEvent::Feed(format!("BUY {} completed: {}", token, sig)));
+                                Action::Buy { token, .. } => {
+                                    bus_clone.broadcast(BotEvent::Feed(format!(
+                                        "BUY {} submitted: {}",
+                                        token, sig
+                                    )));
                                 }
-                                Action::Sell { token, size, .. } => {
-                                    let fill_price = 100.0;
-                                    let record = persistence::TradeRecord {
-                                        tx_sig: sig.to_string(),
-                                        token: token.clone(),
-                                        entry_price: fill_price,
-                                        exit_price: Some(fill_price),
-                                        size: *size,
-                                        pnl: Some(0.0),
-                                        ts: chrono::Utc::now(),
-                                    };
-                                    let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
-                                    {
-                                        let mut pm = pos_clone.write().await;
-                                        pm.apply_fill(token, -*size, fill_price, 0.0);
-                                    }
-                                    bus_clone.broadcast(BotEvent::Feed(format!("SELL {} completed: {}", token, sig)));
+                                Action::Sell { token, .. } => {
+                                    bus_clone.broadcast(BotEvent::Feed(format!(
+                                        "SELL {} submitted: {}",
+                                        token, sig
+                                    )));
                                 }
                                 Action::Hold => {}
                             }
+                            // TODO: subscribe to on-chain confirmation events and call
+                            // db.send(PersistCommand::InsertTrade(...)) and
+                            // position_manager.write().apply_fill(...) once the actual
+                            // fill price is confirmed.
                         }
                         Err(e) => {
                             error!("Execution failed: {:?}", e);
-                            bus_clone.broadcast(BotEvent::Feed(format!("Execution FAILED: {:?}", e)));
+                            bus_clone
+                                .broadcast(BotEvent::Feed(format!("Execution FAILED: {:?}", e)));
                         }
                     }
                 });
@@ -291,10 +280,12 @@ async fn main() -> Result<()> {
 
         // Graceful Shutdown Hook
         info!("Daemon is running. Press Ctrl+C to initiate graceful shutdown.");
-        tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
-        
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for ctrl-c");
+
         info!("SIGINT received. Initiating graceful shutdown...");
-        
+
         info!("Flushing persistence layer and disconnecting event bus...");
         tokio::time::sleep(Duration::from_millis(500)).await;
         info!("Shutdown complete.");

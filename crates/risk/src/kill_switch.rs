@@ -5,11 +5,11 @@
 // into the order submission path — any breach halts trading atomically.
 
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 // ── Risk Events ──────────────────────────────────────────────────────────────
 
@@ -60,9 +60,9 @@ pub struct RiskConfig {
 impl Default for RiskConfig {
     fn default() -> Self {
         Self {
-            var_95_limit: 0.02,       // 2% of portfolio
-            max_drawdown: 0.05,       // 5% drawdown halt
-            vol_threshold: 0.80,      // 80% annualised vol
+            var_95_limit: 0.02,  // 2% of portfolio
+            max_drawdown: 0.05,  // 5% drawdown halt
+            vol_threshold: 0.80, // 80% annualised vol
             garch_omega: 0.000001,
             garch_alpha: 0.10,
             garch_beta: 0.85,
@@ -75,11 +75,21 @@ impl Default for RiskConfig {
 
 // ── Kill Switch State ────────────────────────────────────────────────────────
 
+/// Metadata stored under the RwLock — not consulted on the hot path.
 #[derive(Debug)]
 struct KillSwitchState {
-    active: AtomicBool,
     reason: Option<String>,
     activated_at: Option<Instant>,
+}
+
+/// Cloneable handle shared between `RiskEngine` and every `OrderGuard`.
+/// The `active` flag lives outside any lock so hot-path checks are a single
+/// atomic load; the `RwLock<KillSwitchState>` is only acquired to read or
+/// write the `reason`/`activated_at` metadata.
+#[derive(Clone)]
+pub struct KillSwitchHandle {
+    active: Arc<AtomicBool>,
+    state: Arc<RwLock<KillSwitchState>>,
 }
 
 // ── GARCH(1,1) Tracker ───────────────────────────────────────────────────────
@@ -111,9 +121,8 @@ impl GarchTracker {
             self.returns.push_back(ret);
 
             // σ²_t = ω + α·ε²_{t-1} + β·σ²_{t-1}
-            self.current_variance = self.omega
-                + self.alpha * ret.powi(2)
-                + self.beta * self.current_variance;
+            self.current_variance =
+                self.omega + self.alpha * ret.powi(2) + self.beta * self.current_variance;
 
             self.last_price = Some(price);
             // Convert daily variance to annualised vol
@@ -124,6 +133,9 @@ impl GarchTracker {
         }
     }
 
+    /// Returns the current annualised volatility estimate without requiring a
+    /// new price observation.  Available for diagnostic/logging callers.
+    #[allow(dead_code)]
     fn annualised_vol(&self) -> f64 {
         (self.current_variance * 252.0).sqrt()
     }
@@ -145,6 +157,7 @@ fn historical_var(returns: &VecDeque<f64>, confidence: f64) -> Option<f64> {
 
 pub struct RiskEngine {
     cfg: RiskConfig,
+    active: Arc<AtomicBool>,
     kill_switch: Arc<RwLock<KillSwitchState>>,
     event_tx: broadcast::Sender<RiskEvent>,
     portfolio_peak: f64,
@@ -159,8 +172,8 @@ impl RiskEngine {
         let (tx, rx) = broadcast::channel(256);
         let engine = Self {
             cfg: cfg.clone(),
+            active: Arc::new(AtomicBool::new(false)),
             kill_switch: Arc::new(RwLock::new(KillSwitchState {
-                active: AtomicBool::new(false),
                 reason: None,
                 activated_at: None,
             })),
@@ -180,8 +193,11 @@ impl RiskEngine {
     }
 
     /// Kill switch handle — clone into the order submission path.
-    pub fn kill_switch_handle(&self) -> Arc<RwLock<KillSwitchState>> {
-        self.kill_switch.clone()
+    pub fn kill_switch_handle(&self) -> KillSwitchHandle {
+        KillSwitchHandle {
+            active: self.active.clone(),
+            state: self.kill_switch.clone(),
+        }
     }
 
     /// Update portfolio value and run all risk checks.
@@ -218,7 +234,11 @@ impl RiskEngine {
             .garch_trackers
             .entry(symbol.to_string())
             .or_insert_with(|| {
-                GarchTracker::new(self.cfg.garch_omega, self.cfg.garch_alpha, self.cfg.garch_beta)
+                GarchTracker::new(
+                    self.cfg.garch_omega,
+                    self.cfg.garch_alpha,
+                    self.cfg.garch_beta,
+                )
             });
 
         if let Some(ann_vol) = tracker.update(price) {
@@ -273,9 +293,7 @@ impl RiskEngine {
                     actual_loss: limit_dollar,
                 };
                 let _ = self.event_tx.send(event);
-                let reason = format!(
-                    "95% VaR ${var_dollar:.2} exceeds limit ${limit_dollar:.2}"
-                );
+                let reason = format!("95% VaR ${var_dollar:.2} exceeds limit ${limit_dollar:.2}");
                 return self.activate_kill_switch(reason).await;
             }
         }
@@ -283,10 +301,15 @@ impl RiskEngine {
     }
 
     async fn activate_kill_switch(&self, reason: String) -> Result<(), String> {
-        let mut ks = self.kill_switch.write().await;
-        if !ks.active.load(Ordering::Relaxed) {
+        // Use compare_exchange so activation happens exactly once even under
+        // concurrent calls.
+        if self
+            .active
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+            .is_ok()
+        {
             error!(reason = %reason, "🔴 KILL SWITCH ACTIVATED");
-            ks.active.store(true, Ordering::Relaxed);
+            let mut ks = self.kill_switch.write().await;
             ks.reason = Some(reason.clone());
             ks.activated_at = Some(Instant::now());
             let _ = self.event_tx.send(RiskEvent::KillSwitchActivated {
@@ -297,38 +320,42 @@ impl RiskEngine {
     }
 
     pub async fn reset_kill_switch(&self) {
+        self.active.store(false, Ordering::Release);
         let mut ks = self.kill_switch.write().await;
-        ks.active.store(false, Ordering::Relaxed);
         ks.reason = None;
         ks.activated_at = None;
         info!("🟢 Kill switch reset — trading resumed");
         let _ = self.event_tx.send(RiskEvent::KillSwitchReset);
     }
 
-    pub async fn is_kill_switch_active(&self) -> bool {
-        self.kill_switch.read().await.active.load(Ordering::Relaxed)
+    pub fn is_kill_switch_active(&self) -> bool {
+        self.active.load(Ordering::Acquire)
     }
 }
 
 /// Guard used at the order submission path.
 /// Call `check()` before any order is sent.
 pub struct OrderGuard {
-    kill_switch: Arc<RwLock<KillSwitchState>>,
+    handle: KillSwitchHandle,
 }
 
 impl OrderGuard {
-    pub fn new(kill_switch: Arc<RwLock<KillSwitchState>>) -> Self {
-        Self { kill_switch }
+    pub fn new(handle: KillSwitchHandle) -> Self {
+        Self { handle }
     }
 
     pub async fn check(&self) -> Result<(), String> {
-        let ks = self.kill_switch.read().await;
-        if ks.active.load(Ordering::Relaxed) {
-            let reason = ks.reason.clone().unwrap_or_else(|| "Kill switch active".to_string());
-            Err(format!("Order blocked by kill switch: {reason}"))
-        } else {
-            Ok(())
+        // Fast path: single atomic load without any lock.
+        if !self.handle.active.load(Ordering::Acquire) {
+            return Ok(());
         }
+        // Slow path: take the read lock only to retrieve the reason string.
+        let ks = self.handle.state.read().await;
+        let reason = ks
+            .reason
+            .clone()
+            .unwrap_or_else(|| "Kill switch active".to_string());
+        Err(format!("Order blocked by kill switch: {reason}"))
     }
 }
 
@@ -347,7 +374,7 @@ mod tests {
         // Drop to 94% of peak → 6% drawdown → should trip
         let result = engine.update_portfolio(9_400.0).await;
         assert!(result.is_err());
-        assert!(engine.is_kill_switch_active().await);
+        assert!(engine.is_kill_switch_active());
     }
 
     #[tokio::test]
