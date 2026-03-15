@@ -6,6 +6,7 @@ pub mod drawdown_monitor;
 pub mod var;
 pub mod pnl_attribution;
 pub mod garch;
+pub mod kill_switch;
 
 use daily_loss_limit::DailyLossLimit;
 use drawdown_monitor::DrawdownMonitor;

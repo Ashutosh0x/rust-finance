@@ -16,6 +16,9 @@ use tracing::{info, error, warn};
 
 mod kill_switch;
 pub mod ai_pipeline;
+pub mod circuit_breaker;
+pub mod reconnect;
+pub mod shutdown;
 use kill_switch::KillSwitch;
 
 #[tokio::main]

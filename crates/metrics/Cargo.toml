@@ -1,0 +1,9 @@
+[package]
+name = "metrics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+tracing = "0.1.40"

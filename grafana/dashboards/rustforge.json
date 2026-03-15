@@ -1,0 +1,262 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "title": "RustForge Trading Dashboard",
+  "uid": "rustforge-main",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "🔴 Kill Switch",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_kill_switch_active",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "options": {
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            { "value": 0, "color": "green" },
+            { "value": 1, "color": "red" }
+          ]
+        },
+        "mappings": [
+          { "options": { "0": { "text": "ACTIVE" } }, "type": "value" },
+          { "options": { "1": { "text": "TRIPPED" } }, "type": "value" }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Portfolio Value (USD)",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_portfolio_value_usd",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 90000, "color": "yellow" },
+              { "value": 100000, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Current Drawdown",
+      "type": "gauge",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_portfolio_drawdown * 100",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 20,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 3, "color": "yellow" },
+              { "value": 5, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "95% VaR",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_portfolio_var_95",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "id": 5,
+      "title": "Open Orders",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_open_orders",
+        "datasource": "${DS_PROMETHEUS}"
+      }]
+    },
+    {
+      "id": 6,
+      "title": "Portfolio Value Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [{
+        "expr": "rustforge_portfolio_value_usd",
+        "legendFormat": "Portfolio Value",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "id": 7,
+      "title": "Order Latency (µs) P50/P95/P99",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(rustforge_order_latency_us_bucket[1m]))",
+          "legendFormat": "p50",
+          "datasource": "${DS_PROMETHEUS}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(rustforge_order_latency_us_bucket[1m]))",
+          "legendFormat": "p95",
+          "datasource": "${DS_PROMETHEUS}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(rustforge_order_latency_us_bucket[1m]))",
+          "legendFormat": "p99",
+          "datasource": "${DS_PROMETHEUS}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "µs" } }
+    },
+    {
+      "id": 8,
+      "title": "Orders per Minute",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(rustforge_orders_submitted_total[1m]) * 60",
+          "legendFormat": "Submitted",
+          "datasource": "${DS_PROMETHEUS}"
+        },
+        {
+          "expr": "rate(rustforge_orders_filled_total[1m]) * 60",
+          "legendFormat": "Filled",
+          "datasource": "${DS_PROMETHEUS}"
+        },
+        {
+          "expr": "rate(rustforge_orders_rejected_total[1m]) * 60",
+          "legendFormat": "Rejected",
+          "datasource": "${DS_PROMETHEUS}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "RPC Node Latency (µs)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 12, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(rustforge_rpc_latency_us_bucket[1m]))",
+          "legendFormat": "{{node}} p95",
+          "datasource": "${DS_PROMETHEUS}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "µs" } }
+    },
+    {
+      "id": 10,
+      "title": "RPC Node Health",
+      "type": "table",
+      "gridPos": { "x": 16, "y": 12, "w": 8, "h": 6 },
+      "targets": [{
+        "expr": "rustforge_rpc_node_healthy",
+        "legendFormat": "{{node}}",
+        "datasource": "${DS_PROMETHEUS}"
+      }]
+    },
+    {
+      "id": 11,
+      "title": "AI Signal Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 18, "w": 8, "h": 6 },
+      "targets": [{
+        "expr": "rate(rustforge_ai_signals_total[5m]) * 60",
+        "legendFormat": "{{analyst}} {{action}}",
+        "datasource": "${DS_PROMETHEUS}"
+      }]
+    },
+    {
+      "id": 12,
+      "title": "AI Analyst Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 18, "w": 8, "h": 6 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, rate(rustforge_ai_latency_ms_bucket[5m]))",
+        "legendFormat": "{{analyst}} p95",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 13,
+      "title": "GARCH Annualised Vol",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 18, "w": 8, "h": 6 },
+      "targets": [{
+        "expr": "rustforge_garch_annualised_vol * 100",
+        "legendFormat": "{{symbol}}",
+        "datasource": "${DS_PROMETHEUS}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percent" } }
+    },
+    {
+      "id": 14,
+      "title": "Circuit Breaker States",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 24, "w": 8, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_circuit_breaker_state",
+        "legendFormat": "{{service}}",
+        "datasource": "${DS_PROMETHEUS}"
+      }]
+    },
+    {
+      "id": 15,
+      "title": "DB Write Queue Depth",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 24, "w": 8, "h": 4 },
+      "targets": [{
+        "expr": "rustforge_db_queue_depth",
+        "datasource": "${DS_PROMETHEUS}"
+      }]
+    },
+    {
+      "id": 16,
+      "title": "Market Events / sec",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 24, "w": 8, "h": 4 },
+      "targets": [{
+        "expr": "rate(rustforge_market_events_total[10s])",
+        "legendFormat": "{{source}}",
+        "datasource": "${DS_PROMETHEUS}"
+      }]
+    }
+  ]
+}

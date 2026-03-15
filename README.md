@@ -136,7 +136,10 @@ cargo run -p tui --release
     * **Compaction API Integration:** Infinite deep context length allows the daemon to retain rolling multi-week token histories purely on server-side summarizations, reducing overhead significantly.
     * **NeurIPS 2025 Interval Regression:** Advanced multi-layer perceptron training natively on Bid/Ask spreads without lit prints.
 * **Terminal UI (TUI):** A professional-grade, multi-column dashboard rendered directly in your terminal using Ratatui. Features high-res Braille price charts, live options chains (`options_chain.rs`), and live portfolio P&L tracking.
-* **Institutional Execution Protocol:** Active SEBI pre-trade limits, bracket routing, and native FIX 4.4 serialization.
+* **Institutional Execution Protocol:** Active SEBI pre-trade limits, bracket routing, and native FIX 4.4 serialization layer.
+* **Order Management System (OMS):** Thread-safe blotter, automated portfolio tracking (VWAP, Net Qty), position flipping execution, and PNL calculations.
+* **Backtesting Engine:** Full historical data simulation modeling exact tick fills, explicit slippage limits, commission structures, matching Sharpe/Sortino parameters.
+* **Observability Telemetry:** Complete prometheus-exporter native integration emitting 30+ internal metrics directly coupled to an Axum websocket UI and standard Grafana dashboards.
 * **Ultra-Low Latency Tiered Database:**
     * **Hot-State Memory:** `DragonflyDB` caching live portfolios and AI signal structures completely lock-free.
     * **Async Persistence Worker:** Decoupled `tokio::mpsc` queue passing disk I/O onto `PostgreSQL 16` and **TimescaleDB** Hypertables supporting millions of inserts globally without locking the main thread.

@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: rustforge_dragonfly
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    ulimits:
+      memlock: -1
+    command: >
+      --logtostderr
+      --cache_mode=true
+      --maxmemory=2gb
+      --hz=1000
+      --tcp_nodelay=true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - rustforge_net
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: rustforge_timescale
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rustforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rustforge_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-rustforge}
+      TIMESCALEDB_TELEMETRY: "off"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./crates/persistence/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rustforge}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - rustforge_net
+
+  pgbouncer:
+    image: bitnami/pgbouncer:latest
+    container_name: rustforge_pgbouncer
+    restart: unless-stopped
+    ports:
+      - "6432:6432"
+    environment:
+      POSTGRESQL_HOST: timescaledb
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: ${POSTGRES_USER:-rustforge}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-rustforge_secret}
+      POSTGRESQL_DATABASE: ${POSTGRES_DB:-rustforge}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 1000
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - rustforge_net
+
+volumes:
+  timescale_data:
+
+networks:
+  rustforge_net:
+    driver: bridge
