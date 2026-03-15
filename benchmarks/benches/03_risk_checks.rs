@@ -2,7 +2,6 @@
 // Measures atomic kill switch, branchless limits, and GARCH volatility overhead
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hdrhistogram::Histogram;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
