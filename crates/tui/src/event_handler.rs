@@ -4,7 +4,7 @@ use crate::app::App;
 pub fn handle_key(app: &mut App, key: KeyEvent) {
     if app.show_help {
         match key.code {
-            KeyCode::Esc | KeyCode::Char('?') => app.show_help = false,
+            KeyCode::Esc | KeyCode::Char('h') | KeyCode::Char('?') => app.show_help = false,
             _ => {}
         }
         return;
@@ -32,7 +32,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 
     match (key.modifiers, key.code) {
         // ── Help ──────────────────────────────────────────────────────────
-        (KeyModifiers::NONE, KeyCode::Char('?')) => app.show_help = true,
+        (KeyModifiers::NONE, KeyCode::Char('?')) | (KeyModifiers::NONE, KeyCode::Char('h')) => app.show_help = true,
 
         // ── System ────────────────────────────────────────────────────────
         (KeyModifiers::CONTROL, KeyCode::Char('k')) => {
@@ -85,7 +85,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         (KeyModifiers::NONE, KeyCode::Char('b')) => app.open_buy_dialog(),
         (KeyModifiers::NONE, KeyCode::Char('s')) => app.open_sell_dialog(),
         (KeyModifiers::NONE, KeyCode::Char('x')) => app.cancel_selected(),
-        (KeyModifiers::NONE, KeyCode::Char('h')) => app.halve_position(),
+        (KeyModifiers::SHIFT, KeyCode::Char('H')) => app.halve_position(),
         (KeyModifiers::NONE, KeyCode::Enter) => app.confirm_order(),
         (KeyModifiers::NONE, KeyCode::Esc)   => app.dismiss_dialog(),
 
