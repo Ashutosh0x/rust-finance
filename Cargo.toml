@@ -32,6 +32,7 @@ members = [
   "crates/fix",
   "crates/oms",
   "crates/swarm_sim",
+  "crates/knowledge_graph",
   "benchmarks",
 ]
 

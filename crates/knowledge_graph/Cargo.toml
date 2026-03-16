@@ -1,0 +1,15 @@
+[package]
+name = "knowledge_graph"
+version = "0.1.0"
+edition = "2021"
+description = "Financial entity knowledge graph for RustForge — petgraph-backed GraphRAG"
+
+[dependencies]
+petgraph      = { version = "0.6", features = ["serde-1"] }
+serde         = { version = "1", features = ["derive"] }
+serde_json    = "1"
+tokio         = { version = "1", features = ["full"] }
+tracing       = "0.1"
+chrono        = { version = "0.4", features = ["serde"] }
+anyhow        = "1"
+# common = { path = "../common" }
