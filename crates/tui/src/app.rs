@@ -394,7 +394,7 @@ impl App {
                     pos.holding = size;
                 } else {
                     self.positions.push(PositionEntry {
-                        symbol: token.clone(),
+                        symbol: token.to_string(),
                         holding: size,
                         pnl_pct: 0.0,
                     });

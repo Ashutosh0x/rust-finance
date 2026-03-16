@@ -2,6 +2,9 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{info, error};
+use governor::{Quota, RateLimiter, state::NotKeyed, state::InMemoryState, clock::DefaultClock};
+use std::num::NonZeroU32;
+use std::sync::Arc;
 
 /// Request structure mapping heavily to Alpaca's JSON schema for `POST /v2/orders`.
 /// Note: Extended hours and Trailing Stops are omitted in this basic implementation.
@@ -55,6 +58,7 @@ pub struct AlpacaBroker {
     api_key: String,
     secret_key: String,
     base_url: String,
+    limiter: Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
 }
 
 impl AlpacaBroker {
@@ -64,6 +68,7 @@ impl AlpacaBroker {
             api_key,
             secret_key,
             base_url: "https://paper-api.alpaca.markets".to_string(), // Defaulting to paper trading for safety
+            limiter: Arc::new(RateLimiter::direct(Quota::per_minute(NonZeroU32::new(150).unwrap()))),
         }
     }
 
@@ -71,6 +76,9 @@ impl AlpacaBroker {
         let url = format!("{}/v2/orders", self.base_url);
         
         info!("Submitting Alpaca order: {:?}", request);
+
+        // Rate limit API submissions (150/minute)
+        self.limiter.until_ready().await;
 
         let response = self.client.post(&url)
             .header("APCA-API-KEY-ID", &self.api_key)
@@ -91,6 +99,9 @@ impl AlpacaBroker {
 
     pub async fn get_positions(&self) -> Result<serde_json::Value> {
         let url = format!("{}/v2/positions", self.base_url);
+        
+        self.limiter.until_ready().await;
+        
         let response = self.client.get(&url)
             .header("APCA-API-KEY-ID", &self.api_key)
             .header("APCA-API-SECRET-KEY", &self.secret_key)

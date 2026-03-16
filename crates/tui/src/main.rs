@@ -13,7 +13,7 @@ use ratatui::{
     text::Line,
 };
 use tokio::net::TcpStream;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 
 // Custom Colors matching the image
@@ -75,21 +75,25 @@ async fn main() -> anyhow::Result<()> {
         loop {
             match TcpStream::connect("127.0.0.1:7001").await {
                 Ok(stream) => {
-                    let _ = tx_status_clone.send("Connected to Daemon (127.0.0.1:7001)".to_string()).await;
-                    let mut reader = BufReader::new(stream);
-                    let mut line = String::new();
+                    let _ = tx_status_clone.send("Connected to Daemon (127.0.0.1:7001/binary)".to_string()).await;
+                    let (mut reader, _writer) = tokio::io::split(stream);
+                    let mut length_buf = [0u8; 4];
                     
                     loop {
-                        line.clear();
-                        match reader.read_line(&mut line).await {
-                            Ok(0) => break, // EOF
-                            Ok(_) => {
-                                // Real implementation would parse event and update App state
-                                if let Ok(event) = serde_json::from_str::<common::events::BotEvent>(&line) {
-                                    let _ = tx_event.send(event).await;
-                                }
-                            }
-                            Err(_) => break, // Error
+                        if reader.read_exact(&mut length_buf).await.is_err() {
+                            break; // EOF or Error
+                        }
+                        let len = u32::from_le_bytes(length_buf) as usize;
+                        if len > 1024 * 1024 { break; } // Safety limit
+                        
+                        let mut buf = vec![0u8; len];
+                        if reader.read_exact(&mut buf).await.is_err() {
+                            break;
+                        }
+                        
+                        // Parse event using Postcard
+                        if let Ok(event) = postcard::from_bytes::<common::events::BotEvent>(&buf) {
+                            let _ = tx_event.send(event).await;
                         }
                     }
                     let _ = tx_status_clone.send("Daemon Disconnected. Reconnecting...".to_string()).await;
@@ -360,8 +364,8 @@ fn draw_center_col(f: &mut Frame, area: Rect, app: &App) {
             Constraint::Length(3),  // Strip
             Constraint::Percentage(50), // Chart // Dynamically takes half instead of fixed 13
             Constraint::Percentage(25),     // Order Book
-            Constraint::Length(12),  // Dexter & Mirofish
-            Constraint::Length(3),  // Order Entry
+            Constraint::Percentage(17),  // Dexter & Mirofish
+            Constraint::Percentage(5),  // Order Entry
         ])
         .split(area);
 
@@ -520,8 +524,8 @@ fn draw_right_col(f: &mut Frame, area: Rect, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage(25),
-            Constraint::Percentage(70),
-            Constraint::Length(5),
+            Constraint::Percentage(65),
+            Constraint::Percentage(10),
         ])
         .split(area);
 

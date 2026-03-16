@@ -76,10 +76,10 @@ impl FinnhubWs {
                         if msg.r#type == "trade" {
                             for t in msg.data.unwrap_or_default() {
                                 let ev = BotEvent::MarketEvent {
-                                    symbol: t.s,
+                                    symbol: t.s.into(),
                                     price: t.p,
                                     timestamp: t.t,
-                                    event_type: "trade".to_string(),
+                                    event_type: "trade".into(),
                                     volume: t.v,
                                 };
                                 let _ = tx.send(ev);

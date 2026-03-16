@@ -13,7 +13,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Axis, Block, Borders, BorderType, Chart, Dataset, GraphType, Paragraph},
+    widgets::{Block, Borders, BorderType, Paragraph, canvas::{Canvas, Line as CanvasLine, Rectangle}},
     Frame,
 };
 
@@ -265,51 +265,37 @@ fn render_price_area(
     let y_low = y_min - y_padding;
     let y_high = y_max + y_padding;
 
-    // Build datasets: main line + area fill simulated with a lower line
-    let fill_data: Vec<(f64, f64)> = visible_data.iter()
-        .map(|(x, y)| (*x, y_low + (y - y_low) * 0.3)) // 30% height fill
-        .collect();
+    let canvas = Canvas::default()
+        .marker(symbols::Marker::Braille)
+        .x_bounds([x_min, x_max])
+        .y_bounds([y_low, y_high])
+        .paint(move |ctx| {
+            // Fill area (vertical lines down to y_low)
+            for i in 0..visible_data.len() {
+                let p = visible_data[i];
+                ctx.draw(&CanvasLine {
+                    x1: p.0,
+                    y1: y_low,
+                    x2: p.0,
+                    y2: y_low + (p.1 - y_low) * 0.3,
+                    color: CHART_FILL_TOP,
+                });
+            }
+            // Main price line
+            for i in 0..visible_data.len().saturating_sub(1) {
+                let p1 = visible_data[i];
+                let p2 = visible_data[i+1];
+                ctx.draw(&CanvasLine {
+                    x1: p1.0,
+                    y1: p1.1,
+                    x2: p2.0,
+                    y2: p2.1,
+                    color: CHART_GREEN,
+                });
+            }
+        });
 
-    let datasets = vec![
-        // Area fill (lower, darker)
-        Dataset::default()
-            .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(CHART_FILL_TOP))
-            .graph_type(GraphType::Line)
-            .data(&fill_data),
-        // Main price line
-        Dataset::default()
-            .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(CHART_GREEN))
-            .graph_type(GraphType::Line)
-            .data(&visible_data),
-    ];
-
-    // Generate time labels based on visible range
-    let time_labels = generate_time_labels(x_min, x_max, area.width, state.time_range);
-
-    // Y-axis price labels
-    let y_labels = vec![
-        Span::styled(format!("{:.2}", y_low), Style::default().fg(TEXT_DIM)),
-        Span::styled(format!("{:.2}", (y_low + y_high) / 2.0), Style::default().fg(TEXT_DIM)),
-        Span::styled(format!("{:.2}", y_high), Style::default().fg(TEXT_DIM)),
-    ];
-
-    let chart = Chart::new(datasets)
-        .x_axis(
-            Axis::default()
-                .bounds([x_min, x_max])
-                .labels(time_labels)
-                .style(Style::default().fg(TEXT_DIM))
-        )
-        .y_axis(
-            Axis::default()
-                .bounds([y_low, y_high])
-                .labels(y_labels)
-                .style(Style::default().fg(TEXT_DIM))
-        );
-
-    f.render_widget(chart, area);
+    f.render_widget(canvas, area);
 }
 
 /// Render the volume histogram area
@@ -368,35 +354,36 @@ fn render_volume_area(
 
     let v_max = visible_vol.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
 
-    let datasets = vec![
-        // Volume bars (rendered as a line for now in Braille)
-        Dataset::default()
-            .marker(symbols::Marker::Block)
-            .style(Style::default().fg(VOLUME_BAR))
-            .graph_type(GraphType::Bar)
-            .data(&visible_vol),
-        // SMAVG line
-        Dataset::default()
-            .marker(symbols::Marker::Braille)
-            .style(Style::default().fg(VOLUME_AVG))
-            .graph_type(GraphType::Line)
-            .data(&smavg_data),
-    ];
+    let canvas = Canvas::default()
+        .marker(symbols::Marker::Block)
+        .x_bounds([x_min, x_max])
+        .y_bounds([0.0, v_max * 1.1])
+        .paint(move |ctx| {
+            // Bars
+            for p in &visible_vol {
+                ctx.draw(&Rectangle {
+                    x: p.0,
+                    y: 0.0,
+                    width: 1.0,
+                    height: p.1,
+                    color: VOLUME_BAR,
+                });
+            }
+            // SMAVG line
+            for i in 0..smavg_data.len().saturating_sub(1) {
+                let p1 = smavg_data[i];
+                let p2 = smavg_data[i+1];
+                ctx.draw(&CanvasLine {
+                    x1: p1.0,
+                    y1: p1.1,
+                    x2: p2.0,
+                    y2: p2.1,
+                    color: VOLUME_AVG,
+                });
+            }
+        });
 
-    let chart = Chart::new(datasets)
-        .x_axis(Axis::default().bounds([x_min, x_max]).style(Style::default().fg(BG)))
-        .y_axis(
-            Axis::default()
-                .bounds([0.0, v_max * 1.1])
-                .labels(vec![
-                    Span::styled("0", Style::default().fg(TEXT_DIM)),
-                    Span::styled(format_volume(v_max / 2.0), Style::default().fg(TEXT_DIM)),
-                    Span::styled(format_volume(v_max), Style::default().fg(TEXT_DIM)),
-                ])
-                .style(Style::default().fg(TEXT_DIM))
-        );
-
-    f.render_widget(chart, chart_area);
+    f.render_widget(canvas, chart_area);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

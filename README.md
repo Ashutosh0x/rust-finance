@@ -127,9 +127,9 @@ The workspace is organized into discrete, highly decoupled crates:
 * **`daemon`**: The central orchestrator. It manages the Tokio asynchronous runtime, spawns the EventBus, starts ingestion pipelines, controls the AI analyst intervals, and routes signals to the execution engine.
 * **`tui`**: A standalone Ratatui application featuring an advanced 3-column layout mimicking professional desktop terminals. It subscribes to the `event_bus` to render watchlists, deep order books, high-res braille charts, and live AI intelligence.
 * **`ai`**: Contains `DexterAnalyst` and `MiroFishSimulator`. Interacts natively with Anthropic APIs to detect catalysts, perform fundamental analysis, and run swarm probability algorithms on market feeds.
-* **`ingestion`**: Connects to `Finnhub` and `Alpaca` WebSockets. Normalizes trade and quote data into a standard `MarketEvent` format and pumps it into the system at extremely low latency.
+* **`ingestion`**: Connects to `Finnhub` and `Alpaca` WebSockets. Normalizes trade and quote data into a zero-allocation `MarketEvent` format (using `compact_str`) to eliminate heap allocations on the hot path.
 * **`relay`**: Handles network routing and edge measurement. Specifically benchmarks multiple RPC nodes (Helius, Triton, QuickNode) and routes transactions through the lowest-latency path available.
-* **`event_bus`**: A custom-built, lightweight TCP broadcasting system that decouples producers and consumers. Allows the TUI and Web Dashboards to run in entirely separate processes from the Daemon.
+* **`event_bus`**: Powered by `tokio::sync::broadcast` and `postcard` binary serialization for zero-copy, microsecond-latency network message transitions between the Daemon and UI.
 * **`swarm_sim`**: A comprehensive multi-agent financial market swarm simulation engine. Integrates agent profiles (Retail, Hedge Fund, Market Maker, etc.) to model complex market behaviors, sentiment shocks, and price impacts concurrently using rayon.
 * **`persistence`**: Storage layer designed to record transactional records, system P&L tracking, order history, and large-scale action logs for swarm agents.
 * **`common`**: Shared models, structs, commands, and `BotEvent` enumerations used across all systems to guarantee strict typing on inter-process communications.
@@ -171,9 +171,9 @@ cargo run -p tui --release
     * Explores macro shocks and synthetic order book dynamics.
 * **AI Signal Annotations:**
     * Interacts with Anthropic Claude models for experimental financial text analysis.
-* **Terminal UI (TUI):** A dashboard rendered directly in your terminal using Ratatui. Features braille price charts, live simulated options chains, and portfolio tracking.
+* **Terminal UI (TUI):** A dashboard rendered directly in your terminal using Ratatui. Employs `Constraint::Percentage` for responsive layouts across multiplexers, rendering high-speed Braille price charts utilizing the native `ratatui::widgets::Canvas`.
 * **Simulated Execution Tracking (Stubbed/WIP):** Educational mock order routing, basic pre-trade limit assertions, and abstract messaging layers framework.
-* **Order Management System (OMS - Educational):** Educational tracking of abstract position flipping, unrealized PNL arrays, and basic VWAP modeling. No production exchange bindings.
+* **Order Management System (OMS - Educational):** Educational tracking of abstract position flipping, unrealized PNL arrays, basic VWAP modeling, and background asynchronous 5-second `GET /v2/positions` reconciliation.
 * **Backtesting Engine (WIP):** An educational framework exploring standard quantitative simulation approaches and constraints.
 * **Ultra-Low Latency Database (WIP/Stubbed):**
     * **Hot-State Memory:** Experimental `DragonflyDB` concepts caching live abstract portfolios.
@@ -237,7 +237,7 @@ For examples, review `AiGatedMomentum` inside `crates/daemon/src/strategy_regist
 ### Alpaca Broker API Integration
  RustForge fully integrates with the Alpaca Paper/Live v2 Trading REST API to dispatch stock and fiat executions transparently from the TUI.
  
- - **`POST /v2/orders`**: Submitted via the `AlpacaBroker::submit_order` async method bridging TUI dialogue events straight to Alpaca. It enforces parameters like  `symbol`, `qty`, `side` (buy/sell), `type` (market/limit), and `time_in_force`.
+ - **`POST /v2/orders`**: Submitted via the `AlpacaBroker::submit_order` async method bridging TUI dialogue events straight to Alpaca. It is protected by the `governor` concurrent token-bucket rate limiter (capping at 150 requests/min) to prevent API exhaustion bans.
  - **`GET /v2/positions`**: Periodically queried by the ingestion pipeline to map live execution statuses into the TUI Open Positions tables.
 
 ## Troubleshooting

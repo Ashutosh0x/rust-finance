@@ -1,10 +1,11 @@
 use serde::{Serialize, Deserialize};
+use compact_str::CompactString;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
 pub enum BotEvent {
     PositionUpdate {
-        token: String,
+        token: CompactString,
         size: f64,
         entry: f64,
         price: f64,
@@ -20,7 +21,7 @@ pub enum BotEvent {
         sell: f64,
         hold: f64,
         confidence: f64,
-        reason: String,
+        reason: String, // Reason stays String as it can be long
     },
 
     LatencyUpdate {
@@ -30,25 +31,25 @@ pub enum BotEvent {
         send: f64,
     },
 
-    Feed(String),
+    Feed(String), // Feed can be long
 
     MarketEvent {
-        symbol: String,
+        symbol: CompactString,
         price: f64,
         timestamp: i64,
-        event_type: String, // "trade", "quote", etc.
+        event_type: CompactString, // "trade", "quote", etc.
         volume: Option<f64>,
     },
 
     AISignal {
-        symbol: String,
-        action: String,
+        symbol: CompactString,
+        action: CompactString,
         confidence: f64,
-        reason: String,
+        reason: String, // Reason stays String
     },
 
     QuoteEvent {
-        symbol: String,
+        symbol: CompactString,
         bid_price: f64,
         bid_size: u64,
         ask_price: f64,
@@ -57,8 +58,8 @@ pub enum BotEvent {
     },
 
     ExchangeHeartbeat {
-        exchange: String,
-        status: String,
+        exchange: CompactString,
+        status: CompactString,
         latency_ms: f64,
     },
 }

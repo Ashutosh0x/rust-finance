@@ -336,14 +336,36 @@ async fn main() -> Result<()> {
                     }
                     
                     heartbeat_eb.broadcast(BotEvent::ExchangeHeartbeat {
-                        exchange: exchange.to_string(),
-                        status: status.to_string(),
+                        exchange: (*exchange).into(),
+                        status: (*status).into(),
                         latency_ms: latency,
                     });
                 }
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         });
+
+        // 4. Alpaca Position Reconciler
+        let alpaca_api_key = config.alpaca_api_key.clone();
+        let alpaca_secret_key = config.alpaca_secret_key.clone();
+        let _position_mgr = position_manager.clone();
+        if !alpaca_api_key.is_empty() {
+            tokio::spawn(async move {
+                let broker = ingestion::AlpacaBroker::new(alpaca_api_key, alpaca_secret_key);
+                loop {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    match broker.get_positions().await {
+                        Ok(positions) => {
+                            // TODO: Sync with OMS ledger
+                            tracing::debug!("Reconciled Alpaca Positions: {:?}", positions);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to fetch Alpaca positions: {:?}", e);
+                        }
+                    }
+                }
+            });
+        }
 
         // Graceful Shutdown Hook
         info!("Daemon is running. Press Ctrl+C to initiate graceful shutdown.");

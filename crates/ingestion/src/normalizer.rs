@@ -28,10 +28,10 @@ impl Normalizer {
                     let volume = data["v"].as_f64();
                     
                     return Some(BotEvent::MarketEvent {
-                        symbol,
+                        symbol: symbol.into(),
                         price,
                         timestamp,
-                        event_type: "trade".to_string(),
+                        event_type: "trade".into(),
                         volume,
                     });
                 }
@@ -45,10 +45,10 @@ impl Normalizer {
             v["timestamp"].as_i64(),
         ) {
             return Some(BotEvent::MarketEvent {
-                symbol: s.to_string(),
+                symbol: s.into(),
                 price: p,
                 timestamp: t,
-                event_type: v["event_type"].as_str().unwrap_or("trade").to_string(),
+                event_type: v["event_type"].as_str().unwrap_or("trade").into(),
                 volume: v["volume"].as_f64(),
             });
         }

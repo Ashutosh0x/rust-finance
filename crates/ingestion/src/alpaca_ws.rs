@@ -77,10 +77,10 @@ impl AlpacaWs {
                                     let volume = item["s"].as_f64();
 
                                     let event = BotEvent::MarketEvent {
-                                        symbol,
+                                        symbol: symbol.into(),
                                         price,
                                         timestamp: ts,
-                                        event_type: "trade".to_string(),
+                                        event_type: "trade".into(),
                                         volume,
                                     };
                                     let _ = tx.send(event);
@@ -97,7 +97,7 @@ impl AlpacaWs {
                                         .unwrap_or(0);
 
                                     let event = BotEvent::QuoteEvent {
-                                        symbol,
+                                        symbol: symbol.into(),
                                         bid_price,
                                         bid_size,
                                         ask_price,
@@ -116,10 +116,10 @@ impl AlpacaWs {
                                     let volume = item["v"].as_f64();
 
                                     let event = BotEvent::MarketEvent {
-                                        symbol,
+                                        symbol: symbol.into(),
                                         price,
                                         timestamp: ts,
-                                        event_type: "bar".to_string(),
+                                        event_type: "bar".into(),
                                         volume,
                                     };
                                     let _ = tx.send(event);
