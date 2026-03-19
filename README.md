@@ -11,6 +11,9 @@
   <img src="https://img.shields.io/badge/WebSocket-010101?style=for-the-badge&logo=socket.io&logoColor=white" alt="WebSocket" />
   <img src="https://img.shields.io/badge/Quant_Research-000000?style=for-the-badge&logo=python&logoColor=white" alt="Quant" />
   <br />
+  <img src="https://img.shields.io/github/stars/Ashutosh0x/rust-finance?style=for-the-badge&logo=github&color=gold" alt="Stars" />
+  <img src="https://img.shields.io/github/forks/Ashutosh0x/rust-finance?style=for-the-badge&logo=github&color=silver" alt="Forks" />
+  <br />
   <img src="https://img.shields.io/badge/NASDAQ-0090F7?style=for-the-badge&logo=nasdaq&logoColor=white" alt="NASDAQ" />
   <img src="https://img.shields.io/badge/NYSE-092140?style=for-the-badge&logo=new-york-stock-exchange&logoColor=white" alt="NYSE" />
   <img src="https://img.shields.io/badge/LSE-000000?style=for-the-badge&logo=london-stock-exchange&logoColor=white" alt="LSE" />
