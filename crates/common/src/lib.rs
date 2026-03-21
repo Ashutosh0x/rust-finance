@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 pub mod dashboard;
 pub mod events;
+pub mod time;
 pub mod models;
 pub mod config;
 pub mod env_writer;

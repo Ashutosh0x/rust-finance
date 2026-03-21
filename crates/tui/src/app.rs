@@ -549,12 +549,16 @@ fn default_order_book() -> Vec<OrderBookRow> {
 
 fn default_news() -> VecDeque<NewsItem> {
     let items = vec![
-        NewsItem { source: "Reuters".into(), time_ago: "25m ago".into(), headline: "Apple reports record quarterly earnings driven by strong iPhone 16 sales across global markets".into() },
-        NewsItem { source: "Bloomberg".into(), time_ago: "2m ago".into(), headline: "NVIDIA announces next-gen Blackwell GPU architecture with 2x AI inference performance gains".into() },
-        NewsItem { source: "Bloomberg".into(), time_ago: "19m ago".into(), headline: "Reuters: Federal Reserve signals potential rate cuts in upcoming September FOMC meeting".into() },
-        NewsItem { source: "WSJ".into(), time_ago: "19m ago".into(), headline: "Tesla's autonomous driving milestone - FSD v13 achieves breakthrough in urban navigation".into() },
-        NewsItem { source: "WSJ".into(), time_ago: "5m ago".into(), headline: "Tech sector rally continues as institutional investors increase allocation to megacap stocks".into() },
-        NewsItem { source: "CNBC".into(), time_ago: "1m ago".into(), headline: "Market update: S&P 500 hits new all-time high on strong economic data and earnings beat".into() },
+        NewsItem { source: "Reuters".into(), time_ago: "2m ago".into(), headline: "Apple reports record Q4 revenue of $94.9B driven by strong iPhone 16 Pro demand across global markets".into() },
+        NewsItem { source: "Bloomberg".into(), time_ago: "5m ago".into(), headline: "NVIDIA Blackwell B200 GPU shipments accelerate as hyperscaler AI capex surges to $280B annually".into() },
+        NewsItem { source: "WSJ".into(), time_ago: "8m ago".into(), headline: "Federal Reserve holds rates steady at 5.25-5.50%, signals potential September cut amid cooling inflation".into() },
+        NewsItem { source: "CNBC".into(), time_ago: "12m ago".into(), headline: "Tesla FSD v13.2 achieves 99.97% safety rate in NHTSA evaluation, regulatory approval expected Q3".into() },
+        NewsItem { source: "Bloomberg".into(), time_ago: "15m ago".into(), headline: "S&P 500 hits fresh all-time high as tech mega-caps rally on stronger than expected earnings guidance".into() },
+        NewsItem { source: "Reuters".into(), time_ago: "19m ago".into(), headline: "Microsoft Azure AI revenue grows 63% YoY to $18.2B as enterprise adoption of Copilot accelerates".into() },
+        NewsItem { source: "WSJ".into(), time_ago: "25m ago".into(), headline: "Institutional investors increase allocation to mega-cap tech stocks, sector weighting reaches 32% of S&P".into() },
+        NewsItem { source: "CNBC".into(), time_ago: "30m ago".into(), headline: "AMD MI350 AI accelerator benchmarks show 2.4x inference throughput vs previous generation at 30% lower TDP".into() },
+        NewsItem { source: "Bloomberg".into(), time_ago: "35m ago".into(), headline: "Crude oil drops 2.1% to $72.40 as OPEC+ signals gradual production increase starting October".into() },
+        NewsItem { source: "Reuters".into(), time_ago: "42m ago".into(), headline: "US 10-year Treasury yield falls to 4.18% after weaker than expected non-farm payrolls report".into() },
     ];
     VecDeque::from(items)
 }

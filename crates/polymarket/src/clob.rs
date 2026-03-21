@@ -9,6 +9,7 @@ use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn, error, instrument};
 use uuid::Uuid;
+use ethers_signers::Signer;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Side {
@@ -62,6 +63,11 @@ pub struct OrderBookResponse {
     pub bids: Vec<BookLevel>,
     pub asks: Vec<BookLevel>,
     pub hash: Option<String>,
+    pub timestamp: Option<String>,
+    pub min_order_size: Option<String>,
+    pub tick_size: Option<String>,
+    pub neg_risk: Option<bool>,
+    pub last_trade_price: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -184,6 +190,24 @@ impl ClobClient {
             .await
     }
 
+    /// POST /books — batch fetch orderbooks for multiple tokens
+    pub async fn get_orderbooks(
+        &self,
+        token_ids: &[&str],
+    ) -> Result<Vec<OrderBookResponse>, Box<dyn std::error::Error>> {
+        let body: Vec<serde_json::Value> = token_ids.iter()
+            .map(|id| serde_json::json!({"token_id": id}))
+            .collect();
+        let resp = self.http
+            .post(format!("{}/books", self.host))
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
     /// GET /midpoint — fetch midpoint price
     pub async fn get_midpoint(
         &self,
@@ -200,7 +224,7 @@ impl ClobClient {
         Ok(resp.mid.and_then(|m| m.parse::<Decimal>().ok()))
     }
 
-    /// GET /price — get best price for a side
+    /// GET /price — get best price for a side (BUY or SELL)
     pub async fn get_price(
         &self,
         token_id: &str,
@@ -215,6 +239,99 @@ impl ClobClient {
             .await?;
 
         Ok(resp.price.and_then(|p| p.parse::<Decimal>().ok()))
+    }
+
+    /// GET /spread — get bid-ask spread for a token
+    pub async fn get_spread(
+        &self,
+        token_id: &str,
+    ) -> Result<Option<Decimal>, Box<dyn std::error::Error>> {
+        let resp: serde_json::Value = self.http
+            .get(format!("{}/spread", self.host))
+            .query(&[("token_id", token_id)])
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.get("spread")
+            .and_then(|s| s.as_str())
+            .and_then(|s| s.parse::<Decimal>().ok()))
+    }
+
+    /// GET /last-trade-price — get last trade price and side
+    pub async fn get_last_trade_price(
+        &self,
+        token_id: &str,
+    ) -> Result<Option<Decimal>, Box<dyn std::error::Error>> {
+        let resp: serde_json::Value = self.http
+            .get(format!("{}/last-trade-price", self.host))
+            .query(&[("token_id", token_id)])
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.get("price")
+            .and_then(|p| p.as_str())
+            .and_then(|p| p.parse::<Decimal>().ok()))
+    }
+
+    /// GET /tick-size — get minimum price increment for a token
+    pub async fn get_tick_size(
+        &self,
+        token_id: &str,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        let resp: serde_json::Value = self.http
+            .get(format!("{}/tick-size", self.host))
+            .query(&[("token_id", token_id)])
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.get("minimum_tick_size")
+            .and_then(|t| t.as_str())
+            .map(|s| s.to_string()))
+    }
+
+    /// GET /fee-rate — get base fee rate for a token
+    pub async fn get_fee_rate(
+        &self,
+        token_id: &str,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let resp = self.http
+            .get(format!("{}/fee-rate", self.host))
+            .query(&[("token_id", token_id)])
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    /// GET /prices-history — get historical prices for a market
+    /// interval: "1h" | "6h" | "1d" | "1w" | "1m" | "all" | "max"
+    /// fidelity: accuracy in minutes (default 1)
+    pub async fn get_prices_history(
+        &self,
+        token_id: &str,
+        interval: Option<&str>,
+        fidelity: Option<u32>,
+        start_ts: Option<f64>,
+        end_ts: Option<f64>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let mut params: Vec<(&str, String)> = vec![("market", token_id.to_string())];
+        if let Some(i) = interval { params.push(("interval", i.to_string())); }
+        if let Some(f) = fidelity { params.push(("fidelity", f.to_string())); }
+        if let Some(s) = start_ts { params.push(("startTs", s.to_string())); }
+        if let Some(e) = end_ts { params.push(("endTs", e.to_string())); }
+
+        let resp = self.http
+            .get(format!("{}/prices-history", self.host))
+            .query(&params)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
     }
 
     /// GET /markets — list all markets

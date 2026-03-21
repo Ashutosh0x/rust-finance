@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 common = { path = "../common" }
 signer = { path = "../signer" }
-solana-sdk = { version = "1.18" }
-solana-client = { version = "1.18" }
+solana-sdk.workspace = true
+solana-client.workspace = true
 tokio = { version = "1.35", features = ["full"] }
 relay = { path = "../relay" }
 anyhow = "1.0"

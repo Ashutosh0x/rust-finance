@@ -1,131 +1,198 @@
-# Project Status & Documentation
+# RustForge — Current State
 
-**Last Updated**: March 17, 2026
-**Version**: 0.4.0-alpha (Polymarket Integration Phase 1)
+**Version:** 1.0.0
+**Date:** March 2026
+**Status:** Production
 
-This document summarizes the current state of the High-Performance Rust RL Trading Bot, detailing the custom Polymarket lightweight client integration, the Phase 3 MiroFish intelligence integration, implemented features, and usage instructions.
+---
 
-## 1. Project Overview
+## Workspace Overview
 
-This is an educational cryptocurrency trading terminal built in Rust. It features a decoupled **Daemon** (backend) and **TUI** (frontend) architecture, communicating via a bi-directional TCP Event Bus. The system is designed for studying trading systems, featuring data ingestion logic, strategy execution modules, risk management concepts, and a terminal interface.
+- **Active crates:** 30 (compiling in ~17s)
+- **Excluded crates:** 4 (legacy Solana: `parser`, `executor`, `signer`, `relay`)
+- **Source files:** 110+
+- **Build status:** `cargo check --workspace` passes with 0 errors
 
-## 2. Implemented Features
+---
 
-### Core Backend (Daemon)
-- **Pipeline Architecture**:
-  - **Ingestion**: Asynchronous WebSocket client (`tokio-tungstenite`) subscribing to Solana logs (`logsSubscribe`). Supports a `MockIngestionService` for testing without live data.
-  - **Parser**: Dedicated thread parsing raw JSON logs into structured `SwapEvent`s.
-  - **Strategy Engine**: Modular strategy trait. Currently implements a `SimpleStrategy` (momentum-based) and placeholder for `RLStrategy`.
-  - **Risk Engine**: Pre-trade risk validation (max position size, daily loss limit, confidence thresholds).
-  - **Executor**: Async transaction execution. Supports `MockExecutor` for paper trading and `RealExecutor` for live signing/sending.
-- **Polymarket Client**: A custom, lightweight, zero-dependency-conflict client for interacting with Polymarket's Gamma and CLOB APIs. Uses `reqwest` for REST, `tokio-tungstenite` for WebSockets, and `ethers-core`/`ethers-signers` for EIP-712 order signing without pulling in the heavy `alloy` dependency tree.
-- **Event Bus**:
-  - **Bi-Directional Communication**: TCP-based (Tokio) messaging system. The daemon broadcasts events (Prices, Signals, PnL) to all connected clients and receives control commands (Pause, Kill Switch, Trade) from the TUI.
-  - **Reliable Broadcasting**: Uses `tokio::sync::mpsc` channels with an `Arc<Mutex<Vec<Sender>>>` structure to manage multiple concurrent clients.
-- **Fail-Safe Mechanisms**:
-  - **Auto-Mock Fallback**: Automatically generates a random keypair for signing if `SOL_PRIVATE_KEY` is missing, preventing runtime scratches in dev mode.
-  - **Graceful Shutdown** & Error Handling (`anyhow`).
+## Architecture
 
-### Professional TUI (Frontend)
-- **Tech Stack**: Built with `ratatui` and `crossterm`.
-- **Multi-Screen Navigation System**:
-  - **Router**: Centralized screen router managing navigation state.
-  - **Global Hotkeys**:
-    - `ESC`: Toggle **Features Menu** (Hub for all screens within the app).
-    - `1`: Dashboard (Main trading view).
-    - `2`: Strategy Engine (Active signals & model status).
-    - `3`: Watchlist (Multi-token tracking table).
-    - `4`: Analytics (Performance metrics).
-    - `L`: Fullscreen Logs.
-    - `H`: Quick Help Popup.
-  - **Trading Controls**:
-    - `P`: Pause/Resume Bot.
-    - `K`: **Emergency Kill Switch**.
-    - `M`: Toggle Live/Paper Mode.
-    - `C`: Close All Positions.
-    - `+/-`: Adjust Risk Parameters on the fly.
-- **Visuals**:
-  - Real-time `Sparkline` chart simulation.
-  - Color-coded PnL and Signal indicators (Green/Red/Yellow).
-  - Responsive Layouts using `Layout::split`.
+### Hybrid Intelligence Pipeline
 
-## 3. Phase 3: The Intelligence Upgrade (MiroFish to RustForge)
-We have ported concepts from MiroFish into native Rust code for educational study.
-
-* **Digital Twin Swarm Simulation:** (`crates/swarm_sim/digital_twin.rs`) A 100K-agent parallel simulation engine using Rayon.
-* **Dexter AI Analyst:** (`crates/ai/dexter.rs`) Single-agent Anthropics Claude logic replacing the 5-agent Camel-AI chain in MiroFish. Uses `FusedContext` (Swarm + Quant + Graph data) for signal generation.
-* **Native GraphRAG:** Repatriated the Zep AI external dependency into an in-memory `petgraph` ontology lookup.
-* **Risk Gate Verification:** (`crates/risk/gate.rs`) Introduces math-based risk checks (GARCH(1,1), VaR, Kelly sizing) before permitting simulated order execution.
-
-### RustForge vs. MiroFish Comparative Metrics
-| Metric | MiroFish (Python) | RustForge Terminal (Rust) |
-| :--- | :--- | :--- |
-| **Agent Scalability** | ~100s | **100,000+** |
-| **Concurrency** | Asyncio (GIL locked) | **Lock-free Atomics + Rayon** |
-| **Graph Context**| External API (Zep) | **Native in-memory (`petgraph`)**|
-| **Latency** | 200ms+ per loop | **< 1ms internal routing** |
-
-> **Live Benchmark Proof**: Tests executed natively inside `digital_twin.rs` recorded exactly **7.02ms** to instantiate 100,000 agents, and **1.91ms** to resolve a full step for all 100,000 agents concurrently (> 520 rounds per second).
-
-## 4. Architecture
-
-### System Diagram
-```mermaid
-graph TD
-    Client[TUI Client] <-->|TCP (JSON)| EventBus
-    subgraph Daemon
-        EventBus <-->|Commands| Controller
-        Ingestion[SOL WebSocket] -->|Raw Logs| Parser
-        Parser -->|SwapEvent| Strategy
-        Strategy -->|Action| Risk
-        Risk -->|Approved Action| Executor
-        Executor -->|Tx Signature| Solana[Solana Network]
-        
-        Parser -.->|Feed Update| EventBus
-        Executor -.->|Position Update| EventBus
-        Risk -.->|Risk Alert| EventBus
-    end
+```
+Market Data (Alpaca / Binance / Finnhub / Polymarket)
+    |
+    v
+Ingestion Layer (MarketDataSource trait, Source Multiplexer)
+    |
+    v
+Event Bus (Postcard-serialized TCP, broadcast channels)
+    |
+    v
+Quant Features --> Swarm Simulator (100K agents) --> Knowledge Graph (petgraph RAG)
+    |                                                        |
+    v                                                        v
+Fused Context ----> Dexter AI Analyst (Claude) ----> Signal Output
+    |
+    v
+Strategy Dispatcher (PluggableStrategy trait)
+    |
+    v
+Risk Gate (GARCH / VaR / Kill Switch / Interceptor Chain)
+    |
+    v
+Execution Gateway (AlpacaExecutor / Polymarket CLOB / MockExecutor)
 ```
 
-### Key Technical Decisions
-- **Async/Sync Hybrid**:
-  - `tokio` for I/O-bound tasks (Network, WebSocket, TCP).
-  - `std::thread` for CPU-bound hot paths (Parsing, Strategy calculation) to minimize latency jitter.
-- **Zero-Copy Serialization**: Extensive use of `serde_json` for efficient message passing on the Event Bus.
-- **Shared Build Directory**: Configured `CARGO_TARGET_DIR` to `%TEMP%\rl-trading-bot-target` to accelerate builds and avoid file-locking issues (essential for OneDrive environments).
+### Core Types (v2)
 
-## 4. How to Run
+| Type | Purpose | Location |
+|:---|:---|:---|
+| `UnixNanos` | Nanosecond-precision timestamp | `common/src/time.rs` |
+| `SequenceId` | Monotonic event ordering | `common/src/time.rs` |
+| `Envelope<T>` | Universal event wrapper with ordering | `common/src/events.rs` |
+| `MarketEvent` | Normalized market data (Trade/Quote/BookUpdate/Bar) | `common/src/events.rs` |
+| `EngineEvent` | Top-level engine event union | `common/src/events.rs` |
+| `OrderEvent` | Order lifecycle (Submitted/Accepted/Filled/Rejected/Cancelled) | `common/src/events.rs` |
+| `AuditTick` | Full replay audit trail | `common/src/events.rs` |
+| `BotEvent` | v1 event bus wire type (backward compat) | `common/src/events.rs` |
+| `ControlCommand` | TUI-to-daemon control commands | `common/src/events.rs` |
+| `Clock` trait | Swappable clock (Realtime / Deterministic) | `common/src/time.rs` |
 
-### Prerequisites
-- Rust & Cargo installed.
-- (Optional) `SOL_PRIVATE_KEY` env var for live signing.
+---
 
-### 1-Click Launch (Windows)
-We have created optimized batch scripts for easy launching:
+## Implemented Features
 
-1.  **Start the Daemon (Backend)**:
-    ```cmd
-    run_bot.bat
-    ```
-    *Starts the ingestion pipeline and listens on port 7001.*
+### Market Data Sources
+- [x] Alpaca WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
+- [x] Binance WebSocket (crypto: trades, bookTicker, depth5)
+- [x] Finnhub WebSocket (global market data incl. NSE/BSE)
+- [x] Polymarket CLOB (prediction markets: order book, midpoint, trades)
+- [x] Mock source (deterministic replay)
+- [x] Source Multiplexer (unified SelectAll stream)
+- [x] Auto-reconnect with exponential backoff
 
-2.  **Start the TUI (Frontend)**:
-    ```cmd
-    run_tui.bat
-    ```
-    *Connects to port 7001 and displays the interactive dashboard.*
+### Execution
+- [x] ExecutionGateway trait (plug-and-play backends)
+- [x] Alpaca REST executor (25+ endpoints: orders, positions, assets, historical)
+- [x] Polymarket CLOB (limit/market/FOK/GTC/GTD orders, EIP-712 signing)
+- [x] Paper trading (MockExecutor)
+- [x] Bracket orders (OCO/OTO)
+- [x] Trailing stops
 
-### Manual Run
+### AI and Intelligence
+- [x] Dexter AI analyst (Claude-powered structured signals)
+- [x] Mirofish scenario simulator (5K agents, rally/sideways/dip)
+- [x] 100K agent swarm simulation (Rayon parallel)
+- [x] Knowledge graph (petgraph RAG)
+- [x] Fused context pipeline (Quant + Swarm + Graph -> Dexter)
+- [x] Impact analysis engine
+
+### Risk Management
+- [x] Kill switch (emergency halt)
+- [x] GARCH(1,1) volatility estimation
+- [x] Value at Risk (VaR)
+- [x] PnL attribution
+- [x] Risk interceptor chain (composable pre-trade checks)
+- [x] Kelly criterion position sizing
+- [x] Max drawdown / daily loss limit
+
+### Quantitative Models
+- [x] Black-Scholes-Merton (options pricing with Greeks)
+- [x] Heston stochastic volatility
+- [x] GARCH(1,1) forecasting
+- [x] Monte Carlo simulation
+- [x] Walk-forward backtesting
+- [x] Latency queue simulation
+
+### TUI Dashboard
+- [x] 6-screen navigation (Dashboard, Charts, Orderbook, Positions, AI, Settings)
+- [x] Real-time sparkline charts with zoom/scroll
+- [x] Live L2 order book with cumulative volume
+- [x] 13-symbol watchlist
+- [x] Exchange heartbeat monitor (8 exchanges)
+- [x] Dexter AI panel with recommendations
+- [x] Mirofish simulation widget
+- [x] Buy/Sell order dialogs
+- [x] Emergency controls (kill switch, paper/live toggle, risk adjust)
+
+### Infrastructure
+- [x] Postcard-serialized TCP event bus
+- [x] PostgreSQL + SQLite persistence
+- [x] Prometheus-compatible metrics
+- [x] Pre-trade compliance and audit trail
+- [x] Deterministic clock for replay
+
+---
+
+## Excluded Legacy Crates
+
+| Crate | Reason | v2 Replacement |
+|:---|:---|:---|
+| `parser` | Solana SDK v1.18.x has yanked `solana_rbpf =0.8.0` | `crates/ingestion` (trait-based `MarketDataSource`) |
+| `executor` | Same Solana dependency conflict | `crates/execution` (trait-based `ExecutionGateway`) |
+| `signer` | Dependency of `executor` | `crates/execution` (auth handled per executor) |
+| `relay` | Dependency of `executor` | `crates/ingestion` (built into each source) |
+
+---
+
+## Build and Run
+
 ```bash
-# Terminal 1 - Daemon
-cargo run -p daemon
+# Full workspace check
+cargo check --workspace
 
-# Terminal 2 - TUI
-cargo run -p tui
+# Release build
+cargo build --release
+
+# Mock mode (no API keys)
+USE_MOCK=1 cargo run -p daemon --release
+
+# TUI (separate terminal)
+cargo run -p tui --release
 ```
 
-## 5. Next Steps / TODO
-- [ ] Connect `Strategy` to an ONNX runtime (`ort`) for real RL inference.
-- [ ] Implement `Database` crate (SQLite/Postgres) for trade history persistence.
-- [ ] Add `Backtester` module to replay historical logs.
-- [ ] Enhance TUI `Watchlist` to consume real-time token price feeds (e.g., Pyth or Switchboard).
+---
+
+## Dependencies
+
+Key workspace dependencies:
+- `tokio 1.37` (async runtime)
+- `serde >=1.0.228` (serialization)
+- `chrono 0.4.38` (time)
+- `tracing 0.1.40` (structured logging)
+- `async-trait 0.1.80` (async traits)
+- `ratatui` (TUI rendering)
+- `ethers-core / ethers-signers` (Polymarket EIP-712)
+- `postcard` (binary serialization for event bus)
+- `petgraph` (knowledge graph)
+- `rayon` (parallel swarm simulation)
+
+---
+
+## API Keys Required
+
+| Service | Environment Variable | Purpose | Free Tier |
+|:---|:---|:---|:---|
+| Alpaca | `ALPACA_API_KEY`, `ALPACA_API_SECRET` | US equities market data + execution | Yes (paper trading) |
+| Finnhub | `FINNHUB_API_KEY` | Market data + news API | Yes (60 calls/min) |
+| Anthropic | `ANTHROPIC_API_KEY` | Dexter AI analyst (Claude) | No (pay-per-token) |
+| NewsAPI.org | `NEWSAPI_KEY` | Aggregated news (Reuters, Bloomberg, WSJ) | Yes (100 req/day) |
+| Polygon.io | `POLYGON_API_KEY` | Options chains (GEX), reference data, news | Yes (5 calls/min) |
+| Polymarket | `POLYMARKET_PRIVATE_KEY`, `POLYMARKET_FUNDER_ADDRESS` | Prediction market trading (EIP-712) | N/A (needs ETH wallet) |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Alert notifications | Yes |
+| Discord | `DISCORD_WEBHOOK_URL` | Alert notifications | Yes |
+
+---
+
+## News Feed Sources
+
+| Source | Method | Content |
+|:---|:---|:---|
+| Finnhub News API | REST `/api/v1/news` | General market news, company news, sector news |
+| Alpaca News API | REST `/v1beta1/news` | US equities breaking news, earnings, SEC filings |
+| NewsAPI.org | REST | Aggregates Reuters, Bloomberg, CNBC, WSJ, Financial Times |
+| Polygon.io | REST `/v2/reference/news` | SEC filings, earnings reports, company reference data |
+| BSE/NSE RSS | HTTP + XML | Indian market news (free, no key needed) |
+| CoinGecko | REST | Cryptocurrency market news and sentiment (free) |
+| SEC EDGAR | REST | Regulatory filings: 10-K, 10-Q, 8-K (free, no key needed) |

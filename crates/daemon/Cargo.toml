@@ -4,51 +4,42 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# v2 core crates
 common = { path = "../common" }
 ingestion = { path = "../ingestion" }
-parser = { path = "../parser" }
+execution = { version = "0.1.0", path = "../execution" }
 strategy = { path = "../strategy" }
 risk = { version = "0.1.0", path = "../risk" }
-executor = { path = "../executor" }
+
+# existing v1 crates (no Solana deps)
 feature = { path = "../feature" }
-signer = { path = "../signer" }
-dotenvy = "0.15"
 event_bus = { path = "../event_bus" }
-relay = { path = "../relay" }
 persistence = { path = "../persistence" }
 ai = { version = "0.1.0", path = "../ai" }
 oms = { path = "../oms" }
 metrics_lib = { path = "../metrics", package = "metrics_lib" }
+knowledge_graph = { version = "0.1.0", path = "../knowledge_graph" }
+swarm_sim = { version = "0.1.0", path = "../swarm_sim" }
+polymarket = { path = "../polymarket" }
+
+dotenvy = "0.15"
 chrono = "0.4"
 rand = "0.8"
-
-# solana
-solana-sdk = { version = "1.18" }
 
 # async/runtime
 tokio = { version = "1.35", features = ["full"] }
 async-trait = "0.1"
+futures = "0.3"
 
 # logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-opentelemetry = "0.21"
-opentelemetry_sdk = { version = "0.21", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.14", features = ["http-proto", "reqwest-client"] }
-tracing-opentelemetry = "0.22"
-
-# concurrency
-crossbeam-channel = "0.5"
 
 # serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-futures = "0.3"
+compact_str = "0.8"
 
 # cli
 anyhow = "1.0"
 clap = { version = "4.4", features = ["derive", "env"] }
-knowledge_graph = { version = "0.1.0", path = "../knowledge_graph" }
-swarm_sim = { version = "0.1.0", path = "../swarm_sim" }
-execution = { version = "0.1.0", path = "../execution" }
-polymarket = { path = "../polymarket" }

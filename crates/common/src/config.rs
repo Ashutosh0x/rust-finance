@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {

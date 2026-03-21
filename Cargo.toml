@@ -3,14 +3,10 @@ resolver = "2"
 members = [
   "crates/common",
   "crates/ingestion",
-  "crates/parser",
   "crates/feature",
   "crates/strategy",
   "crates/model",
   "crates/risk",
-  "crates/executor",
-  "crates/signer",
-  "crates/relay",
   "crates/daemon",
   "crates/event_bus",
   "crates/cli",
@@ -37,6 +33,22 @@ members = [
   "benchmarks",
 ]
 
+# Legacy Solana v1 crates excluded — solana-sdk 1.18.x has a yanked transitive
+# dep (solana_rbpf =0.8.0) and an unsolvable spl-token-2022 v1.0.0 →
+# solana-zk-token-sdk v1.17.6 → solana-program =1.17.6 circular conflict.
+# v2 architecture replaces these with:
+#   parser   → crates/ingestion (trait-based MarketDataSource)
+#   executor → crates/execution (trait-based ExecutionGateway)
+#   signer   → crates/execution (AlpacaExecutor handles auth)
+#   relay    → crates/ingestion (built into each source)
+exclude = [
+  "crates/parser",
+  "crates/executor",
+  "crates/signer",
+  "crates/relay",
+  "crates/curve25519-dalek-patch",
+]
+
 [workspace.dependencies]
 tokio = { version = "1.37", features = ["full"] }
 serde = { version = ">=1.0.228", features = ["derive"] }
@@ -53,6 +65,3 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = true
-
-[patch.crates-io]
-curve25519-dalek = { path = "crates/curve25519-dalek-patch" }

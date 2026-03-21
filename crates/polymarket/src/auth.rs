@@ -6,6 +6,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use tracing::{info, error};
+use ethers_signers::Signer;
 
 type HmacSha256 = Hmac<Sha256>;
 
