@@ -49,7 +49,7 @@ pub struct DigitalTwin {
 impl DigitalTwin {
     /// Spawn 100k agents optimised for the large-scale regime
     pub fn new_large_scale(symbol: &str, initial_price: f64) -> Self {
-        let mut config = SwarmConfig {
+        let config = SwarmConfig {
             agent_count: 100_000,
             retail_fraction: 0.65,
             hedge_fund_fraction: 0.08,

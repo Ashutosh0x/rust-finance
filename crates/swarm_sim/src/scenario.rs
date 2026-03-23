@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::engine::SwarmEngine;
-use crate::market::MarketState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MarketScenario {

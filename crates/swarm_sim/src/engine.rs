@@ -6,14 +6,14 @@ use rand::SeedableRng;
 use rand::rngs::SmallRng;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use tokio::sync::Mutex;
+
 use tracing::{debug, info, warn};
 
 use crate::agent::{Agent, AgentAction, AgentId, TraderType};
 use crate::config::SwarmConfig;
 use crate::market::MarketState;
 use crate::persistence::ActionLog;
-use crate::signal::{SwarmSignal, SignalDirection, Conviction};
+use crate::signal::SwarmSignal;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwarmStep {

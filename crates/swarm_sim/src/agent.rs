@@ -1,5 +1,5 @@
 use rand::Rng;
-use rand_distr::{Distribution, Normal, Bernoulli};
+use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
