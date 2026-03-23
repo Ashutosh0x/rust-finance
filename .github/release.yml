@@ -1,0 +1,59 @@
+# .github/release.yml
+# Configures GitHub's auto-generated release notes categories
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - skip-changelog
+    authors:
+      - dependabot[bot]
+      - github-actions[bot]
+
+  categories:
+    - title: "Breaking Changes"
+      labels:
+        - breaking-change
+        - semver-major
+
+    - title: "Security"
+      labels:
+        - security
+        - supply-chain
+        - vulnerability
+
+    - title: "Features"
+      labels:
+        - enhancement
+        - feature
+        - feat
+
+    - title: "Bug Fixes"
+      labels:
+        - bug
+        - fix
+        - bugfix
+
+    - title: "Performance"
+      labels:
+        - performance
+        - perf
+        - benchmark
+
+    - title: "Documentation"
+      labels:
+        - documentation
+        - docs
+
+    - title: "CI/CD"
+      labels:
+        - ci
+        - testing
+        - test
+
+    - title: "Dependencies"
+      labels:
+        - dependencies
+
+    - title: "Other Changes"
+      labels:
+        - "*"
