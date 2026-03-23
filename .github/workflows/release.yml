@@ -8,8 +8,30 @@ on:
 permissions: {}
 
 jobs:
+  # ── Generate CHANGELOG section for this release ────────────
+  changelog:
+    name: "Generate Release Notes"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release_body: ${{ steps.cliff.outputs.content }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0   # full history for git-cliff
+
+      - name: Generate changelog for this release
+        uses: orhun/git-cliff-action@4a4a951bc43fafe2c5e806a67c7b45dd1ad78a44 # v4.4.2
+        id: cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header footer
+
+  # ── Build signed binaries ──────────────────────────────────
   build-and-sign:
-    name: "Build & Sign (${{ matrix.target }})"
+    name: "Build & Sign (${{ matrix.artifact_name }})"
+    needs: changelog
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write      # upload release assets
@@ -21,31 +43,32 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            artifact_name: rustforge-daemon-linux-x86_64
             binary: daemon
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            artifact_name: rustforge-tui-linux-x86_64
             binary: tui
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            artifact_name: rustforge-cli-linux-x86_64
             binary: cli
           - os: macos-latest
-            target: x86_64-apple-darwin
+            target: aarch64-apple-darwin
+            artifact_name: rustforge-daemon-macos-aarch64
             binary: daemon
           - os: macos-latest
-            target: x86_64-apple-darwin
-            binary: tui
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            binary: cli
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            binary: daemon
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            target: aarch64-apple-darwin
+            artifact_name: rustforge-tui-macos-aarch64
             binary: tui
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            binary: cli
+            artifact_name: rustforge-daemon-windows-x86_64.exe
+            binary: daemon
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: rustforge-tui-windows-x86_64.exe
+            binary: tui
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -55,49 +78,94 @@ jobs:
 
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
-          key: release-${{ matrix.target }}
+          key: release-${{ matrix.target }}-${{ matrix.binary }}
 
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} -p ${{ matrix.binary }}
+      - name: Install cargo-auditable
+        run: cargo install --locked cargo-auditable
 
+      # Build with embedded SBOM (Cargo.lock baked into binary)
+      - name: Build release binary with embedded dependency manifest
+        run: |
+          cargo auditable build --release \
+            --target ${{ matrix.target }} \
+            -p ${{ matrix.binary }}
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          EXT=""
+          [[ "${{ matrix.os }}" == "windows-latest" ]] && EXT=".exe"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}${EXT}" \
+             "${{ matrix.artifact_name }}"
+
+      # SHA-256 checksum
+      - name: Generate SHA-256 checksum
+        shell: bash
+        run: sha256sum "${{ matrix.artifact_name }}" > "${{ matrix.artifact_name }}.sha256"
+
+      # Sigstore keyless signing
       - name: Install cosign
-        if: runner.os != 'Windows'
         uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
 
-      # Keyless signing with Sigstore (uses GitHub OIDC identity)
-      - name: Sign binary with cosign (keyless)
-        if: runner.os != 'Windows'
+      - name: Sign binary (Sigstore keyless)
+        shell: bash
         run: |
-          BINARY="target/${{ matrix.target }}/release/${{ matrix.binary }}"
-          cosign sign-blob "$BINARY" \
+          cosign sign-blob "${{ matrix.artifact_name }}" \
             --yes \
-            --bundle "${BINARY}.sigstore.json"
+            --bundle "${{ matrix.artifact_name }}.sigstore.json"
 
-      # Generate SHA256 checksums
-      - name: Generate checksums (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          BINARY="target/${{ matrix.target }}/release/${{ matrix.binary }}"
-          sha256sum "$BINARY" > "${BINARY}.sha256"
-
-      - name: Generate checksums (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $binary = "target/${{ matrix.target }}/release/${{ matrix.binary }}.exe"
-          $hash = (Get-FileHash $binary -Algorithm SHA256).Hash
-          "$hash  $binary" | Out-File -FilePath "${binary}.sha256" -Encoding utf8
-
-      # GitHub Artifact Attestation (provenance)
+      # GitHub provenance attestation
       - name: Attest build provenance
         uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v2.1.0
         with:
-          subject-path: "target/${{ matrix.target }}/release/${{ matrix.binary }}${{ runner.os == 'Windows' && '.exe' || '' }}"
+          subject-path: "${{ matrix.artifact_name }}"
 
-      - name: Upload release assets
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}
+            ${{ matrix.artifact_name }}.sha256
+            ${{ matrix.artifact_name }}.sigstore.json
+
+  # ── Publish GitHub Release ─────────────────────────────────
+  publish-release:
+    name: "Publish Release"
+    needs: [changelog, build-and-sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
+          name: "RustForge Terminal ${{ github.ref_name }}"
+          body: ${{ needs.changelog.outputs.release_body }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           files: |
-            target/${{ matrix.target }}/release/${{ matrix.binary }}${{ runner.os == 'Windows' && '.exe' || '' }}
-            target/${{ matrix.target }}/release/${{ matrix.binary }}${{ runner.os == 'Windows' && '.exe' || '' }}.sigstore.json
-            target/${{ matrix.target }}/release/${{ matrix.binary }}${{ runner.os == 'Windows' && '.exe' || '' }}.sha256
+            rustforge-daemon-linux-x86_64/rustforge-daemon-linux-x86_64
+            rustforge-daemon-linux-x86_64/rustforge-daemon-linux-x86_64.sha256
+            rustforge-daemon-linux-x86_64/rustforge-daemon-linux-x86_64.sigstore.json
+            rustforge-tui-linux-x86_64/rustforge-tui-linux-x86_64
+            rustforge-tui-linux-x86_64/rustforge-tui-linux-x86_64.sha256
+            rustforge-tui-linux-x86_64/rustforge-tui-linux-x86_64.sigstore.json
+            rustforge-cli-linux-x86_64/rustforge-cli-linux-x86_64
+            rustforge-cli-linux-x86_64/rustforge-cli-linux-x86_64.sha256
+            rustforge-cli-linux-x86_64/rustforge-cli-linux-x86_64.sigstore.json
+            rustforge-daemon-macos-aarch64/rustforge-daemon-macos-aarch64
+            rustforge-daemon-macos-aarch64/rustforge-daemon-macos-aarch64.sha256
+            rustforge-daemon-macos-aarch64/rustforge-daemon-macos-aarch64.sigstore.json
+            rustforge-tui-macos-aarch64/rustforge-tui-macos-aarch64
+            rustforge-tui-macos-aarch64/rustforge-tui-macos-aarch64.sha256
+            rustforge-tui-macos-aarch64/rustforge-tui-macos-aarch64.sigstore.json
+            rustforge-daemon-windows-x86_64.exe/rustforge-daemon-windows-x86_64.exe
+            rustforge-daemon-windows-x86_64.exe/rustforge-daemon-windows-x86_64.exe.sha256
+            rustforge-daemon-windows-x86_64.exe/rustforge-daemon-windows-x86_64.exe.sigstore.json
+            rustforge-tui-windows-x86_64.exe/rustforge-tui-windows-x86_64.exe
+            rustforge-tui-windows-x86_64.exe/rustforge-tui-windows-x86_64.exe.sha256
+            rustforge-tui-windows-x86_64.exe/rustforge-tui-windows-x86_64.exe.sigstore.json
