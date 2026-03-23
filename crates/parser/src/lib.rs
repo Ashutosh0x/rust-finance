@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use common::SwapEvent;
 use anyhow::Result;
 use crossbeam_channel::Receiver;

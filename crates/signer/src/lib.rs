@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use solana_sdk::signature::{Keypair, Signer};
 use anyhow::Result;
 

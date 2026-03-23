@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use daemon::bootstrap::{bootstrap, DaemonConfig};
 use daemon::engine::{Engine, TuiEvent};
 use daemon::strategy::SimpleMomentum;

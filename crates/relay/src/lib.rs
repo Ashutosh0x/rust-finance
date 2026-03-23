@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use reqwest::Client;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use anyhow::{Result, Context};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
