@@ -37,6 +37,8 @@
 ---
 
 ## Overview
+<img width="1184" height="941" alt="image" src="https://github.com/user-attachments/assets/f4257b02-cca4-4349-904c-810256ffe5a3" />
+
 
 RustForge is an institutional-grade AI trading terminal built in pure Rust. It combines real-time multi-exchange market data, Claude-powered AI analysis, quantitative risk management, prediction market trading, and a full TUI dashboard — all in a single binary with nanosecond-precision timestamps and sub-millisecond latency.
 
