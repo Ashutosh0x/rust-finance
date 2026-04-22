@@ -10,6 +10,6 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-metrics = "0.23"
+metrics = "0.24"
 metrics-exporter-prometheus = "0.15"
 tracing = "0.1.40"
