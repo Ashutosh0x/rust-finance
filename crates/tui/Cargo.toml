@@ -11,7 +11,7 @@ categories.workspace = true
 
 [dependencies]
 ratatui = "0.29"
-crossterm = "0.27"
+crossterm = "0.28"
 anyhow = "1.0"
 tokio = { version = "1.35", features = ["full"] }
 common = { path = "../common" }
