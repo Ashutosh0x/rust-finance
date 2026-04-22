@@ -40,6 +40,8 @@
 
 RustForge is an institutional-grade AI trading terminal built in pure Rust. It combines real-time multi-exchange market data, Claude-powered AI analysis, quantitative risk management, prediction market trading, and a full TUI dashboard — all in a single binary with nanosecond-precision timestamps and sub-millisecond latency.
 
+> **v0.3** — Self-match prevention (CME/NASDAQ/Both modes), SEBI 2026 Algo-ID compliance, Almgren-Chriss square-root market impact fill model, alpha decay monitoring (rolling IC/Sharpe), and production FIX 4.4 parser.
+
 | Feature | Detail |
 |:---|:---|
 | Language | Pure Rust |
@@ -52,9 +54,13 @@ RustForge is an institutional-grade AI trading terminal built in pure Rust. It c
 | Prediction Markets | Polymarket CLOB + cross-platform arbitrage engine |
 | Agent Simulation | 100K-agent Rayon-parallel swarm |
 | Knowledge Graph | petgraph-backed RAG engine |
-| Risk Models | GARCH(1,1) + VaR + Kill Switch + Interceptor Chain |
+| Risk Models | GARCH(1,1) + VaR + Kill Switch + SMP + Interceptor Chain |
 | Timestamp Precision | Nanosecond (`UnixNanos`) |
 | Deterministic Replay | `DeterministicClock` + `SequenceId` ordering |
+| Regulatory Compliance | SEBI 2026 Algo-ID + OPS threshold + pre-trade checks |
+| Fill Simulation | Almgren-Chriss √-impact model + fixed slippage |
+| Alpha Monitoring | Rolling IC, Sharpe, hit rate with auto-decay detection |
+| FIX Protocol | Production FIX 4.4 parser with checksum validation |
 | Market Sources | Alpaca, Binance, Finnhub, Polymarket, Mock |
 | Execution | Alpaca REST, Polymarket CLOB, Paper Trading |
 | License | MIT |
@@ -135,9 +141,9 @@ common           Nanosecond timestamps, events, config, models
 ingestion        Multi-source market data (Alpaca, Binance, Finnhub, Polymarket)
 execution        ExecutionGateway + TWAP/VWAP/Iceberg/POV algos + Smart Order Router
 strategy         Momentum, MeanReversion, Avellaneda-Stoikov market maker
-risk             Kill switch, GARCH vol, VaR, risk interceptor chain
+risk             Kill switch, GARCH vol, VaR, risk interceptor chain, self-match prevention
 pricing          Black-Scholes-Merton, Heston, GARCH(1,1) models
-backtest         Walk-forward, Monte Carlo, backtesting engine
+backtest         Walk-forward, Monte Carlo, backtesting engine, √-impact fill model
 ai               Dexter AI analyst, Claude integration, signal routing
 swarm_sim        100,000-agent market microstructure simulator
 knowledge_graph  petgraph-backed RAG knowledge engine
@@ -145,16 +151,16 @@ polymarket       CLOB + EIP-712 signing + sum-to-one/cross-platform arb engine
 daemon           Hybrid intelligence pipeline, engine orchestration
 event_bus        Postcard-serialized TCP event bus (daemon <-> TUI)
 tui              Ratatui-powered 6-screen trading dashboard
-oms              Order Management System (netting + hedging)
+oms              Order Management System (netting + hedging + SEBI 2026 Algo-ID)
 alerts           Rule-based alert engine
 signals          Technical indicators + OFI, Microprice, Kyle's Lambda, VPIN
 compliance       Pre-trade compliance, audit trail
 persistence      PostgreSQL + SQLite persistence layer
 metrics          Prometheus-compatible telemetry
-ml               Machine learning model inference
+ml               Machine learning model inference, alpha decay monitoring
 model            Model registry and versioning
 feature          Feature engineering pipeline
-fix              FIX protocol adapter
+fix              FIX 4.4 protocol engine — production parser + session layer
 cli              Command-line interface
 web              REST API server
 web-dashboard    Web-based dashboard
@@ -238,18 +244,20 @@ cargo run -p tui --release
 
 ### Risk Management
 - **Deterministic Safety Gate** — zero-AI verification layer detecting agent confirmation bias (>85% agreement), concentration, drawdown, and correlation exposure
+- **Self-Match Prevention (SMP)** — wash trade prevention for market makers with 3 exchange-standard modes: `CancelResting` (CME), `CancelAggressive` (NASDAQ), `CancelBoth` (safest)
 - **Kill Switch** — emergency circuit breaker (hotkey `K` in TUI)
 - **GARCH(1,1) + EGARCH** — real-time symmetric and asymmetric volatility estimation
 - **Value at Risk (VaR)** — Historical, Parametric (Delta-Normal), and Student-t fat-tail VaR at 95%/99% confidence with CVaR (Expected Shortfall)
 - **Component VaR** — per-position marginal contribution to portfolio risk
 - **10-Day Basel VaR** — √10 scaling for regulatory compliance
 - **PnL Attribution** — component-level profit/loss decomposition
-- **Risk Interceptor Chain** — composable pre-trade risk checks
+- **Risk Interceptor Chain** — composable pre-trade risk checks (MaxPositionSize, MaxDrawdown, MaxOpenOrders, DailyLossLimit, SMP)
 - **Kelly Criterion Sizing** — quarter-Kelly position sizing with conviction scaling
 - **Cross-Asset Correlation** — rolling pairwise correlation and concentration penalty
-- **Regime Detection** — GARCH-based volatility regime classification
+- **Regime Detection** — GARCH-based volatility regime classification with position scaling
+- **Alpha Decay Monitor** — rolling Information Coefficient (Spearman IC), Sharpe ratio, and hit rate tracking; auto-flags `Healthy` → `Degraded` → `Decayed` health states for strategy auto-pause
 - Max Drawdown and Daily Loss Limit trading guardrails
-- **SEBI Compliance** — order variety classification and regulatory compliance (India)
+- **SEBI 2026 Compliance** — Algo-ID tagging (mandatory since April 1, 2026), OPS threshold monitoring, order variety classification, price band checks, uptick rule, squareoff time enforcement
 
 ### Market Making & Microstructure
 - **Avellaneda-Stoikov Market Maker** — Optimal quoting: `r = s - q·γ·σ²·(T-t)`, `δ = γσ²τ + (2/γ)·ln(1 + γ/κ)`
@@ -272,6 +280,9 @@ cargo run -p tui --release
 - **Fundamental Analysis** — DCF, Graham, and PEG valuation models
 - **Monte Carlo Engine** — path simulation for derivative pricing
 - **Walk-Forward Backtesting** — out-of-sample validation with Sharpe, Sortino, CAGR, profit factor
+- **Pluggable Fill Model** — `FillModel` trait with two implementations:
+  - `FixedSlippage` — constant basis-point slippage (backward compat)
+  - `SquareRootImpact` — Almgren-Chriss institutional model: `impact = σ × η × √(q/ADV)` with presets for liquid (η=0.1), mid-cap (η=0.25), and illiquid (η=0.5) instruments
 - **Transaction Cost Analysis (TCA)** — Implementation Shortfall, VWAP/TWAP slippage, market impact, per-strategy breakdown
 - **Gamma Exposure (GEX)** — dealer gamma surface, flip points, pin risk zones, vol regime detection
 - **Latency Queue** — priority-queue latency simulation for realistic fills
@@ -290,8 +301,16 @@ cargo run -p tui --release
 ### Compliance and Audit
 - Full audit trail — every state transition logged with `AuditTick`
 - Pre-trade compliance — rule-based order validation
-- SEBI algorithmic trading compliance — order variety classification and regulatory checks
+- **SEBI 2026 Algo Framework** — Algo-ID tagging on every order to NSE/BSE, static IP whitelisting, OPS threshold monitoring (>10 OPS requires registration), order value caps, MIS squareoff time enforcement, uptick rule, price band circuit filters
 - Deterministic replay — reproduce any historical trading session
+
+### FIX Protocol (v0.3)
+- **Production FIX 4.4 Parser** — length-delimited (`BodyLength` tag 9) message framing with checksum validation
+- **Tag-Value Extraction** — full field parsing into `HashMap<u32, String>` with `MsgType` derivation from tag 35
+- **Streaming Parser** — `push_bytes()` + `next_message()` pattern for TCP stream processing
+- **Session Layer** — Logon/Logout/Heartbeat/TestRequest/ResendRequest/SequenceReset handling
+- **Supported Messages** — Logon, Logout, Heartbeat, TestRequest, ResendRequest, SequenceReset, ExecutionReport, OrderCancelReject, NewOrderSingle, OrderCancelRequest
+- Zero external dependencies — hand-rolled for maximum control and auditability
 
 ### Security & Supply Chain (CI/CD)
 - **8-job Security pipeline** — cargo-audit (CVE), cargo-deny (licenses/bans/advisories), cargo-vet (supply chain verification), Clippy (pedantic + cargo lints), rustfmt, SHA-pin enforcement, CodeQL SAST, OpenSSF Scorecard

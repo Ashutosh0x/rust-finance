@@ -5,6 +5,7 @@
 
 pub mod benchmark;
 pub mod engine;
+pub mod fill_model;
 pub mod robustness;
 pub mod strategy;
 
@@ -14,6 +15,7 @@ pub use benchmark::{
     BenchmarkThresholds, InstitutionalMetrics, SwarmValidationResult,
 };
 pub use engine::{BacktestConfig, BacktestEngine, BacktestMetrics, Bar};
+pub use fill_model::{FillModel, FillResult, FixedSlippage, SquareRootImpact};
 pub use robustness::{
     capacity_degradation, cost_sensitivity_matrix, engine_consistency_check, print_capacity_report,
     print_cost_sensitivity, print_overfit_report, print_reproducibility_proof,
@@ -22,3 +24,4 @@ pub use robustness::{
     ReproducibilityProof,
 };
 pub use strategy::{SimpleMovingAverageCrossover, Strategy, StrategySignal, ZScoreMeanReversion};
+

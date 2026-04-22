@@ -8,6 +8,11 @@
 // - Bracket order validation
 // - Daily traded value caps per client
 // - Price band checks (circuit filters)
+//
+// SEBI 2026 Algo Framework (mandatory since April 1, 2026):
+// - Algo-ID tagging on every order to NSE/BSE
+// - Static IP whitelisting with broker
+// - Orders Per Second (OPS) threshold monitoring (>10 OPS requires registration)
 
 use chrono::{DateTime, Timelike, Utc};
 use std::collections::HashMap;
@@ -31,6 +36,20 @@ pub struct SebiConfig {
     /// Price band percentage — orders outside ±N% of reference price rejected.
     /// Set to 0.0 to disable.
     pub price_band_pct: f64,
+
+    // ── SEBI 2026 Algo Framework (mandatory since April 1, 2026) ────────
+
+    /// Exchange-assigned Algo-ID. Must be tagged on every order to NSE/BSE.
+    /// Obtained from your broker after SEBI algo registration.
+    pub algo_id: Option<String>,
+    /// Static IP registered with broker. Orders from other IPs will be rejected.
+    pub registered_ip: Option<String>,
+    /// If true, enforce Algo-ID presence on every order (default: true).
+    /// Set to false only for non-Indian markets.
+    pub require_algo_id: bool,
+    /// OPS threshold — above this many orders/second, formal SEBI algo registration
+    /// is required. Default: 10 (SEBI standard).
+    pub ops_threshold: u32,
 }
 
 impl Default for SebiConfig {
@@ -43,6 +62,10 @@ impl Default for SebiConfig {
             max_daily_qty_per_scrip: 1_000_000.0,
             max_daily_turnover: 500_000_000.0, // ₹50 Cr
             price_band_pct: 0.20,              // ±20% circuit filter
+            algo_id: None,
+            registered_ip: None,
+            require_algo_id: true,
+            ops_threshold: 10,
         }
     }
 }
@@ -92,6 +115,14 @@ pub enum SebiViolation {
 
     #[error("Cover order stoploss {sl_pct:.1}% must be between 0.1% and 10%")]
     InvalidCoverOrder { sl_pct: f64 },
+
+    // ── SEBI 2026 Algo Framework violations ──────────────────────────────
+
+    #[error("SEBI 2026: Algo-ID not configured. Set `algo_id` in SebiConfig. All algo orders to NSE/BSE require an exchange-assigned Algo-ID since April 1, 2026.")]
+    AlgoIdMissing,
+
+    #[error("SEBI 2026: OPS rate {rate}/sec exceeds threshold {threshold}/sec — formal algo registration required")]
+    OpsThresholdExceeded { rate: u32, threshold: u32 },
 }
 
 /// Per-client intraday trading state.
@@ -99,6 +130,10 @@ pub enum SebiViolation {
 struct ClientState {
     daily_turnover: f64,
     daily_qty: HashMap<String, f64>,
+    /// Orders submitted in the current second (for OPS threshold).
+    orders_this_second: u32,
+    /// Timestamp of the current second being tracked.
+    current_second_ts: i64,
 }
 
 /// SEBI compliance engine.
@@ -153,6 +188,19 @@ impl SebiCompliance {
         now: DateTime<Utc>,
     ) -> Result<(), SebiViolation> {
         let order_value = quantity * price;
+
+        // ── 0. SEBI 2026 Algo-ID check (mandatory since April 1, 2026) ──────
+        if self.cfg.require_algo_id && self.cfg.algo_id.is_none() {
+            return Err(SebiViolation::AlgoIdMissing);
+        }
+
+        // ── 0b. OPS threshold check ─────────────────────────────────────────
+        if self.client_state.orders_this_second >= self.cfg.ops_threshold {
+            return Err(SebiViolation::OpsThresholdExceeded {
+                rate: self.client_state.orders_this_second,
+                threshold: self.cfg.ops_threshold,
+            });
+        }
 
         // ── 1. Order value cap ──────────────────────────────────────────────
         if order_value > self.cfg.max_single_order_value {
@@ -257,13 +305,27 @@ impl SebiCompliance {
     }
 
     /// Record an accepted order's contribution to daily limits.
-    pub fn record_order(&mut self, symbol: &str, quantity: f64, price: f64) {
+    pub fn record_order(&mut self, symbol: &str, quantity: f64, price: f64, now: DateTime<Utc>) {
         self.client_state.daily_turnover += quantity * price;
         *self
             .client_state
             .daily_qty
             .entry(symbol.to_string())
             .or_insert(0.0) += quantity;
+
+        // Track OPS (orders per second)
+        let ts = now.timestamp();
+        if ts == self.client_state.current_second_ts {
+            self.client_state.orders_this_second += 1;
+        } else {
+            self.client_state.orders_this_second = 1;
+            self.client_state.current_second_ts = ts;
+        }
+    }
+
+    /// Get the currently configured Algo-ID (for order tagging).
+    pub fn algo_id(&self) -> Option<&str> {
+        self.cfg.algo_id.as_deref()
     }
 }
 
@@ -285,10 +347,19 @@ mod tests {
         Utc.with_ymd_and_hms(2024, 1, 15, utc_h, utc_m, 0).unwrap()
     }
 
+    /// Helper: config with algo_id requirement disabled (for non-algo-id tests).
+    fn config_no_algo_id() -> SebiConfig {
+        SebiConfig {
+            require_algo_id: false,
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn test_order_value_exceeded() {
         let compliance = SebiCompliance::new(SebiConfig {
             max_single_order_value: 1_000.0,
+            require_algo_id: false,
             ..Default::default()
         });
         let result = compliance.check(
@@ -307,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_mis_past_squareoff_rejected() {
-        let compliance = SebiCompliance::new(SebiConfig::default());
+        let compliance = SebiCompliance::new(config_no_algo_id());
         // 15:20 IST — past 15:15 cutoff
         let result = compliance.check(
             "INFY",
@@ -327,6 +398,7 @@ mod tests {
     fn test_price_band_violation() {
         let mut compliance = SebiCompliance::new(SebiConfig {
             price_band_pct: 0.10,
+            require_algo_id: false,
             ..Default::default()
         });
         compliance.set_reference_price("TATAMOTORS", 500.0);
@@ -347,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_valid_order_passes() {
-        let compliance = SebiCompliance::new(SebiConfig::default());
+        let compliance = SebiCompliance::new(config_no_algo_id());
         let result = compliance.check(
             "SBIN",
             false,
@@ -358,4 +430,71 @@ mod tests {
         );
         assert!(result.is_ok());
     }
+
+    // ── SEBI 2026 Algo Framework tests ──────────────────────────────
+
+    #[test]
+    fn test_algo_id_missing_rejected() {
+        // Default config has require_algo_id = true, algo_id = None
+        let compliance = SebiCompliance::new(SebiConfig::default());
+        let result = compliance.check(
+            "SBIN",
+            false,
+            100.0,
+            700.0,
+            &OrderVariety::Cnc,
+            utc_time(10, 30),
+        );
+        assert!(
+            matches!(result, Err(SebiViolation::AlgoIdMissing)),
+            "Orders without Algo-ID should be rejected since April 1, 2026"
+        );
+    }
+
+    #[test]
+    fn test_algo_id_configured_passes() {
+        let compliance = SebiCompliance::new(SebiConfig {
+            algo_id: Some("ALGO-RF-2026-001".to_string()),
+            ..Default::default()
+        });
+        let result = compliance.check(
+            "SBIN",
+            false,
+            100.0,
+            700.0,
+            &OrderVariety::Cnc,
+            utc_time(10, 30),
+        );
+        assert!(result.is_ok(), "Order with valid Algo-ID should pass");
+    }
+
+    #[test]
+    fn test_ops_threshold_exceeded() {
+        let mut compliance = SebiCompliance::new(SebiConfig {
+            algo_id: Some("ALGO-RF-2026-001".to_string()),
+            ops_threshold: 3,
+            ..Default::default()
+        });
+        let now = utc_time(10, 30);
+
+        // Fire 3 orders in the same second (OPS = 3 = threshold)
+        for _ in 0..3 {
+            compliance.record_order("SBIN", 10.0, 700.0, now);
+        }
+
+        // The 4th order should trigger OPS violation
+        let result = compliance.check(
+            "SBIN",
+            false,
+            10.0,
+            700.0,
+            &OrderVariety::Cnc,
+            now,
+        );
+        assert!(
+            matches!(result, Err(SebiViolation::OpsThresholdExceeded { .. })),
+            "Should reject when OPS exceeds threshold"
+        );
+    }
 }
+

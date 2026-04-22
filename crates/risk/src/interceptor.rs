@@ -120,6 +120,7 @@ mod tests {
             current_drawdown_pct: 0.0,
             open_order_count: 2,
             daily_trade_count: 5,
+            open_orders: vec![],
         }
     }
 

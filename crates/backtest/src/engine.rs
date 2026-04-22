@@ -2,7 +2,10 @@
 //
 // Backtesting engine — replays historical OHLCV bars through a strategy,
 // simulates fills against bid/ask, and computes performance metrics.
+//
+// v0.3: Pluggable fill model (SquareRootImpact replaces fixed slippage).
 
+use crate::fill_model::{FillModel, FixedSlippage};
 use crate::strategy::{Strategy, StrategySignal};
 use serde::{Deserialize, Serialize};
 
@@ -32,12 +35,12 @@ pub struct SimulatedFill {
 }
 
 /// Backtest configuration.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BacktestConfig {
     pub initial_cash: f64,
     /// Commission as fraction of notional.
     pub commission_rate: f64,
-    /// Slippage as fraction of price.
+    /// Legacy slippage rate — used by FixedSlippage if no fill_model is set.
     pub slippage_rate: f64,
     /// Fill on next bar's open (True) vs current bar's close (False).
     pub fill_on_next_open: bool,
@@ -45,12 +48,24 @@ pub struct BacktestConfig {
     pub allow_short: bool,
 }
 
+impl std::fmt::Debug for BacktestConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BacktestConfig")
+            .field("initial_cash", &self.initial_cash)
+            .field("commission_rate", &self.commission_rate)
+            .field("slippage_rate", &self.slippage_rate)
+            .field("fill_on_next_open", &self.fill_on_next_open)
+            .field("allow_short", &self.allow_short)
+            .finish()
+    }
+}
+
 impl Default for BacktestConfig {
     fn default() -> Self {
         Self {
             initial_cash: 100_000.0,
             commission_rate: 0.0005, // 5 bps
-            slippage_rate: 0.0001,   // 1 bp
+            slippage_rate: 0.0001,   // 1 bp (legacy)
             fill_on_next_open: true,
             allow_short: true,
         }
@@ -76,6 +91,7 @@ pub struct BacktestMetrics {
 /// Main backtesting engine.
 pub struct BacktestEngine {
     cfg: BacktestConfig,
+    fill_model: Box<dyn FillModel>,
     cash: f64,
     positions: std::collections::HashMap<String, f64>, // symbol → qty
     cost_basis: std::collections::HashMap<String, f64>,
@@ -83,13 +99,16 @@ pub struct BacktestEngine {
     fills: Vec<SimulatedFill>,
     pending_signals: Vec<StrategySignal>,
     last_prices: std::collections::HashMap<String, f64>,
+    current_bar: Option<Bar>,
 }
 
 impl BacktestEngine {
     pub fn new(cfg: BacktestConfig) -> Self {
         let cash = cfg.initial_cash;
+        let fill_model = Box::new(FixedSlippage::new(cfg.slippage_rate));
         Self {
             cfg,
+            fill_model,
             cash,
             positions: Default::default(),
             cost_basis: Default::default(),
@@ -97,12 +116,32 @@ impl BacktestEngine {
             fills: Vec::new(),
             pending_signals: Vec::new(),
             last_prices: Default::default(),
+            current_bar: None,
+        }
+    }
+
+    /// Create with a custom fill model (e.g. SquareRootImpact).
+    pub fn with_fill_model(cfg: BacktestConfig, fill_model: Box<dyn FillModel>) -> Self {
+        let cash = cfg.initial_cash;
+        Self {
+            cfg,
+            fill_model,
+            cash,
+            positions: Default::default(),
+            cost_basis: Default::default(),
+            equity_curve: Vec::new(),
+            fills: Vec::new(),
+            pending_signals: Vec::new(),
+            last_prices: Default::default(),
+            current_bar: None,
         }
     }
 
     /// Run a strategy over a sequence of bars.
     pub fn run<S: Strategy>(&mut self, bars: &[Bar], strategy: &mut S) -> BacktestMetrics {
         for (_i, bar) in bars.iter().enumerate() {
+            self.current_bar = Some(bar.clone());
+
             // Execute any pending signals from the previous bar
             if self.cfg.fill_on_next_open {
                 let pending = std::mem::take(&mut self.pending_signals);
@@ -132,11 +171,21 @@ impl BacktestEngine {
     }
 
     fn execute_signal(&mut self, signal: &StrategySignal, price: f64, timestamp: i64) {
-        let slippage = match signal.qty {
-            q if q > 0.0 => price * self.cfg.slippage_rate, // Buy: price goes up
-            _ => -price * self.cfg.slippage_rate,           // Sell: price goes down
-        };
-        let fill_price = price + slippage;
+        // Use the fill model for price impact simulation
+        let bar = self.current_bar.clone().unwrap_or_else(|| Bar {
+            timestamp,
+            symbol: signal.symbol.clone(),
+            open: price,
+            high: price * 1.005,
+            low: price * 0.995,
+            close: price,
+            volume: 1_000_000.0,
+            bid: price - 0.01,
+            ask: price + 0.01,
+        });
+        let fill_result = self.fill_model.simulate_fill(signal.qty, price, &bar);
+        let fill_price = fill_result.fill_price;
+        let _slippage = fill_price - price;
         let notional = fill_price * signal.qty.abs();
         let commission = notional * self.cfg.commission_rate;
 
@@ -182,7 +231,7 @@ impl BacktestEngine {
             qty: signal.qty,
             price: fill_price,
             commission,
-            slippage: slippage.abs() * signal.qty.abs(),
+            slippage: (fill_price - price).abs() * signal.qty.abs(),
         });
     }
 

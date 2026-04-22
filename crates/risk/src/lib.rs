@@ -10,9 +10,12 @@ pub mod kill_switch;
 pub mod pnl_attribution;
 pub mod regime;
 pub mod safety_gate;
+pub mod self_match;
 pub mod state;
 pub mod var;
 
 pub use interceptor::*;
 pub use safety_gate::*;
+pub use self_match::{SelfMatchPrevention, SmpMode};
 pub use state::*;
+

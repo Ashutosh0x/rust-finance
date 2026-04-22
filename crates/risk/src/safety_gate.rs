@@ -192,6 +192,7 @@ mod tests {
             daily_pnl: -500.0,
             open_order_count: 3,
             daily_trade_count: 10,
+            open_orders: vec![],
         }
     }
 
