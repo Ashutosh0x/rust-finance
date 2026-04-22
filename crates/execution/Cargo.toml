@@ -13,7 +13,7 @@ categories.workspace = true
 common = { path = "../common" }
 ingestion = { path = "../ingestion" }
 async-trait = "0.1"
-compact_str = "0.8"
+compact_str = "0.9"
 anyhow = "1.0"
 tracing = "0.1"
 
