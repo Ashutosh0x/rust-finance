@@ -2,6 +2,12 @@
 name = "web-dashboard"
 version = "0.1.0"
 edition = "2021"
+description = "Web-based real-time trading dashboard for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }

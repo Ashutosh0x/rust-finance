@@ -4,12 +4,12 @@
 // Order Management System (OMS)
 // Manages the order lifecycle, position tracking, and pre-trade compliance checks.
 
+pub mod blotter;
 pub mod order;
 pub mod position;
-pub mod blotter;
 pub mod sebi;
 
-pub use order::{Order, OrderStatus, OrderEvent, OrderType, Side, TimeInForce};
+pub use blotter::{ComplianceError, ComplianceLimits, OrderBlotter};
+pub use order::{Order, OrderEvent, OrderStatus, OrderType, Side, TimeInForce};
 pub use position::{Position, PositionManager};
-pub use blotter::{OrderBlotter, ComplianceLimits, ComplianceError};
-pub use sebi::{SebiCompliance, SebiConfig, OrderVariety, SebiViolation};
+pub use sebi::{OrderVariety, SebiCompliance, SebiConfig, SebiViolation};

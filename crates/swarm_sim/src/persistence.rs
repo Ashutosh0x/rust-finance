@@ -58,44 +58,72 @@ impl ActionLog {
     }
 
     pub fn push_batch(&mut self, entries: Vec<ActionEntry>) {
-        for e in entries { self.buffer.push_back(e); }
+        for e in entries {
+            self.buffer.push_back(e);
+        }
     }
 
     pub async fn flush_if_ready(&mut self) {
-        if self.buffer.len() >= self.batch_size { self.flush().await; }
+        if self.buffer.len() >= self.batch_size {
+            self.flush().await;
+        }
     }
 
     pub async fn flush(&mut self) {
-        if self.buffer.is_empty() { return; }
+        if self.buffer.is_empty() {
+            return;
+        }
 
         let batch: Vec<ActionEntry> = self.buffer.drain(..).collect();
         let count = batch.len();
 
         if let Some(tx) = &self.flush_tx {
-            if let Err(e) = tx.send(batch) { warn!("ActionLog flush channel closed: {}", e); }
+            if let Err(e) = tx.send(batch) {
+                warn!("ActionLog flush channel closed: {}", e);
+            }
         } else {
-            if let Err(e) = write_jsonl_batch(&self.db_path, &batch) { error!("ActionLog sync write error: {}", e); }
+            if let Err(e) = write_jsonl_batch(&self.db_path, &batch) {
+                error!("ActionLog sync write error: {}", e);
+            }
         }
 
         self.total_written += count as u64;
     }
 
-    pub fn total_written(&self) -> u64 { self.total_written }
-    pub fn buffered(&self) -> usize { self.buffer.len() }
+    pub fn total_written(&self) -> u64 {
+        self.total_written
+    }
+    pub fn buffered(&self) -> usize {
+        self.buffer.len()
+    }
 }
 
 #[derive(Debug)]
 pub struct ActionQuery;
 
 impl ActionQuery {
-    pub fn buy_sell_ratio(entries: &[ActionEntry], last_n_rounds: u64, current_round: u64) -> (usize, usize) {
+    pub fn buy_sell_ratio(
+        entries: &[ActionEntry],
+        last_n_rounds: u64,
+        current_round: u64,
+    ) -> (usize, usize) {
         let min_round = current_round.saturating_sub(last_n_rounds);
-        let buys = entries.iter().filter(|e| e.round >= min_round && e.action_json.contains("\"Buy\"")).count();
-        let sells = entries.iter().filter(|e| e.round >= min_round && e.action_json.contains("\"Sell\"")).count();
+        let buys = entries
+            .iter()
+            .filter(|e| e.round >= min_round && e.action_json.contains("\"Buy\""))
+            .count();
+        let sells = entries
+            .iter()
+            .filter(|e| e.round >= min_round && e.action_json.contains("\"Sell\""))
+            .count();
         (buys, sells)
     }
 
-    pub fn most_active_agent(entries: &[ActionEntry], last_n_rounds: u64, current_round: u64) -> Option<AgentId> {
+    pub fn most_active_agent(
+        entries: &[ActionEntry],
+        last_n_rounds: u64,
+        current_round: u64,
+    ) -> Option<AgentId> {
         use std::collections::HashMap;
         let min_round = current_round.saturating_sub(last_n_rounds);
 

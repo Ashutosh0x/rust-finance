@@ -89,7 +89,8 @@ impl DataClient {
 
     /// GET /profile/{address} — get public profile by wallet address
     pub async fn get_profile(&self, address: &str) -> anyhow::Result<UserProfile> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/profile/{}", self.base_url, address))
             .send()
             .await?
@@ -102,7 +103,8 @@ impl DataClient {
 
     /// GET /positions?user={address} — get current positions for a user
     pub async fn get_positions(&self, address: &str) -> anyhow::Result<Vec<UserPosition>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/positions", self.base_url))
             .query(&[("user", address)])
             .send()
@@ -114,7 +116,8 @@ impl DataClient {
 
     /// GET /positions?user={address}&closed=true — get closed positions
     pub async fn get_closed_positions(&self, address: &str) -> anyhow::Result<Vec<UserPosition>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/positions", self.base_url))
             .query(&[("user", address), ("closed", "true")])
             .send()
@@ -133,9 +136,12 @@ impl DataClient {
         limit: Option<u32>,
     ) -> anyhow::Result<Vec<UserTrade>> {
         let mut params: Vec<(&str, String)> = vec![("user", address.to_string())];
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
 
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/trades", self.base_url))
             .query(&params)
             .send()
@@ -152,9 +158,12 @@ impl DataClient {
         limit: Option<u32>,
     ) -> anyhow::Result<Vec<UserTrade>> {
         let mut params: Vec<(&str, String)> = vec![("market", market_id.to_string())];
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
 
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/trades", self.base_url))
             .query(&params)
             .send()
@@ -172,9 +181,12 @@ impl DataClient {
         limit: Option<u32>,
     ) -> anyhow::Result<Vec<LeaderboardEntry>> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
 
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/leaderboard", self.base_url))
             .query(&params)
             .send()
@@ -187,11 +199,9 @@ impl DataClient {
     // ─── Open Interest ───────────────────────────────────────────
 
     /// GET /open-interest?market={market_id} — get open interest for a market
-    pub async fn get_open_interest(
-        &self,
-        market_id: &str,
-    ) -> anyhow::Result<serde_json::Value> {
-        let resp = self.http
+    pub async fn get_open_interest(&self, market_id: &str) -> anyhow::Result<serde_json::Value> {
+        let resp = self
+            .http
             .get(format!("{}/open-interest", self.base_url))
             .query(&[("market", market_id)])
             .send()

@@ -48,31 +48,35 @@ impl AlertEngine {
     /// Run the alerting loop. Spawn this in a background tokio task.
     pub async fn run(mut self) {
         tracing::info!("Alert engine started");
-        
+
         while let Some(alert) = self.rx.recv().await {
             if self.should_send(&alert) {
                 // Dispatch concurrently so a slow Discord webhook doesn't block Telegram
                 let telegram_fut = self.send_telegram(alert.clone());
                 let discord_fut = self.send_discord(alert.clone());
-                
+
                 tokio::join!(telegram_fut, discord_fut);
             }
         }
-        
+
         tracing::warn!("Alert engine shutting down (channel closed)");
     }
 
     fn should_send(&self, alert: &Alert) -> bool {
         match (&self.config.minimum_severity, &alert.severity) {
             (AlertSeverity::Critical, AlertSeverity::Critical) => true,
-            (AlertSeverity::Warning, AlertSeverity::Warning) | (AlertSeverity::Warning, AlertSeverity::Critical) => true,
+            (AlertSeverity::Warning, AlertSeverity::Warning)
+            | (AlertSeverity::Warning, AlertSeverity::Critical) => true,
             (AlertSeverity::Info, _) => true,
             _ => false,
         }
     }
 
     async fn send_telegram(&self, alert: Alert) {
-        let (token, chat_id) = match (&self.config.telegram_bot_token, &self.config.telegram_chat_id) {
+        let (token, chat_id) = match (
+            &self.config.telegram_bot_token,
+            &self.config.telegram_chat_id,
+        ) {
             (Some(t), Some(c)) => (t, c),
             _ => return,
         };
@@ -83,7 +87,10 @@ impl AlertEngine {
             AlertSeverity::Critical => "[CRITICAL]",
         };
 
-        let text = format!("{} *{}*\n_{}_\n\n{}", emoji, alert.title, alert.source, alert.message);
+        let text = format!(
+            "{} *{}*\n_{}_\n\n{}",
+            emoji, alert.title, alert.source, alert.message
+        );
         let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
 
         let mut body = HashMap::new();
@@ -153,29 +160,38 @@ impl Alerter {
     }
 
     pub async fn info(&self, source: &str, title: &str, message: &str) {
-        let _ = self.tx.send(Alert {
-            severity: AlertSeverity::Info,
-            title: title.to_string(),
-            message: message.to_string(),
-            source: source.to_string(),
-        }).await;
+        let _ = self
+            .tx
+            .send(Alert {
+                severity: AlertSeverity::Info,
+                title: title.to_string(),
+                message: message.to_string(),
+                source: source.to_string(),
+            })
+            .await;
     }
 
     pub async fn warn(&self, source: &str, title: &str, message: &str) {
-        let _ = self.tx.send(Alert {
-            severity: AlertSeverity::Warning,
-            title: title.to_string(),
-            message: message.to_string(),
-            source: source.to_string(),
-        }).await;
+        let _ = self
+            .tx
+            .send(Alert {
+                severity: AlertSeverity::Warning,
+                title: title.to_string(),
+                message: message.to_string(),
+                source: source.to_string(),
+            })
+            .await;
     }
 
     pub async fn critical(&self, source: &str, title: &str, message: &str) {
-        let _ = self.tx.send(Alert {
-            severity: AlertSeverity::Critical,
-            title: title.to_string(),
-            message: message.to_string(),
-            source: source.to_string(),
-        }).await;
+        let _ = self
+            .tx
+            .send(Alert {
+                severity: AlertSeverity::Critical,
+                title: title.to_string(),
+                message: message.to_string(),
+                source: source.to_string(),
+            })
+            .await;
     }
 }

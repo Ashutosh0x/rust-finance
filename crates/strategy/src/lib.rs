@@ -2,7 +2,7 @@
 // crates/strategy/src/lib.rs
 // v2 Strategy trait + concrete implementations
 
-use common::events::{BotEvent, MarketEvent, Envelope};
+use common::events::{BotEvent, Envelope, MarketEvent};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -54,13 +54,17 @@ impl MomentumStrategy {
     }
 
     fn sma(&self) -> f64 {
-        if self.window.is_empty() { return 0.0; }
+        if self.window.is_empty() {
+            return 0.0;
+        }
         self.window.iter().sum::<f64>() / self.window.len() as f64
     }
 }
 
 impl PluggableStrategy for MomentumStrategy {
-    fn name(&self) -> &str { "Momentum" }
+    fn name(&self) -> &str {
+        "Momentum"
+    }
 
     fn on_market_event(&mut self, event: &Envelope<MarketEvent>) -> Option<TradeSignal> {
         let (symbol, price) = match &event.payload {
@@ -79,7 +83,10 @@ impl PluggableStrategy for MomentumStrategy {
 
         // AI confidence gate
         if self.last_ai_confidence < 0.65 {
-            info!(confidence = self.last_ai_confidence, "Momentum: AI veto active");
+            info!(
+                confidence = self.last_ai_confidence,
+                "Momentum: AI veto active"
+            );
             return None;
         }
 
@@ -108,7 +115,10 @@ impl PluggableStrategy for MomentumStrategy {
     }
 
     fn on_ai_signal(&mut self, event: &BotEvent) {
-        if let BotEvent::AISignal { confidence, symbol, .. } = event {
+        if let BotEvent::AISignal {
+            confidence, symbol, ..
+        } = event
+        {
             info!(symbol, confidence, "Momentum: ingesting AI signal");
             self.last_ai_confidence = *confidence;
         }
@@ -141,7 +151,9 @@ impl MeanReversionStrategy {
     }
 
     fn mean_and_std(&self) -> (f64, f64) {
-        if self.window.is_empty() { return (0.0, 0.0); }
+        if self.window.is_empty() {
+            return (0.0, 0.0);
+        }
         let n = self.window.len() as f64;
         let mean = self.window.iter().sum::<f64>() / n;
         let variance = self.window.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n;
@@ -150,7 +162,9 @@ impl MeanReversionStrategy {
 }
 
 impl PluggableStrategy for MeanReversionStrategy {
-    fn name(&self) -> &str { "MeanReversion" }
+    fn name(&self) -> &str {
+        "MeanReversion"
+    }
 
     fn on_market_event(&mut self, event: &Envelope<MarketEvent>) -> Option<TradeSignal> {
         let (symbol, price) = match &event.payload {
@@ -171,7 +185,9 @@ impl PluggableStrategy for MeanReversionStrategy {
         }
 
         let (mean, std) = self.mean_and_std();
-        if std < 1e-10 { return None; }
+        if std < 1e-10 {
+            return None;
+        }
 
         let z_score = (price - mean) / std;
 
@@ -199,7 +215,10 @@ impl PluggableStrategy for MeanReversionStrategy {
     }
 
     fn on_ai_signal(&mut self, event: &BotEvent) {
-        if let BotEvent::AISignal { confidence, symbol, .. } = event {
+        if let BotEvent::AISignal {
+            confidence, symbol, ..
+        } = event
+        {
             info!(symbol, confidence, "MeanReversion: ingesting AI signal");
             self.last_ai_confidence = *confidence;
         }
@@ -237,7 +256,10 @@ impl SimpleStrategy {
 impl Strategy for SimpleStrategy {
     fn on_event(&mut self, event: &common::SwapEvent) -> common::Action {
         if self.last_ai_confidence < 0.65 {
-            info!("Strategy Veto: AI Confidence {} below 0.65", self.last_ai_confidence);
+            info!(
+                "Strategy Veto: AI Confidence {} below 0.65",
+                self.last_ai_confidence
+            );
             return common::Action::Hold;
         }
 
@@ -253,8 +275,14 @@ impl Strategy for SimpleStrategy {
     }
 
     fn on_ai_signal_v1(&mut self, event: &BotEvent) {
-        if let BotEvent::AISignal { confidence, symbol, .. } = event {
-            info!("Strategy engine ingesting AI Signal for {}. Confidence: {}", symbol, confidence);
+        if let BotEvent::AISignal {
+            confidence, symbol, ..
+        } = event
+        {
+            info!(
+                "Strategy engine ingesting AI Signal for {}. Confidence: {}",
+                symbol, confidence
+            );
             self.last_ai_confidence = *confidence;
         }
     }

@@ -1,4 +1,7 @@
-use pricing::hull_white::{hw_bond_price, hw_bond_option, HullWhiteParams, YieldCurve, HwBondOptionInput, trinomial_tree_price, TreeParams};
+use pricing::hull_white::{
+    HullWhiteParams, HwBondOptionInput, TreeParams, YieldCurve, hw_bond_option, hw_bond_price,
+    trinomial_tree_price,
+};
 
 #[test]
 fn test_hw_bond_discount_consistency() {
@@ -6,7 +9,7 @@ fn test_hw_bond_discount_consistency() {
         mean_reversion: 0.10,
         volatility: 0.01,
     };
-    
+
     // Flat 5% yield curve
     let curve = YieldCurve {
         points: vec![(0.0, 0.05), (1.0, 0.05), (5.0, 0.05), (10.0, 0.05)],
@@ -16,13 +19,21 @@ fn test_hw_bond_discount_consistency() {
     // with convexity adjustment zeroed out if vol = 0
     let price_5y = hw_bond_price(&p, &curve, 0.05, 0.0, 5.0);
     let expected_5y = (-0.05 * 5.0_f64).exp();
-    assert!((price_5y - expected_5y).abs() < 1e-4, "HW zero-time bond price violated flat curve expectation");
+    assert!(
+        (price_5y - expected_5y).abs() < 1e-4,
+        "HW zero-time bond price violated flat curve expectation"
+    );
 }
 
 #[test]
 fn test_hw_european_swaption_approx() {
-    let p = HullWhiteParams { mean_reversion: 0.05, volatility: 0.01 };
-    let curve = YieldCurve { points: vec![(0.0, 0.03), (10.0, 0.03)] };
+    let p = HullWhiteParams {
+        mean_reversion: 0.05,
+        volatility: 0.01,
+    };
+    let curve = YieldCurve {
+        points: vec![(0.0, 0.03), (10.0, 0.03)],
+    };
 
     let input = HwBondOptionInput {
         option_maturity: 1.0,
@@ -53,7 +64,11 @@ fn test_hw_trinomial_tree_bsm_convergence() {
     };
 
     let tree_price = trinomial_tree_price(&p);
-    
+
     // BSM known answer for these params is ~10.4505
-    assert!((tree_price - 10.4505).abs() < 0.05, "Tree price {} deviates too much from BSM 10.4505", tree_price);
+    assert!(
+        (tree_price - 10.4505).abs() < 0.05,
+        "Tree price {} deviates too much from BSM 10.4505",
+        tree_price
+    );
 }

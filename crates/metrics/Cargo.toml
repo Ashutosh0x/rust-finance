@@ -2,6 +2,12 @@
 name = "metrics_lib"
 version = "0.1.0"
 edition = "2021"
+description = "Prometheus metrics and observability for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 metrics = "0.23"

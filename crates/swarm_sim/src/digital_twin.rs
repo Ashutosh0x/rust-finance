@@ -15,10 +15,10 @@
 //   - Market regime detection with automatic parameter adjustment
 // ============================================================
 
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicI64, Ordering};
-use rand::SeedableRng;
-use rand::rngs::SmallRng;
 
 use crate::agent::{Agent, TraderType};
 use crate::config::SwarmConfig;
@@ -30,10 +30,18 @@ use crate::signal::SwarmSignal;
 #[derive(Debug, Clone)]
 pub enum MarketEvent {
     Normal,
-    FlashCrash { severity: f64, round: u64 },
-    Bubble { inflation_pct: f64, duration_rounds: u32 },
+    FlashCrash {
+        severity: f64,
+        round: u64,
+    },
+    Bubble {
+        inflation_pct: f64,
+        duration_rounds: u32,
+    },
     LiquidityVacuum,
-    MomentumCrash { speed: f64 },
+    MomentumCrash {
+        speed: f64,
+    },
 }
 
 pub struct DigitalTwin {
@@ -87,7 +95,7 @@ impl DigitalTwin {
         let chunk_size = 512;
 
         // Atomics for lock-free flow aggregation across threads
-        let net_buy_cents = AtomicI64::new(0);  // USD * 100 to avoid floats in atomic
+        let net_buy_cents = AtomicI64::new(0); // USD * 100 to avoid floats in atomic
         let buy_count = AtomicI64::new(0);
         let sell_count = AtomicI64::new(0);
 
@@ -96,7 +104,7 @@ impl DigitalTwin {
             .enumerate()
             .for_each(|(chunk_idx, chunk)| {
                 let mut rng = SmallRng::seed_from_u64(
-                    round.wrapping_mul(7_919).wrapping_add(chunk_idx as u64)
+                    round.wrapping_mul(7_919).wrapping_add(chunk_idx as u64),
                 );
 
                 let mut local_flow = 0i64;
@@ -105,7 +113,8 @@ impl DigitalTwin {
 
                 for (agent_idx, agent) in chunk.iter_mut().enumerate() {
                     // Probabilistic activation (peak hour aware)
-                    let activation_seed = round.wrapping_mul(31_337)
+                    let activation_seed = round
+                        .wrapping_mul(31_337)
                         .wrapping_add(chunk_idx as u64 * 512 + agent_idx as u64);
                     let activation_rng = activation_seed as f64 / u64::MAX as f64;
 
@@ -210,10 +219,21 @@ impl DigitalTwin {
 
         // Momentum crash: consecutive imbalance reversals
         if self.imbalance_history.len() >= 5 {
-            let recent: Vec<f64> = self.imbalance_history.iter().rev().take(5).cloned().collect();
-            let flips = recent.windows(2).filter(|w| w[0].signum() != w[1].signum()).count();
+            let recent: Vec<f64> = self
+                .imbalance_history
+                .iter()
+                .rev()
+                .take(5)
+                .cloned()
+                .collect();
+            let flips = recent
+                .windows(2)
+                .filter(|w| w[0].signum() != w[1].signum())
+                .count();
             if flips >= 4 {
-                return MarketEvent::MomentumCrash { speed: flips as f64 / 5.0 };
+                return MarketEvent::MomentumCrash {
+                    speed: flips as f64 / 5.0,
+                };
             }
         }
 
@@ -258,25 +278,40 @@ fn assign_type(id: u64, config: &SwarmConfig) -> TraderType {
     let f = id as f64 / config.agent_count as f64;
     let mut acc = 0.0;
     acc += config.retail_fraction;
-    if f < acc { return TraderType::Retail; }
+    if f < acc {
+        return TraderType::Retail;
+    }
     acc += config.hedge_fund_fraction;
-    if f < acc { return TraderType::HedgeFund; }
+    if f < acc {
+        return TraderType::HedgeFund;
+    }
     acc += config.market_maker_fraction;
-    if f < acc { return TraderType::MarketMaker; }
+    if f < acc {
+        return TraderType::MarketMaker;
+    }
     acc += config.arbitrage_fraction;
-    if f < acc { return TraderType::ArbitrageBot; }
+    if f < acc {
+        return TraderType::ArbitrageBot;
+    }
     acc += config.momentum_fraction;
-    if f < acc { return TraderType::MomentumTrader; }
+    if f < acc {
+        return TraderType::MomentumTrader;
+    }
     acc += config.contrarian_fraction;
-    if f < acc { return TraderType::Contrarian; }
+    if f < acc {
+        return TraderType::Contrarian;
+    }
     TraderType::NewsTrader
 }
 
 fn activation_probability(round: u64, config: &SwarmConfig) -> f64 {
     let round_of_day = round % config.rounds_per_day as u64;
     let is_peak = round_of_day < 120 || round_of_day > 330;
-    if is_peak { (config.activation_prob * config.peak_hour_multiplier).min(1.0) }
-    else { config.activation_prob }
+    if is_peak {
+        (config.activation_prob * config.peak_hour_multiplier).min(1.0)
+    } else {
+        config.activation_prob
+    }
 }
 
 #[cfg(test)]
@@ -312,16 +347,23 @@ mod tests {
         let start = Instant::now();
         let mut twin = DigitalTwin::new_large_scale("BENCH", 100.0);
         println!("Initialization took: {:?}", start.elapsed());
-        
+
         println!("Running 100 rounds of simulation across 100,000 agents...");
         let start_sim = Instant::now();
         let _steps = twin.run_n_rounds(100);
         let duration = start_sim.elapsed();
-        
+
         let avg_ms_per_round = duration.as_secs_f64() * 1000.0 / 100.0;
         println!("100 rounds took: {:?}", duration);
-        println!("Average time per round (100k agents): {:.2} ms", avg_ms_per_round);
-        
-        assert!(avg_ms_per_round < 100.0, "Performance target failed: {:.2}ms per round", avg_ms_per_round);
+        println!(
+            "Average time per round (100k agents): {:.2} ms",
+            avg_ms_per_round
+        );
+
+        assert!(
+            avg_ms_per_round < 100.0,
+            "Performance target failed: {:.2}ms per round",
+            avg_ms_per_round
+        );
     }
 }

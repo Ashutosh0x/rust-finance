@@ -15,7 +15,7 @@ fn test_sabr_atm_implied_vol() {
 
     // SABR formula for ATM (f=k) is roughly alpha / f^(1-beta) * (1 + ... * tte)
     let iv = implied_vol(&p, forward, strike, tte);
-    
+
     // For alpha=0.2, beta=0.5, f=100 -> f^(0.5) = 10. alpha / 10 = 0.02.
     // So ATM normal-ish vol is very low, or lognormal vol depends on beta. Wait, the implementation returns lognormal IV relative to forward.
     assert!(iv > 0.01 && iv < 0.5, "SABR ATM vol out of bounds: {}", iv);
@@ -38,6 +38,12 @@ fn test_sabr_smile_shape() {
     let otm_call_vol = implied_vol(&p, forward, 110.0, tte);
 
     // Negative rho implies downward sloping skew (OTM puts have higher IV than OTM calls)
-    assert!(otm_put_vol > atm_vol, "OTM put vol should be > ATM vol for negative rho");
-    assert!(otm_put_vol > otm_call_vol, "Negative skew means put vol > call vol");
+    assert!(
+        otm_put_vol > atm_vol,
+        "OTM put vol should be > ATM vol for negative rho"
+    );
+    assert!(
+        otm_put_vol > otm_call_vol,
+        "Negative skew means put vol > call vol"
+    );
 }

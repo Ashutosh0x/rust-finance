@@ -22,7 +22,7 @@ fn main() {
         match std::env::var(var) {
             Ok(v) if !v.trim().is_empty() => {
                 let display_val = if v.len() > 6 {
-                    format!("{}...{}", &v[..3], &v[v.len()-3..])
+                    format!("{}...{}", &v[..3], &v[v.len() - 3..])
                 } else {
                     "***".to_string()
                 };
@@ -37,21 +37,31 @@ fn main() {
             }
         }
     }
-    
+
     println!("├─────────────────────────────────────┤");
 
     // Also try to formally parse it to catch serialization errors
     match AppConfig::load() {
         Ok(config) => {
             println!("| [OK] AppConfig Parser: VALID          |");
-            println!("| [--] Endpoint: {:<22} |", if config.alpaca_base_url.contains("paper") { "Paper (Safe)" } else { "LIVE MARKET!" });
+            println!(
+                "| [--] Endpoint: {:<22} |",
+                if config.alpaca_base_url.contains("paper") {
+                    "Paper (Safe)"
+                } else {
+                    "LIVE MARKET!"
+                }
+            );
             if config.use_mock == "1" {
                 println!("| [!!] USE_MOCK=1 (Bypassing API reqs)  |");
             }
         }
         Err(e) => {
             println!("| [!!] AppConfig Parser: INVALID        |");
-            println!("│   Reason: {:<25} │", e.to_string().chars().take(25).collect::<String>());
+            println!(
+                "│   Reason: {:<25} │",
+                e.to_string().chars().take(25).collect::<String>()
+            );
             all_ok = false;
         }
     }

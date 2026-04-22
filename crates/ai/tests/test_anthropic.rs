@@ -24,10 +24,11 @@ fn test_anthropic_message_response_parsing() {
     });
 
     let json_str = mock_json.to_string();
-    
+
     // Simulate typical reqwest::Response::json() behavior by running serde directly
-    let parsed: MessageResponse = serde_json::from_str(&json_str).expect("Failed to parse anthropic response");
-    
+    let parsed: MessageResponse =
+        serde_json::from_str(&json_str).expect("Failed to parse anthropic response");
+
     assert_eq!(parsed.content.len(), 1);
     assert_eq!(
         parsed.content[0].text.as_deref(),

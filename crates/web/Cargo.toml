@@ -2,6 +2,12 @@
 name = "web"
 version = "0.1.0"
 edition = "2021"
+description = "HTTP API and WebSocket server for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 common = { path = "../common" }

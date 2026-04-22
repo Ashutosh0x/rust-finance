@@ -2,6 +2,12 @@
 name = "signals"
 version = "0.1.0"
 edition = "2021"
+description = "Trading signal generation and technical analysis for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 common = { path = "../common" }

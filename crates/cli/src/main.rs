@@ -81,7 +81,11 @@ async fn main() -> anyhow::Result<()> {
             println!("  Use 'cargo run -p tui' for the full TUI implementation.");
         }
 
-        Commands::Backtest { strategy, data, capital } => {
+        Commands::Backtest {
+            strategy,
+            data,
+            capital,
+        } => {
             println!("Running backtest...");
             println!("  Strategy: {}", strategy);
             println!("  Data: {}", data);
@@ -112,7 +116,14 @@ async fn main() -> anyhow::Result<()> {
             println!("OS:           {}", std::env::consts::OS);
             println!("Arch:         {}", std::env::consts::ARCH);
             println!("Crates:       30 (workspace)");
-            println!("Profile:      {}", if cfg!(debug_assertions) { "debug" } else { "release" });
+            println!(
+                "Profile:      {}",
+                if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                }
+            );
             println!();
             println!("Checking dependencies...");
             println!("  tokio:      OK");
@@ -137,7 +148,7 @@ fn check_env(key: &str, description: &str) {
     match std::env::var(key) {
         Ok(val) => {
             let masked = if val.len() > 6 {
-                format!("{}...{}", &val[..3], &val[val.len()-3..])
+                format!("{}...{}", &val[..3], &val[val.len() - 3..])
             } else {
                 "***".to_string()
             };

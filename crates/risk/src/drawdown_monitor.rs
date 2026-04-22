@@ -25,7 +25,12 @@ impl DrawdownMonitor {
     pub fn is_drawdown_breached(&self) -> bool {
         let drawdown = (self.peak_equity - self.current_equity) / self.peak_equity;
         if drawdown > self.max_drawdown_percent {
-            info!("Max drawdown breached! Peak: {}, Current: {}, Drawdown: {:.2}%", self.peak_equity, self.current_equity, drawdown * 100.0);
+            info!(
+                "Max drawdown breached! Peak: {}, Current: {}, Drawdown: {:.2}%",
+                self.peak_equity,
+                self.current_equity,
+                drawdown * 100.0
+            );
             true
         } else {
             false

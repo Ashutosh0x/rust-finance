@@ -3,8 +3,8 @@
 // Strategy trait — implement this to plug any algo into the backtest engine.
 // Includes a SimpleMovingAverageCrossover as a reference implementation.
 
-use std::collections::{HashMap, VecDeque};
 use crate::engine::Bar;
+use std::collections::{HashMap, VecDeque};
 
 /// A signal emitted by a strategy.
 #[derive(Debug, Clone)]
@@ -62,10 +62,7 @@ impl Strategy for SimpleMovingAverageCrossover {
         positions: &HashMap<String, f64>,
         _cash: f64,
     ) -> Vec<StrategySignal> {
-        let buf = self
-            .prices
-            .entry(bar.symbol.clone())
-            .or_default();
+        let buf = self.prices.entry(bar.symbol.clone()).or_default();
 
         buf.push_back(bar.close);
         if buf.len() > self.slow_period + 1 {
@@ -75,7 +72,13 @@ impl Strategy for SimpleMovingAverageCrossover {
         let fast_now = Self::sma(buf, self.fast_period);
         // Fast SMA one bar ago — need a second buffer snapshot
         let fast_prev = if buf.len() > 1 {
-            let prev_buf: VecDeque<f64> = buf.iter().rev().skip(1).take(self.fast_period).cloned().collect();
+            let prev_buf: VecDeque<f64> = buf
+                .iter()
+                .rev()
+                .skip(1)
+                .take(self.fast_period)
+                .cloned()
+                .collect();
             if prev_buf.len() == self.fast_period {
                 Some(prev_buf.iter().sum::<f64>() / self.fast_period as f64)
             } else {
@@ -158,10 +161,7 @@ impl Strategy for ZScoreMeanReversion {
         positions: &HashMap<String, f64>,
         _cash: f64,
     ) -> Vec<StrategySignal> {
-        let buf = self
-            .prices
-            .entry(bar.symbol.clone())
-            .or_default();
+        let buf = self.prices.entry(bar.symbol.clone()).or_default();
 
         buf.push_back(bar.close);
         if buf.len() > self.window {

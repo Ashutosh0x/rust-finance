@@ -26,7 +26,11 @@ fn approx_norm_cdf(x: f64) -> f64 {
     let n = ((((b5 * t + b4) * t + b3) * t + b2) * t + b1) * t;
     let n = 1.0 - b * n;
 
-    if x < 0.0 { 1.0 - n } else { n }
+    if x < 0.0 {
+        1.0 - n
+    } else {
+        n
+    }
 }
 
 #[inline]
@@ -47,7 +51,11 @@ fn bench_black_scholes(c: &mut Criterion) {
     group.bench_function("bsm_european_call", |b| {
         b.iter(|| {
             black_box(black_scholes_call(
-                black_box(s), black_box(k), black_box(t), black_box(r), black_box(vol)
+                black_box(s),
+                black_box(k),
+                black_box(t),
+                black_box(r),
+                black_box(vol),
             ))
         })
     });

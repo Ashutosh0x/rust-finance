@@ -7,8 +7,8 @@
 // Uses Arc<RwLock<>> for safe sharing across Tokio tasks.
 // ============================================================
 
-use std::collections::VecDeque;
 use chrono::{DateTime, Utc};
+use std::collections::VecDeque;
 
 use ai::dexter::DexterSignal;
 use swarm_sim::engine::SwarmStep;
@@ -19,7 +19,7 @@ use swarm_sim::engine::SwarmStep;
 pub struct AppState {
     // ── Market data ───────────────────────────────────────────────
     pub selected_symbol: Option<String>,
-    pub price_history: Vec<f64>,      // last 500 prices for chart
+    pub price_history: Vec<f64>, // last 500 prices for chart
     pub sp500_price: f64,
     pub nasdaq_price: f64,
     pub latency_ms: f64,
@@ -104,7 +104,7 @@ pub struct NewsItem {
 #[derive(Debug, Clone)]
 pub struct Alert {
     pub message: String,
-    pub severity: String,   // "buy" | "risk" | "info"
+    pub severity: String, // "buy" | "risk" | "info"
     pub symbol: String,
     pub timestamp: DateTime<Utc>,
 }
@@ -186,6 +186,10 @@ impl AppState {
             0.0
         };
 
-        self.order_book = OrderBookState { asks, bids, imbalance };
+        self.order_book = OrderBookState {
+            asks,
+            bids,
+            imbalance,
+        };
     }
 }

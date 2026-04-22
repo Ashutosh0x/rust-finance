@@ -2,9 +2,9 @@
 //! into a running system.
 
 use common::time::SequenceGenerator;
+use execution::alpaca_executor::AlpacaExecutor;
 use execution::gateway::ExecutionGateway;
 use execution::mock_executor::MockExecutor;
-use execution::alpaca_executor::AlpacaExecutor;
 use ingestion::multiplexer::Multiplexer;
 use ingestion::source::{DataType, Subscription};
 use ingestion::sources::*;
@@ -129,11 +129,7 @@ pub async fn bootstrap(
 
     let subscription = Subscription {
         symbols: all_symbols,
-        data_types: vec![
-            DataType::Trades,
-            DataType::Quotes,
-            DataType::OrderBookL1,
-        ],
+        data_types: vec![DataType::Trades, DataType::Quotes, DataType::OrderBookL1],
     };
 
     let market_stream = mux.connect(&subscription).await;

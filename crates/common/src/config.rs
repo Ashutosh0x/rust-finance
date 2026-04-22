@@ -25,23 +25,27 @@ pub struct AppConfig {
     pub rust_log: String,
 }
 
-fn default_use_mock() -> String { "0".to_string() }
+fn default_use_mock() -> String {
+    "0".to_string()
+}
 fn default_alpaca_base_url() -> String {
     "https://paper-api.alpaca.markets".to_string()
 }
-fn default_log_level() -> String { "info".to_string() }
+fn default_log_level() -> String {
+    "info".to_string()
+}
 
 impl AppConfig {
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         dotenvy::dotenv().ok(); // load .env if present, ignore if missing
-        
+
         let mut config: Self = envy::from_env()?;
-        
+
         if config.validate().is_err() && config.use_mock != "1" {
             warn!("Missing critical API keys. Automatically tumbling back to USE_MOCK=1 synthetic engine mode.");
             config.use_mock = "1".to_string();
         }
-        
+
         Ok(config)
     }
 
@@ -54,16 +58,20 @@ impl AppConfig {
                 return Err("ALPACA_API_KEY cannot be empty when USE_MOCK=0".into());
             }
         }
-        
+
         if !self.alpaca_base_url.starts_with("http") {
-             return Err(format!("Invalid Alpaca URL format: {}", self.alpaca_base_url));
+            return Err(format!(
+                "Invalid Alpaca URL format: {}",
+                self.alpaca_base_url
+            ));
         }
 
         Ok(())
     }
 
     pub fn ai_enabled(&self) -> bool {
-        self.anthropic_api_key.as_ref()
+        self.anthropic_api_key
+            .as_ref()
             .map(|k| !k.trim().is_empty())
             .unwrap_or(false)
     }

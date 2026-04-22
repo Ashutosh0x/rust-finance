@@ -1,13 +1,13 @@
 #![forbid(unsafe_code)]
-use serde::{Serialize, Deserialize};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::mpsc::{self, Sender};
 use std::thread;
-use chrono::{Utc, DateTime};
 
-pub mod repositories;
 pub mod db;
 pub mod dragonfly;
+pub mod repositories;
 pub mod worker;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -43,7 +43,6 @@ pub fn spawn_writer(db_path: &Path) -> anyhow::Result<Sender<PersistCommand>> {
         rt.block_on(async move {
             use sqlx_sqlite::SqlitePoolOptions;
             use sqlx_core::executor::Executor;
-            
 
             let pool = SqlitePoolOptions::new()
                 .max_connections(1)

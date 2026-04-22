@@ -86,18 +86,16 @@ impl Engine {
             tick_count += 1;
 
             // 1. Forward market data to TUI
-            let _ = self.tui_tx.send(TuiEvent::MarketUpdate(
-                envelope.payload.clone(),
-            ));
+            let _ = self
+                .tui_tx
+                .send(TuiEvent::MarketUpdate(envelope.payload.clone()));
 
             // 2. Emit audit tick
             let audit = AuditTick {
                 ts: self.clock.now(),
                 sequence_id: self.seq_gen.next_id(),
                 event: AuditEvent::MarketDataReceived {
-                    symbol: compact_str::CompactString::new(
-                        envelope.payload.symbol(),
-                    ),
+                    symbol: compact_str::CompactString::new(envelope.payload.symbol()),
                     source: compact_str::CompactString::new("multiplexer"),
                 },
             };
@@ -111,9 +109,8 @@ impl Engine {
                 let _ = self.tui_tx.send(TuiEvent::Signal(signal.clone()));
 
                 self.order_counter += 1;
-                let client_order_id = compact_str::CompactString::new(
-                    format!("RF-{:08}", self.order_counter),
-                );
+                let client_order_id =
+                    compact_str::CompactString::new(format!("RF-{:08}", self.order_counter));
 
                 let request = OpenRequest {
                     client_order_id: client_order_id.clone(),
@@ -138,9 +135,7 @@ impl Engine {
 
                         match self.executor.submit_order(request).await {
                             Ok(order_event) => {
-                                let _ = self.tui_tx.send(
-                                    TuiEvent::OrderUpdate(order_event),
-                                );
+                                let _ = self.tui_tx.send(TuiEvent::OrderUpdate(order_event));
                             }
                             Err(e) => {
                                 error!(
@@ -158,7 +153,10 @@ impl Engine {
                             "Order blocked by risk"
                         );
                     }
-                    RiskVerdict::Modified { new_request, reason } => {
+                    RiskVerdict::Modified {
+                        new_request,
+                        reason,
+                    } => {
                         info!(
                             reason = %reason,
                             "Order modified by risk, submitting adjusted"
@@ -191,6 +189,9 @@ impl Engine {
             }
         }
 
-        info!(total_ticks = tick_count, "Engine stopped — stream exhausted");
+        info!(
+            total_ticks = tick_count,
+            "Engine stopped — stream exhausted"
+        );
     }
 }

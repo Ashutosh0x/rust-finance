@@ -1,10 +1,10 @@
 use anyhow::Result;
 use common::events::BotEvent;
-use tokio::sync::mpsc;
-use tokio_tungstenite::connect_async;
-use tracing::{info, error, warn};
 use futures::StreamExt;
 use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio_tungstenite::connect_async;
+use tracing::{error, info, warn};
 
 pub struct AlpacaReconnectClient {
     #[allow(dead_code)]
@@ -15,7 +15,10 @@ pub struct AlpacaReconnectClient {
 
 impl AlpacaReconnectClient {
     pub fn new(api_key: String, secret_key: String) -> Self {
-        Self { api_key, secret_key }
+        Self {
+            api_key,
+            secret_key,
+        }
     }
 
     pub async fn run(&self, tx: mpsc::UnboundedSender<BotEvent>) -> Result<()> {

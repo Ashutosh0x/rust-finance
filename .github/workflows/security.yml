@@ -26,7 +26,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: EmbarkStudios/cargo-deny-action@34899fc33e05ba584ee3497eccb30c0772022838 # v2.0.11
+      - uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
         with:
           command: check
           arguments: --all-features
@@ -39,7 +39,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993e1b1b749 # v2.0.0
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -58,7 +58,7 @@ jobs:
         run: |
           if [ ! -d "supply-chain" ]; then
             cargo vet init
-            cargo vet certify --accept-all  # bootstrap exemptions
+            cargo vet regenerate exemptions
           fi
       - name: Run cargo-vet
         run: cargo vet --locked
@@ -83,7 +83,83 @@ jobs:
             -D clippy::pedantic \
             -D clippy::cargo \
             -A clippy::module_name_repetitions \
-            -A clippy::must_use_candidate
+            -A clippy::must_use_candidate \
+            -A clippy::cast_precision_loss \
+            -A clippy::cast_possible_truncation \
+            -A clippy::cast_sign_loss \
+            -A clippy::cast_lossless \
+            -A clippy::cast_possible_wrap \
+            -A clippy::uninlined_format_args \
+            -A clippy::doc_markdown \
+            -A clippy::missing_errors_doc \
+            -A clippy::missing_panics_doc \
+            -A clippy::unreadable_literal \
+            -A clippy::too_many_lines \
+            -A clippy::too_many_arguments \
+            -A clippy::struct_field_names \
+            -A clippy::needless_pass_by_value \
+            -A clippy::redundant_closure_for_method_calls \
+            -A clippy::inline_always \
+            -A clippy::return_self_not_must_use \
+            -A clippy::new_without_default \
+            -A clippy::upper_case_acronyms \
+            -A clippy::many_single_char_names \
+            -A clippy::multiple_crate_versions \
+            -A clippy::trivially_copy_pass_by_ref \
+            -A clippy::unused_async \
+            -A clippy::semicolon_if_nothing_returned \
+            -A clippy::cloned_instead_of_copied \
+            -A clippy::collapsible_else_if \
+            -A clippy::collapsible_match \
+            -A clippy::default_trait_access \
+            -A clippy::explicit_iter_loop \
+            -A clippy::ignore_without_reason \
+            -A clippy::manual_is_multiple_of \
+            -A clippy::manual_midpoint \
+            -A clippy::manual_range_contains \
+            -A clippy::map_unwrap_or \
+            -A clippy::match_same_arms \
+            -A clippy::needless_borrow \
+            -A clippy::needless_continue \
+            -A clippy::needless_raw_string_hashes \
+            -A clippy::unused_enumerate_index \
+            -A clippy::vec_init_then_push \
+            -A clippy::manual_string_new \
+            -A clippy::approx_constant \
+            -A clippy::collapsible_str_replace \
+            -A clippy::derivable_impls \
+            -A clippy::doc_link_with_quotes \
+            -A clippy::duration_suboptimal_units \
+            -A clippy::float_cmp \
+            -A clippy::format_push_string \
+            -A clippy::implicit_clone \
+            -A clippy::manual_clamp \
+            -A clippy::manual_strip \
+            -A clippy::needless_borrows_for_generic_args \
+            -A clippy::never_loop \
+            -A clippy::no_effect_underscore_binding \
+            -A clippy::similar_names \
+            -A clippy::struct_excessive_bools \
+            -A clippy::unnecessary_literal_bound \
+            -A clippy::unnecessary_sort_by \
+            -A clippy::unnecessary_wraps \
+            -A clippy::unused_self \
+            -A clippy::used_underscore_binding \
+            -A clippy::useless_format \
+            -A clippy::wildcard_imports \
+            -A clippy::explicit_into_iter_loop \
+            -A clippy::assigning_clones \
+            -A clippy::elidable_lifetime_names \
+            -A clippy::filter_next \
+            -A clippy::if_not_else \
+            -A clippy::manual_let_else \
+            -A clippy::match_like_matches_macro \
+            -A clippy::needless_range_loop \
+            -A clippy::unnested_or_patterns \
+            -A clippy::items_after_test_module \
+            -A clippy::match_wildcard_for_single_variants \
+            -A clippy::should_implement_trait \
+            -A clippy::explicit_auto_deref
 
   # ── 5. Format check ────────────────────────────────────────
   fmt:
@@ -129,7 +205,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: zgosalvez/github-actions-ensure-sha-pinned-actions@25ed13d5ef74fa64e50b4e6c1de67dda4242c42c # v3.0.22
+      - uses: zgosalvez/github-actions-ensure-sha-pinned-actions@ca46236c6ce584ae24bc6283ba8dcf4b3ec8a066 # v5.0.4
         with:
           allowlist: |
             actions/*

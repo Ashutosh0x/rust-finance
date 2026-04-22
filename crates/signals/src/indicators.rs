@@ -71,14 +71,22 @@ pub fn rsi(prices: &[f64], period: usize) -> Vec<f64> {
     let mut result = Vec::with_capacity(prices.len() - period);
 
     // First RSI value
-    let rs = if avg_loss == 0.0 { 100.0 } else { avg_gain / avg_loss };
+    let rs = if avg_loss == 0.0 {
+        100.0
+    } else {
+        avg_gain / avg_loss
+    };
     result.push(100.0 - (100.0 / (1.0 + rs)));
 
     // Subsequent values with Wilder's smoothing
     for i in period..gains.len() {
         avg_gain = (avg_gain * (period as f64 - 1.0) + gains[i]) / period as f64;
         avg_loss = (avg_loss * (period as f64 - 1.0) + losses[i]) / period as f64;
-        let rs = if avg_loss == 0.0 { 100.0 } else { avg_gain / avg_loss };
+        let rs = if avg_loss == 0.0 {
+            100.0
+        } else {
+            avg_gain / avg_loss
+        };
         result.push(100.0 - (100.0 / (1.0 + rs)));
     }
     result
@@ -168,7 +176,11 @@ pub fn bollinger_bands(prices: &[f64], period: usize, num_std: f64) -> Option<Bo
         lower.push(mid - num_std * std_dev);
     }
 
-    Some(BollingerBands { upper, middle, lower })
+    Some(BollingerBands {
+        upper,
+        middle,
+        lower,
+    })
 }
 
 /// Volume Weighted Average Price (VWAP)
@@ -289,7 +301,9 @@ mod tests {
 
     #[test]
     fn test_macd() {
-        let prices: Vec<f64> = (0..50).map(|i| 100.0 + (i as f64 * 0.5).sin() * 10.0).collect();
+        let prices: Vec<f64> = (0..50)
+            .map(|i| 100.0 + (i as f64 * 0.5).sin() * 10.0)
+            .collect();
         let result = macd(&prices, 12, 26, 9);
         assert!(result.is_some());
         let r = result.unwrap();

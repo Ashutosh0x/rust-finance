@@ -1,12 +1,17 @@
 use crate::state::EngineState;
-use execution::gateway::OpenRequest;
 use compact_str::CompactString;
+use execution::gateway::OpenRequest;
 
 #[derive(Debug)]
 pub enum RiskVerdict {
     Approved,
-    Blocked { reason: CompactString },
-    Modified { new_request: OpenRequest, reason: CompactString },
+    Blocked {
+        reason: CompactString,
+    },
+    Modified {
+        new_request: OpenRequest,
+        reason: CompactString,
+    },
 }
 
 pub trait RiskInterceptor: Send + Sync {
@@ -19,7 +24,9 @@ pub struct RiskChain {
 
 impl RiskChain {
     pub fn new() -> Self {
-        Self { interceptors: Vec::new() }
+        Self {
+            interceptors: Vec::new(),
+        }
     }
 
     pub fn add(mut self, interceptor: impl RiskInterceptor + 'static) -> Self {
@@ -40,44 +47,60 @@ impl RiskChain {
 
 // Concrete Implementations
 
-pub struct MaxPositionSize { pub max_quantity: f64 }
+pub struct MaxPositionSize {
+    pub max_quantity: f64,
+}
 impl RiskInterceptor for MaxPositionSize {
     fn evaluate(&self, _state: &EngineState, req: &OpenRequest) -> RiskVerdict {
         if req.quantity > self.max_quantity {
-            RiskVerdict::Blocked { reason: "Exceeds max position size".into() }
+            RiskVerdict::Blocked {
+                reason: "Exceeds max position size".into(),
+            }
         } else {
             RiskVerdict::Approved
         }
     }
 }
 
-pub struct MaxDrawdown { pub max_drawdown_pct: f64 }
+pub struct MaxDrawdown {
+    pub max_drawdown_pct: f64,
+}
 impl RiskInterceptor for MaxDrawdown {
     fn evaluate(&self, state: &EngineState, _req: &OpenRequest) -> RiskVerdict {
         if state.current_drawdown_pct > self.max_drawdown_pct {
-            RiskVerdict::Blocked { reason: "Exceeds max drawdown".into() }
+            RiskVerdict::Blocked {
+                reason: "Exceeds max drawdown".into(),
+            }
         } else {
             RiskVerdict::Approved
         }
     }
 }
 
-pub struct MaxOpenOrders { pub max_orders: usize }
+pub struct MaxOpenOrders {
+    pub max_orders: usize,
+}
 impl RiskInterceptor for MaxOpenOrders {
     fn evaluate(&self, state: &EngineState, _req: &OpenRequest) -> RiskVerdict {
         if state.open_order_count >= self.max_orders {
-            RiskVerdict::Blocked { reason: "Max open orders reached".into() }
+            RiskVerdict::Blocked {
+                reason: "Max open orders reached".into(),
+            }
         } else {
             RiskVerdict::Approved
         }
     }
 }
 
-pub struct DailyLossLimit { pub max_daily_loss: f64 }
+pub struct DailyLossLimit {
+    pub max_daily_loss: f64,
+}
 impl RiskInterceptor for DailyLossLimit {
     fn evaluate(&self, state: &EngineState, _req: &OpenRequest) -> RiskVerdict {
         if state.daily_pnl <= -self.max_daily_loss {
-            RiskVerdict::Blocked { reason: "Max daily loss exceeded".into() }
+            RiskVerdict::Blocked {
+                reason: "Max daily loss exceeded".into(),
+            }
         } else {
             RiskVerdict::Approved
         }
@@ -115,10 +138,16 @@ mod tests {
     #[test]
     fn test_chain_passes_clean_order() {
         let chain = RiskChain::new()
-            .add(MaxPositionSize { max_quantity: 100.0 })
-            .add(MaxDrawdown { max_drawdown_pct: 0.05 })
+            .add(MaxPositionSize {
+                max_quantity: 100.0,
+            })
+            .add(MaxDrawdown {
+                max_drawdown_pct: 0.05,
+            })
             .add(MaxOpenOrders { max_orders: 10 })
-            .add(DailyLossLimit { max_daily_loss: 5000.0 });
+            .add(DailyLossLimit {
+                max_daily_loss: 5000.0,
+            });
 
         let state = default_state();
         let req = sample_request(10.0);
@@ -128,8 +157,7 @@ mod tests {
 
     #[test]
     fn test_chain_blocks_oversized_order() {
-        let chain = RiskChain::new()
-            .add(MaxPositionSize { max_quantity: 5.0 });
+        let chain = RiskChain::new().add(MaxPositionSize { max_quantity: 5.0 });
 
         let state = default_state();
         let req = sample_request(10.0); // exceeds max of 5
@@ -142,8 +170,9 @@ mod tests {
 
     #[test]
     fn test_chain_blocks_drawdown() {
-        let chain = RiskChain::new()
-            .add(MaxDrawdown { max_drawdown_pct: 0.05 });
+        let chain = RiskChain::new().add(MaxDrawdown {
+            max_drawdown_pct: 0.05,
+        });
 
         let mut state = default_state();
         state.current_drawdown_pct = 0.08; // 8% > 5% limit
@@ -154,8 +183,9 @@ mod tests {
 
     #[test]
     fn test_chain_blocks_daily_loss() {
-        let chain = RiskChain::new()
-            .add(DailyLossLimit { max_daily_loss: 2000.0 });
+        let chain = RiskChain::new().add(DailyLossLimit {
+            max_daily_loss: 2000.0,
+        });
 
         let mut state = default_state();
         state.daily_pnl = -2500.0; // -$2500 > -$2000 limit
@@ -166,8 +196,7 @@ mod tests {
 
     #[test]
     fn test_chain_blocks_max_open_orders() {
-        let chain = RiskChain::new()
-            .add(MaxOpenOrders { max_orders: 2 });
+        let chain = RiskChain::new().add(MaxOpenOrders { max_orders: 2 });
 
         let mut state = default_state();
         state.open_order_count = 3; // at limit
@@ -180,16 +209,21 @@ mod tests {
     fn test_chain_first_failure_wins() {
         // Both interceptors would block, but the first one's reason should be returned
         let chain = RiskChain::new()
-            .add(MaxPositionSize { max_quantity: 1.0 })   // will block first
-            .add(MaxDrawdown { max_drawdown_pct: 0.01 }); // would also block
+            .add(MaxPositionSize { max_quantity: 1.0 }) // will block first
+            .add(MaxDrawdown {
+                max_drawdown_pct: 0.01,
+            }); // would also block
 
         let mut state = default_state();
         state.current_drawdown_pct = 0.10;
         let req = sample_request(100.0);
         let verdict = chain.evaluate(&state, &req);
         if let RiskVerdict::Blocked { reason } = verdict {
-            assert!(reason.contains("position size"),
-                "First interceptor should win, got: {}", reason);
+            assert!(
+                reason.contains("position size"),
+                "First interceptor should win, got: {}",
+                reason
+            );
         } else {
             panic!("Should have been blocked");
         }
@@ -201,20 +235,26 @@ mod tests {
         let state = default_state();
         let req = sample_request(999999.0);
         let verdict = chain.evaluate(&state, &req);
-        assert!(matches!(verdict, RiskVerdict::Approved),
-            "Empty chain should approve everything");
+        assert!(
+            matches!(verdict, RiskVerdict::Approved),
+            "Empty chain should approve everything"
+        );
     }
 
     /// E2E: feed an order through risk chain → if approved → submit to RecordingExecutor.
     /// This tests the full composition path without any network calls.
     #[tokio::test]
     async fn test_e2e_signal_to_recording_executor() {
-        use execution::recording_executor::RecordingExecutor;
         use execution::gateway::ExecutionGateway;
+        use execution::recording_executor::RecordingExecutor;
 
         let chain = RiskChain::new()
-            .add(MaxPositionSize { max_quantity: 100.0 })
-            .add(MaxDrawdown { max_drawdown_pct: 0.05 });
+            .add(MaxPositionSize {
+                max_quantity: 100.0,
+            })
+            .add(MaxDrawdown {
+                max_drawdown_pct: 0.05,
+            });
 
         let executor = RecordingExecutor::new();
         let state = default_state();
@@ -228,7 +268,11 @@ mod tests {
             }
             other => panic!("Expected Approved, got {:?}", other),
         }
-        assert_eq!(executor.submission_count(), 1, "Order should reach executor");
+        assert_eq!(
+            executor.submission_count(),
+            1,
+            "Order should reach executor"
+        );
 
         // Test 2: Oversized order → should NOT reach executor
         let oversized = sample_request(200.0);
@@ -239,6 +283,10 @@ mod tests {
             }
             other => panic!("Expected Blocked, got {:?}", other),
         }
-        assert_eq!(executor.submission_count(), 1, "Blocked order must NOT reach executor");
+        assert_eq!(
+            executor.submission_count(),
+            1,
+            "Blocked order must NOT reach executor"
+        );
     }
 }

@@ -2,6 +2,12 @@
 name = "cli"
 version = "0.1.0"
 edition = "2021"
+description = "Command-line interface for the RustForge trading terminal"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 clap = { version = "4.4", features = ["derive", "env"] }

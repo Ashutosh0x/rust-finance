@@ -1,11 +1,11 @@
 // crates/polymarket/src/auth.rs
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
-use tracing::{info, error};
+use sha2::Sha256;
+use tracing::{error, info};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -46,16 +46,16 @@ impl L1Auth {
         let sig_hex = format!("0x{}", hex::encode(signature.to_vec()));
 
         let mut headers = HeaderMap::new();
-        headers.insert("POLY_ADDRESS", HeaderValue::from_str(
-            &format!("{:?}", self.wallet.address())
-        )?);
+        headers.insert(
+            "POLY_ADDRESS",
+            HeaderValue::from_str(&format!("{:?}", self.wallet.address()))?,
+        );
         headers.insert("POLY_SIGNATURE", HeaderValue::from_str(&sig_hex)?);
-        headers.insert("POLY_TIMESTAMP", HeaderValue::from_str(
-            &timestamp.to_string()
-        )?);
-        headers.insert("POLY_NONCE", HeaderValue::from_str(
-            &nonce.to_string()
-        )?);
+        headers.insert(
+            "POLY_TIMESTAMP",
+            HeaderValue::from_str(&timestamp.to_string())?,
+        );
+        headers.insert("POLY_NONCE", HeaderValue::from_str(&nonce.to_string())?);
 
         Ok(headers)
     }
@@ -128,8 +128,8 @@ impl L2Auth {
 
         // Sign with API secret
         let secret_bytes = BASE64.decode(&self.credentials.api_secret)?;
-        let mut mac = HmacSha256::new_from_slice(&secret_bytes)
-            .map_err(|e| format!("HMAC error: {}", e))?;
+        let mut mac =
+            HmacSha256::new_from_slice(&secret_bytes).map_err(|e| format!("HMAC error: {}", e))?;
         mac.update(message.as_bytes());
         let signature = BASE64.encode(mac.finalize().into_bytes());
 
@@ -138,14 +138,8 @@ impl L2Auth {
             "POLY_HMAC_KEY",
             HeaderValue::from_str(&self.credentials.api_key)?,
         );
-        headers.insert(
-            "POLY_HMAC_SIGNATURE",
-            HeaderValue::from_str(&signature)?,
-        );
-        headers.insert(
-            "POLY_HMAC_TIMESTAMP",
-            HeaderValue::from_str(&timestamp)?,
-        );
+        headers.insert("POLY_HMAC_SIGNATURE", HeaderValue::from_str(&signature)?);
+        headers.insert("POLY_HMAC_TIMESTAMP", HeaderValue::from_str(&timestamp)?);
         headers.insert(
             "POLY_HMAC_PASSPHRASE",
             HeaderValue::from_str(&self.credentials.api_passphrase)?,

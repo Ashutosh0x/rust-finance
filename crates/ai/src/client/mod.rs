@@ -1,2 +1,2 @@
-pub mod validator;
 pub mod rate_limiter;
+pub mod validator;

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use common::events::{Envelope, MarketEvent, SignalEvent, OrderSide};
+use common::events::{Envelope, MarketEvent, OrderSide, SignalEvent};
 use compact_str::CompactString;
 
 #[async_trait]

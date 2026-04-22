@@ -2,8 +2,8 @@
 // Break down today's P&L by strategy, symbol, signal source, and Greek exposure
 // Essential for understanding what's actually making (or losing) money
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PnlAttribution {
@@ -73,7 +73,7 @@ pub struct PnlEvent {
     pub ts: u64,
     pub symbol: String,
     pub strategy: String,
-    pub signal_source: String,   // "dexter", "mirofish", "manual", "bracket_tp", etc.
+    pub signal_source: String, // "dexter", "mirofish", "manual", "bracket_tp", etc.
     pub realized_pnl: f64,
     pub commission: f64,
     pub slippage: f64,
@@ -82,7 +82,7 @@ pub struct PnlEvent {
 
 pub struct PnlAttributor {
     events: Vec<PnlEvent>,
-    unrealized: HashMap<String, f64>,  // symbol → current unrealized P&L
+    unrealized: HashMap<String, f64>, // symbol → current unrealized P&L
     greeks: PortfolioGreeks,
     session_start_ts: u64,
 }
@@ -124,18 +124,25 @@ impl PnlAttributor {
         // By strategy
         let mut by_strategy: HashMap<String, StrategyPnl> = HashMap::new();
         for event in &self.events {
-            let entry = by_strategy.entry(event.strategy.clone()).or_insert_with(|| StrategyPnl {
-                strategy: event.strategy.clone(), ..Default::default()
-            });
+            let entry = by_strategy
+                .entry(event.strategy.clone())
+                .or_insert_with(|| StrategyPnl {
+                    strategy: event.strategy.clone(),
+                    ..Default::default()
+                });
             entry.realized_pnl += event.realized_pnl;
             entry.commission += event.commission;
             entry.trade_count += 1;
             if event.is_win {
                 entry.win_count += 1;
-                if event.realized_pnl > entry.largest_win { entry.largest_win = event.realized_pnl; }
+                if event.realized_pnl > entry.largest_win {
+                    entry.largest_win = event.realized_pnl;
+                }
             } else {
                 entry.loss_count += 1;
-                if event.realized_pnl < entry.largest_loss { entry.largest_loss = event.realized_pnl; }
+                if event.realized_pnl < entry.largest_loss {
+                    entry.largest_loss = event.realized_pnl;
+                }
             }
         }
         // Add unrealized to strategy P&L
@@ -151,20 +158,30 @@ impl PnlAttributor {
         // By symbol
         let mut by_symbol: HashMap<String, SymbolPnl> = HashMap::new();
         for event in &self.events {
-            let entry = by_symbol.entry(event.symbol.clone()).or_insert_with(|| SymbolPnl {
-                symbol: event.symbol.clone(), ..Default::default()
-            });
+            let entry = by_symbol
+                .entry(event.symbol.clone())
+                .or_insert_with(|| SymbolPnl {
+                    symbol: event.symbol.clone(),
+                    ..Default::default()
+                });
             entry.realized_pnl += event.realized_pnl;
         }
         for (sym, &unreal) in &self.unrealized {
-            by_symbol.entry(sym.clone()).or_insert_with(|| SymbolPnl { symbol: sym.clone(), ..Default::default() })
+            by_symbol
+                .entry(sym.clone())
+                .or_insert_with(|| SymbolPnl {
+                    symbol: sym.clone(),
+                    ..Default::default()
+                })
                 .unrealized_pnl = unreal;
         }
 
         // By signal source
         let mut by_signal_source: HashMap<String, f64> = HashMap::new();
         for event in &self.events {
-            *by_signal_source.entry(event.signal_source.clone()).or_insert(0.0) += event.realized_pnl;
+            *by_signal_source
+                .entry(event.signal_source.clone())
+                .or_insert(0.0) += event.realized_pnl;
         }
 
         // By hour
@@ -176,7 +193,9 @@ impl PnlAttributor {
 
         // Rolling 5-minute P&L
         let cutoff_5m = now_ts.saturating_sub(5 * 60 * 1_000_000);
-        let rolling_5m: f64 = self.events.iter()
+        let rolling_5m: f64 = self
+            .events
+            .iter()
             .filter(|e| e.ts >= cutoff_5m)
             .map(|e| e.realized_pnl)
             .sum();

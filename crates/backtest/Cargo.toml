@@ -2,6 +2,12 @@
 name = "backtest"
 version = "0.1.0"
 edition = "2021"
+description = "Historical backtesting framework for RustForge trading strategies"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [[bin]]
 name = "benchmark_audit"

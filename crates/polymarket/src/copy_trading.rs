@@ -1,10 +1,10 @@
-use crate::clob::{ClobClient, Side, OrderType};
+use crate::clob::{ClobClient, OrderType, Side};
+use reqwest::Client;
 use rust_decimal::Decimal;
 use serde::Deserialize;
-use reqwest::Client;
 use std::collections::HashMap;
-use tracing::{info, warn};
 use tokio::time::{interval, Duration};
+use tracing::{info, warn};
 
 #[derive(Debug, Deserialize)]
 pub struct TargetPosition {
@@ -19,7 +19,7 @@ pub struct TargetPosition {
 #[derive(Debug, Deserialize)]
 pub struct TargetActivity {
     #[serde(rename = "type")]
-    pub activity_type: String,  // "trade", "split", "merge", etc.
+    pub activity_type: String, // "trade", "split", "merge", etc.
     pub condition_id: Option<String>,
     pub asset_id: Option<String>,
     pub side: Option<String>,
@@ -84,19 +84,13 @@ impl CopyTrader {
     }
 
     /// Fetch recent activity from the Data API
-    async fn fetch_recent_activity(
-        &self,
-        address: &str,
-    ) -> anyhow::Result<Vec<TargetActivity>> {
+    async fn fetch_recent_activity(&self, address: &str) -> anyhow::Result<Vec<TargetActivity>> {
         // Data API: GET /activity?user=<address>&type=trade
         let url = format!("{}/activity", self.data_api_url);
-        let activities: Vec<TargetActivity> = self.http
+        let activities: Vec<TargetActivity> = self
+            .http
             .get(&url)
-            .query(&[
-                ("user", address),
-                ("type", "trade"),
-                ("limit", "20"),
-            ])
+            .query(&[("user", address), ("type", "trade"), ("limit", "20")])
             .send()
             .await?
             .json()
@@ -110,7 +104,8 @@ impl CopyTrader {
         address: &str,
     ) -> anyhow::Result<Vec<TargetPosition>> {
         let url = format!("{}/positions", self.data_api_url);
-        let positions: Vec<TargetPosition> = self.http
+        let positions: Vec<TargetPosition> = self
+            .http
             .get(&url)
             .query(&[("user", address)])
             .send()
@@ -134,10 +129,18 @@ impl CopyTrader {
         }
         self.seen_trades.insert(trade_key, true);
 
-        let Some(asset_id) = &activity.asset_id else { return };
-        let Some(side_str) = &activity.side else { return };
-        let Some(size_str) = &activity.size else { return };
-        let Some(price_str) = &activity.price else { return };
+        let Some(asset_id) = &activity.asset_id else {
+            return;
+        };
+        let Some(side_str) = &activity.side else {
+            return;
+        };
+        let Some(size_str) = &activity.size else {
+            return;
+        };
+        let Some(price_str) = &activity.price else {
+            return;
+        };
 
         let size: Decimal = match size_str.parse() {
             Ok(s) => s,
@@ -162,7 +165,11 @@ impl CopyTrader {
             side, scaled_size, price, size
         );
 
-        match self.clob.place_order(&asset_id, side, price, scaled_size, OrderType::GTC, false).await {
+        match self
+            .clob
+            .place_order(&asset_id, side, price, scaled_size, OrderType::GTC, false)
+            .await
+        {
             Ok(resp) => {
                 if resp.success.unwrap_or(false) {
                     info!("Copy trade placed: {:?}", resp.order_id);

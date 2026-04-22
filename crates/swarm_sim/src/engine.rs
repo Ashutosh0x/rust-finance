@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rayon::prelude::*;
-use rand::SeedableRng;
 use rand::rngs::SmallRng;
+use rand::SeedableRng;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
@@ -41,7 +41,10 @@ impl SwarmEngine {
     pub fn new(config: SwarmConfig, initial_market: MarketState) -> Self {
         config.validate().expect("SwarmConfig validation failed");
 
-        info!("Initializing SwarmEngine: {} agents, symbol={}", config.agent_count, initial_market.symbol);
+        info!(
+            "Initializing SwarmEngine: {} agents, symbol={}",
+            config.agent_count, initial_market.symbol
+        );
 
         let agents = Self::spawn_agents(&config, initial_market.mid_price);
         let action_log = ActionLog::new(&config.db_path, config.db_batch_size);
@@ -69,7 +72,10 @@ impl SwarmEngine {
             ($typ:expr, $count:expr) => {
                 for _ in 0..$count {
                     agents.push(Agent::new_calibrated(
-                        id, $typ, initial_price, cash_per_agent,
+                        id,
+                        $typ,
+                        initial_price,
+                        cash_per_agent,
                         config.max_position_usd,
                         id.wrapping_mul(2654435761).wrapping_add(seed_offset),
                         config.max_deploy_per_round,
@@ -93,17 +99,27 @@ impl SwarmEngine {
     }
 
     pub async fn run_forever(mut self, step_tx: broadcast::Sender<SwarmStep>) {
-        info!("SwarmEngine started — {} agents, round_delay={}ms", self.agents.len(), self.config.round_delay_ms);
+        info!(
+            "SwarmEngine started — {} agents, round_delay={}ms",
+            self.agents.len(),
+            self.config.round_delay_ms
+        );
 
         loop {
             if self.shutdown.load(std::sync::atomic::Ordering::Relaxed) {
-                info!("SwarmEngine shutting down gracefully at round {}", self.round);
+                info!(
+                    "SwarmEngine shutting down gracefully at round {}",
+                    self.round
+                );
                 self.action_log.flush().await;
                 break;
             }
 
             let step = self.step_round();
-            debug!("Round {}: flow={:.0} dir={:?} conv={:?}", step.round, step.net_flow_usd, step.signal.direction, step.signal.conviction);
+            debug!(
+                "Round {}: flow={:.0} dir={:?} conv={:?}",
+                step.round, step.net_flow_usd, step.signal.direction, step.signal.conviction
+            );
 
             if step.round % self.config.signal_emit_interval as u64 == 0 {
                 if let Err(e) = step_tx.send(step.clone()) {
@@ -127,14 +143,22 @@ impl SwarmEngine {
 
         let market_snapshot = self.market.clone();
 
-        let action_results: Vec<(usize, AgentAction)> = self.agents.par_iter_mut().enumerate().filter_map(|(idx, agent)| {
-            let mut rng = SmallRng::seed_from_u64(round.wrapping_mul(100_003).wrapping_add(idx as u64));
-            let prob = rand_distr::Bernoulli::new(activation_prob).unwrap();
-            if !rand_distr::Distribution::sample(&prob, &mut rng) { return None; }
+        let action_results: Vec<(usize, AgentAction)> = self
+            .agents
+            .par_iter_mut()
+            .enumerate()
+            .filter_map(|(idx, agent)| {
+                let mut rng =
+                    SmallRng::seed_from_u64(round.wrapping_mul(100_003).wrapping_add(idx as u64));
+                let prob = rand_distr::Bernoulli::new(activation_prob).unwrap();
+                if !rand_distr::Distribution::sample(&prob, &mut rng) {
+                    return None;
+                }
 
-            let action = agent.decide(&market_snapshot, &mut rng);
-            Some((idx, action))
-        }).collect();
+                let action = agent.decide(&market_snapshot, &mut rng);
+                Some((idx, action))
+            })
+            .collect();
 
         let mut net_flow_usd = 0.0_f64;
         let mut buy_count = 0usize;
@@ -149,17 +173,26 @@ impl SwarmEngine {
                 AgentAction::Buy { notional_usd, .. } => {
                     net_flow_usd += notional_usd;
                     buy_count += 1;
-                    agent.state.record_fill(*notional_usd, market_snapshot.ask, true);
+                    agent
+                        .state
+                        .record_fill(*notional_usd, market_snapshot.ask, true);
                     agent.state.last_action_round = round;
                 }
                 AgentAction::Sell { notional_usd, .. } => {
                     net_flow_usd -= notional_usd;
                     sell_count += 1;
-                    agent.state.record_fill(*notional_usd, market_snapshot.bid, false);
+                    agent
+                        .state
+                        .record_fill(*notional_usd, market_snapshot.bid, false);
                     agent.state.last_action_round = round;
                 }
-                AgentAction::Hold { .. } => { hold_count += 1; }
-                AgentAction::CrossSpread { .. } => { sell_count += 1; buy_count += 1; }
+                AgentAction::Hold { .. } => {
+                    hold_count += 1;
+                }
+                AgentAction::CrossSpread { .. } => {
+                    sell_count += 1;
+                    buy_count += 1;
+                }
                 AgentAction::ProvideLiquidity { .. } => {}
             }
 
@@ -189,7 +222,13 @@ impl SwarmEngine {
         let buy_fraction = buy_count as f64 / total_actions as f64;
         let sell_fraction = sell_count as f64 / total_actions as f64;
 
-        let signal = SwarmSignal::from_round(round, &self.market, buy_fraction, sell_fraction, net_flow_usd);
+        let signal = SwarmSignal::from_round(
+            round,
+            &self.market,
+            buy_fraction,
+            sell_fraction,
+            net_flow_usd,
+        );
 
         self.action_log.push_batch(log_entries);
 
@@ -197,7 +236,17 @@ impl SwarmEngine {
 
         self.round += 1;
 
-        SwarmStep { round, signal, actions_count: action_results.len(), net_flow_usd, buy_count, sell_count, hold_count, price_after: self.market.mid_price, realized_pnl_total }
+        SwarmStep {
+            round,
+            signal,
+            actions_count: action_results.len(),
+            net_flow_usd,
+            buy_count,
+            sell_count,
+            hold_count,
+            price_after: self.market.mid_price,
+            realized_pnl_total,
+        }
     }
 
     pub fn inject_sentiment(&mut self, sentiment: f64) {
@@ -218,14 +267,36 @@ impl SwarmEngine {
     fn activation_probability(&self, round: u64) -> f64 {
         let round_of_day = round % self.config.rounds_per_day as u64;
         let is_peak = round_of_day < 120 || round_of_day > 330;
-        if is_peak { (self.config.activation_prob * self.config.peak_hour_multiplier).min(1.0) } else { self.config.activation_prob }
+        if is_peak {
+            (self.config.activation_prob * self.config.peak_hour_multiplier).min(1.0)
+        } else {
+            self.config.activation_prob
+        }
     }
 
     pub fn stats(&self) -> EngineStats {
-        let long_agents = self.agents.iter().filter(|a| a.state.position_usd > 0.0).count();
-        let short_agents = self.agents.iter().filter(|a| a.state.position_usd < 0.0).count();
-        let total_long_usd: f64 = self.agents.iter().filter(|a| a.state.position_usd > 0.0).map(|a| a.state.position_usd).sum();
-        let total_short_usd: f64 = self.agents.iter().filter(|a| a.state.position_usd < 0.0).map(|a| a.state.position_usd.abs()).sum();
+        let long_agents = self
+            .agents
+            .iter()
+            .filter(|a| a.state.position_usd > 0.0)
+            .count();
+        let short_agents = self
+            .agents
+            .iter()
+            .filter(|a| a.state.position_usd < 0.0)
+            .count();
+        let total_long_usd: f64 = self
+            .agents
+            .iter()
+            .filter(|a| a.state.position_usd > 0.0)
+            .map(|a| a.state.position_usd)
+            .sum();
+        let total_short_usd: f64 = self
+            .agents
+            .iter()
+            .filter(|a| a.state.position_usd < 0.0)
+            .map(|a| a.state.position_usd.abs())
+            .sum();
 
         EngineStats {
             round: self.round,
@@ -275,7 +346,15 @@ impl AgentCounts {
         let mom = (n as f64 * cfg.momentum_fraction) as usize;
         let contrarian = (n as f64 * cfg.contrarian_fraction) as usize;
         let news = n.saturating_sub(retail + hf + mm + arb + mom + contrarian);
-        Self { retail, hedge_fund: hf, market_maker: mm, arb, momentum: mom, news, contrarian }
+        Self {
+            retail,
+            hedge_fund: hf,
+            market_maker: mm,
+            arb,
+            momentum: mom,
+            news,
+            contrarian,
+        }
     }
 }
 
@@ -312,13 +391,35 @@ mod tests {
 
         for (i, (s1, s2)) in steps1.iter().zip(steps2.iter()).enumerate() {
             assert_eq!(s1.round, s2.round, "Round mismatch at step {}", i);
-            assert_eq!(s1.buy_count, s2.buy_count, "Buy count mismatch at round {}", s1.round);
-            assert_eq!(s1.sell_count, s2.sell_count, "Sell count mismatch at round {}", s1.round);
-            assert_eq!(s1.hold_count, s2.hold_count, "Hold count mismatch at round {}", s1.round);
-            assert!((s1.net_flow_usd - s2.net_flow_usd).abs() < 1e-10,
-                "Net flow mismatch at round {}: {} vs {}", s1.round, s1.net_flow_usd, s2.net_flow_usd);
-            assert!((s1.price_after - s2.price_after).abs() < 1e-10,
-                "Price mismatch at round {}: {} vs {}", s1.round, s1.price_after, s2.price_after);
+            assert_eq!(
+                s1.buy_count, s2.buy_count,
+                "Buy count mismatch at round {}",
+                s1.round
+            );
+            assert_eq!(
+                s1.sell_count, s2.sell_count,
+                "Sell count mismatch at round {}",
+                s1.round
+            );
+            assert_eq!(
+                s1.hold_count, s2.hold_count,
+                "Hold count mismatch at round {}",
+                s1.round
+            );
+            assert!(
+                (s1.net_flow_usd - s2.net_flow_usd).abs() < 1e-10,
+                "Net flow mismatch at round {}: {} vs {}",
+                s1.round,
+                s1.net_flow_usd,
+                s2.net_flow_usd
+            );
+            assert!(
+                (s1.price_after - s2.price_after).abs() < 1e-10,
+                "Price mismatch at round {}: {} vs {}",
+                s1.round,
+                s1.price_after,
+                s2.price_after
+            );
         }
     }
 
@@ -331,11 +432,23 @@ mod tests {
 
         for _ in 0..100 {
             let step = engine.step_round();
-            assert!(step.price_after.is_finite(), "Price must be finite, got {}", step.price_after);
-            assert!(step.price_after > 0.0, "Price must be positive, got {}", step.price_after);
+            assert!(
+                step.price_after.is_finite(),
+                "Price must be finite, got {}",
+                step.price_after
+            );
+            assert!(
+                step.price_after > 0.0,
+                "Price must be positive, got {}",
+                step.price_after
+            );
             // Price shouldn't move more than 50% in 100 rounds with 100 agents
-            assert!(step.price_after > initial_price * 0.5 && step.price_after < initial_price * 1.5,
-                "Price {:.2} drifted too far from initial {:.2}", step.price_after, initial_price);
+            assert!(
+                step.price_after > initial_price * 0.5 && step.price_after < initial_price * 1.5,
+                "Price {:.2} drifted too far from initial {:.2}",
+                step.price_after,
+                initial_price
+            );
         }
     }
 
@@ -344,12 +457,17 @@ mod tests {
     fn test_engine_stats_consistency() {
         let config = test_config();
         let mut engine = SwarmEngine::new(config.clone(), MarketState::new("SPY", 450.0));
-        for _ in 0..10 { engine.step_round(); }
+        for _ in 0..10 {
+            engine.step_round();
+        }
 
         let stats = engine.stats();
         assert_eq!(stats.agent_count, config.agent_count);
-        assert_eq!(stats.long_agents + stats.short_agents + stats.flat_agents, stats.agent_count,
-            "Long + Short + Flat must sum to total agents");
+        assert_eq!(
+            stats.long_agents + stats.short_agents + stats.flat_agents,
+            stats.agent_count,
+            "Long + Short + Flat must sum to total agents"
+        );
         assert!(stats.mid_price > 0.0);
     }
 
@@ -361,19 +479,25 @@ mod tests {
 
         // Neutral run
         let mut engine1 = SwarmEngine::new(config.clone(), market.clone());
-        for _ in 0..5 { engine1.step_round(); }
+        for _ in 0..5 {
+            engine1.step_round();
+        }
         let step_neutral = engine1.step_round();
 
         // Bullish sentiment run
         let mut engine2 = SwarmEngine::new(config, market);
         engine2.inject_sentiment(1.0); // max bullish
-        for _ in 0..5 { engine2.step_round(); }
+        for _ in 0..5 {
+            engine2.step_round();
+        }
         let step_bullish = engine2.step_round();
 
         // With strong bullish sentiment, buy pressure should be ≥ neutral
         // (this is probabilistic, but with seed determinism it's reproducible)
-        assert!(step_bullish.buy_count >= step_neutral.buy_count.saturating_sub(5)
-            || step_bullish.net_flow_usd >= step_neutral.net_flow_usd - 1000.0,
-            "Bullish sentiment should bias toward buying");
+        assert!(
+            step_bullish.buy_count >= step_neutral.buy_count.saturating_sub(5)
+                || step_bullish.net_flow_usd >= step_neutral.net_flow_usd - 1000.0,
+            "Bullish sentiment should bias toward buying"
+        );
     }
 }

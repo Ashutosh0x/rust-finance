@@ -95,10 +95,18 @@ pub struct Fill {
 /// Events that drive order state transitions.
 #[derive(Debug, Clone)]
 pub enum OrderEvent {
-    Submit { exchange_order_id: String },
-    FillReceived { qty: f64, price: f64, commission: f64 },
+    Submit {
+        exchange_order_id: String,
+    },
+    FillReceived {
+        qty: f64,
+        price: f64,
+        commission: f64,
+    },
     Cancel,
-    Reject { reason: String },
+    Reject {
+        reason: String,
+    },
     Expire,
 }
 
@@ -150,7 +158,11 @@ impl Order {
                 self.status = OrderStatus::Submitted;
             }
 
-            OrderEvent::FillReceived { qty, price, commission } => {
+            OrderEvent::FillReceived {
+                qty,
+                price,
+                commission,
+            } => {
                 // Update VWAP
                 let prev_notional = self.avg_fill_price.unwrap_or(0.0) * self.filled_qty;
                 self.filled_qty += qty;
@@ -168,7 +180,9 @@ impl Order {
                 self.status = if (self.filled_qty - self.quantity).abs() < 1e-9 {
                     OrderStatus::Filled
                 } else {
-                    OrderStatus::PartialFill { filled_qty: self.filled_qty }
+                    OrderStatus::PartialFill {
+                        filled_qty: self.filled_qty,
+                    }
                 };
             }
 
@@ -218,13 +232,26 @@ mod tests {
         let mut o = make_order();
         assert_eq!(o.status, OrderStatus::Pending);
 
-        o.apply(OrderEvent::Submit { exchange_order_id: "EX-001".into() }).unwrap();
+        o.apply(OrderEvent::Submit {
+            exchange_order_id: "EX-001".into(),
+        })
+        .unwrap();
         assert_eq!(o.status, OrderStatus::Submitted);
 
-        o.apply(OrderEvent::FillReceived { qty: 50.0, price: 174.5, commission: 0.5 }).unwrap();
+        o.apply(OrderEvent::FillReceived {
+            qty: 50.0,
+            price: 174.5,
+            commission: 0.5,
+        })
+        .unwrap();
         assert!(matches!(o.status, OrderStatus::PartialFill { .. }));
 
-        o.apply(OrderEvent::FillReceived { qty: 50.0, price: 175.0, commission: 0.5 }).unwrap();
+        o.apply(OrderEvent::FillReceived {
+            qty: 50.0,
+            price: 175.0,
+            commission: 0.5,
+        })
+        .unwrap();
         assert_eq!(o.status, OrderStatus::Filled);
 
         // VWAP: (174.5*50 + 175.0*50) / 100 = 174.75
@@ -241,7 +268,10 @@ mod tests {
     #[test]
     fn test_reject_transition() {
         let mut o = make_order();
-        o.apply(OrderEvent::Reject { reason: "Insufficient funds".into() }).unwrap();
+        o.apply(OrderEvent::Reject {
+            reason: "Insufficient funds".into(),
+        })
+        .unwrap();
         assert!(o.status.is_terminal());
     }
 }

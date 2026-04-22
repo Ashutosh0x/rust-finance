@@ -2,6 +2,12 @@
 name = "model"
 version = "0.1.0"
 edition = "2021"
+description = "Predictive model inference engine for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 # onnxruntime = "0.0.14" # Commented out as it might require external libs

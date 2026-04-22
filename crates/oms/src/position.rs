@@ -3,8 +3,8 @@
 // Position manager computing net qty, real/unrealised P&L,
 // VWAP cost basis, and position drawdown tracking.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
@@ -77,7 +77,11 @@ impl Position {
                 self.realised_pnl += pnl;
 
                 // Establish new position on the remaining
-                self.qty = if is_long { -remaining_qty } else { remaining_qty };
+                self.qty = if is_long {
+                    -remaining_qty
+                } else {
+                    remaining_qty
+                };
                 self.vwap_cost = fill_price;
             }
         }

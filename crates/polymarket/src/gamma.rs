@@ -570,33 +570,56 @@ pub struct EventQuery {
 }
 
 impl EventQuery {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     fn to_params(&self) -> Vec<(String, String)> {
         let mut p = Vec::new();
         macro_rules! push_opt {
             ($field:ident) => {
-                if let Some(ref v) = self.$field { p.push((stringify!($field).to_string(), v.to_string())); }
+                if let Some(ref v) = self.$field {
+                    p.push((stringify!($field).to_string(), v.to_string()));
+                }
             };
         }
-        push_opt!(active); push_opt!(closed); push_opt!(archived);
-        push_opt!(featured); push_opt!(cyom); push_opt!(limit);
-        push_opt!(offset); push_opt!(order); push_opt!(ascending);
-        push_opt!(tag_id); push_opt!(tag_slug); push_opt!(related_tags);
-        push_opt!(include_chat); push_opt!(include_template);
+        push_opt!(active);
+        push_opt!(closed);
+        push_opt!(archived);
+        push_opt!(featured);
+        push_opt!(cyom);
+        push_opt!(limit);
+        push_opt!(offset);
+        push_opt!(order);
+        push_opt!(ascending);
+        push_opt!(tag_id);
+        push_opt!(tag_slug);
+        push_opt!(related_tags);
+        push_opt!(include_chat);
+        push_opt!(include_template);
         push_opt!(recurrence);
-        push_opt!(liquidity_min); push_opt!(liquidity_max);
-        push_opt!(volume_min); push_opt!(volume_max);
-        push_opt!(start_date_min); push_opt!(start_date_max);
-        push_opt!(end_date_min); push_opt!(end_date_max);
+        push_opt!(liquidity_min);
+        push_opt!(liquidity_max);
+        push_opt!(volume_min);
+        push_opt!(volume_max);
+        push_opt!(start_date_min);
+        push_opt!(start_date_max);
+        push_opt!(end_date_min);
+        push_opt!(end_date_max);
         if let Some(ref ids) = self.exclude_tag_id {
-            for id in ids { p.push(("exclude_tag_id".to_string(), id.to_string())); }
+            for id in ids {
+                p.push(("exclude_tag_id".to_string(), id.to_string()));
+            }
         }
         if let Some(ref slugs) = self.slug {
-            for s in slugs { p.push(("slug".to_string(), s.clone())); }
+            for s in slugs {
+                p.push(("slug".to_string(), s.clone()));
+            }
         }
         if let Some(ref ids) = self.id {
-            for id in ids { p.push(("id".to_string(), id.to_string())); }
+            for id in ids {
+                p.push(("id".to_string(), id.to_string()));
+            }
         }
         p
     }
@@ -636,45 +659,74 @@ pub struct MarketQuery {
 }
 
 impl MarketQuery {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     fn to_params(&self) -> Vec<(String, String)> {
         let mut p = Vec::new();
         macro_rules! push_opt {
             ($field:ident) => {
-                if let Some(ref v) = self.$field { p.push((stringify!($field).to_string(), v.to_string())); }
+                if let Some(ref v) = self.$field {
+                    p.push((stringify!($field).to_string(), v.to_string()));
+                }
             };
         }
-        push_opt!(active); push_opt!(closed); push_opt!(limit);
-        push_opt!(offset); push_opt!(order); push_opt!(ascending);
-        push_opt!(tag_id); push_opt!(related_tags); push_opt!(cyom);
+        push_opt!(active);
+        push_opt!(closed);
+        push_opt!(limit);
+        push_opt!(offset);
+        push_opt!(order);
+        push_opt!(ascending);
+        push_opt!(tag_id);
+        push_opt!(related_tags);
+        push_opt!(cyom);
         push_opt!(include_tag);
-        push_opt!(liquidity_num_min); push_opt!(liquidity_num_max);
-        push_opt!(volume_num_min); push_opt!(volume_num_max);
-        push_opt!(start_date_min); push_opt!(start_date_max);
-        push_opt!(end_date_min); push_opt!(end_date_max);
-        push_opt!(uma_resolution_status); push_opt!(rewards_min_size);
+        push_opt!(liquidity_num_min);
+        push_opt!(liquidity_num_max);
+        push_opt!(volume_num_min);
+        push_opt!(volume_num_max);
+        push_opt!(start_date_min);
+        push_opt!(start_date_max);
+        push_opt!(end_date_min);
+        push_opt!(end_date_max);
+        push_opt!(uma_resolution_status);
+        push_opt!(rewards_min_size);
         push_opt!(game_id);
         if let Some(ref ids) = self.clob_token_ids {
-            for id in ids { p.push(("clob_token_ids".to_string(), id.clone())); }
+            for id in ids {
+                p.push(("clob_token_ids".to_string(), id.clone()));
+            }
         }
         if let Some(ref ids) = self.condition_ids {
-            for id in ids { p.push(("condition_ids".to_string(), id.clone())); }
+            for id in ids {
+                p.push(("condition_ids".to_string(), id.clone()));
+            }
         }
         if let Some(ref slugs) = self.slug {
-            for s in slugs { p.push(("slug".to_string(), s.clone())); }
+            for s in slugs {
+                p.push(("slug".to_string(), s.clone()));
+            }
         }
         if let Some(ref ids) = self.id {
-            for id in ids { p.push(("id".to_string(), id.to_string())); }
+            for id in ids {
+                p.push(("id".to_string(), id.to_string()));
+            }
         }
         if let Some(ref addrs) = self.market_maker_address {
-            for a in addrs { p.push(("market_maker_address".to_string(), a.clone())); }
+            for a in addrs {
+                p.push(("market_maker_address".to_string(), a.clone()));
+            }
         }
         if let Some(ref ids) = self.question_ids {
-            for id in ids { p.push(("question_ids".to_string(), id.clone())); }
+            for id in ids {
+                p.push(("question_ids".to_string(), id.clone()));
+            }
         }
         if let Some(ref types) = self.sports_market_types {
-            for t in types { p.push(("sports_market_types".to_string(), t.clone())); }
+            for t in types {
+                p.push(("sports_market_types".to_string(), t.clone()));
+            }
         }
         p
     }
@@ -702,7 +754,8 @@ impl GammaClient {
 
     /// GET /events — list events with full query builder
     pub async fn query_events(&self, query: &EventQuery) -> anyhow::Result<Vec<GammaEvent>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/events", self.base_url))
             .query(&query.to_params())
             .send()
@@ -721,7 +774,10 @@ impl GammaClient {
         offset: Option<u32>,
     ) -> anyhow::Result<Vec<GammaEvent>> {
         let q = EventQuery {
-            active, closed, limit, offset,
+            active,
+            closed,
+            limit,
+            offset,
             ..Default::default()
         };
         self.query_events(&q).await
@@ -729,7 +785,8 @@ impl GammaClient {
 
     /// GET /events/{id} — get event by numeric ID
     pub async fn get_event(&self, event_id: &str) -> anyhow::Result<GammaEvent> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/events/{}", self.base_url, event_id))
             .send()
             .await?
@@ -740,7 +797,8 @@ impl GammaClient {
 
     /// GET /events/slug/{slug} — get event by slug
     pub async fn get_event_by_slug(&self, slug: &str) -> anyhow::Result<GammaEvent> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/events/slug/{}", self.base_url, slug))
             .send()
             .await?
@@ -751,7 +809,8 @@ impl GammaClient {
 
     /// GET /events/{id}/tags — get tags for an event
     pub async fn get_event_tags(&self, event_id: &str) -> anyhow::Result<Vec<GammaTag>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/events/{}/tags", self.base_url, event_id))
             .send()
             .await?
@@ -766,7 +825,8 @@ impl GammaClient {
 
     /// GET /markets — list markets with full query builder
     pub async fn query_markets(&self, query: &MarketQuery) -> anyhow::Result<Vec<GammaMarket>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/markets", self.base_url))
             .query(&query.to_params())
             .send()
@@ -794,7 +854,8 @@ impl GammaClient {
 
     /// GET /markets/{id} — get market by numeric ID
     pub async fn get_market(&self, market_id: &str) -> anyhow::Result<GammaMarket> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/markets/{}", self.base_url, market_id))
             .send()
             .await?
@@ -805,7 +866,8 @@ impl GammaClient {
 
     /// GET /markets/slug/{slug} — get market by slug
     pub async fn get_market_by_slug(&self, slug: &str) -> anyhow::Result<GammaMarket> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/markets/slug/{}", self.base_url, slug))
             .send()
             .await?
@@ -816,7 +878,8 @@ impl GammaClient {
 
     /// GET /markets/{id}/tags — get tags for a market
     pub async fn get_market_tags(&self, market_id: &str) -> anyhow::Result<Vec<GammaTag>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/markets/{}/tags", self.base_url, market_id))
             .send()
             .await?
@@ -839,13 +902,24 @@ impl GammaClient {
         holders_only: Option<bool>,
     ) -> anyhow::Result<Vec<GammaComment>> {
         let mut params: Vec<(String, String)> = Vec::new();
-        if let Some(t) = parent_entity_type { params.push(("parent_entity_type".to_string(), t.to_string())); }
-        if let Some(id) = parent_entity_id { params.push(("parent_entity_id".to_string(), id.to_string())); }
-        if let Some(l) = limit { params.push(("limit".to_string(), l.to_string())); }
-        if let Some(o) = offset { params.push(("offset".to_string(), o.to_string())); }
-        if let Some(h) = holders_only { params.push(("holders_only".to_string(), h.to_string())); }
+        if let Some(t) = parent_entity_type {
+            params.push(("parent_entity_type".to_string(), t.to_string()));
+        }
+        if let Some(id) = parent_entity_id {
+            params.push(("parent_entity_id".to_string(), id.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit".to_string(), l.to_string()));
+        }
+        if let Some(o) = offset {
+            params.push(("offset".to_string(), o.to_string()));
+        }
+        if let Some(h) = holders_only {
+            params.push(("holders_only".to_string(), h.to_string()));
+        }
 
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/comments", self.base_url))
             .query(&params)
             .send()
@@ -857,7 +931,8 @@ impl GammaClient {
 
     /// GET /comments/{id} — get comment by ID
     pub async fn get_comment(&self, comment_id: &str) -> anyhow::Result<GammaComment> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/comments/{}", self.base_url, comment_id))
             .send()
             .await?
@@ -868,7 +943,8 @@ impl GammaClient {
 
     /// GET /comments?user_address={addr} — get comments by user
     pub async fn get_comments_by_user(&self, address: &str) -> anyhow::Result<Vec<GammaComment>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/comments", self.base_url))
             .query(&[("user_address", address)])
             .send()
@@ -884,7 +960,8 @@ impl GammaClient {
 
     /// GET /public-profile?address={addr} — get public profile by wallet address
     pub async fn get_public_profile(&self, address: &str) -> anyhow::Result<PublicProfile> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/public-profile", self.base_url))
             .query(&[("address", address)])
             .send()
@@ -900,7 +977,8 @@ impl GammaClient {
 
     /// GET /search — search markets, events, profiles
     pub async fn search(&self, query: &str) -> anyhow::Result<serde_json::Value> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/search", self.base_url))
             .query(&[("q", query)])
             .send()
@@ -912,7 +990,8 @@ impl GammaClient {
 
     /// GET /public-search — search markets and events (public endpoint)
     pub async fn public_search(&self, query: &str) -> anyhow::Result<serde_json::Value> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/public-search", self.base_url))
             .query(&[("q", query)])
             .send()
@@ -928,7 +1007,8 @@ impl GammaClient {
 
     /// GET /tags — list all tags
     pub async fn list_tags(&self) -> anyhow::Result<Vec<GammaTag>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/tags", self.base_url))
             .send()
             .await?
@@ -939,7 +1019,8 @@ impl GammaClient {
 
     /// GET /tags/{id} — get tag by ID
     pub async fn get_tag(&self, tag_id: &str) -> anyhow::Result<GammaTag> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/tags/{}", self.base_url, tag_id))
             .send()
             .await?
@@ -966,7 +1047,8 @@ impl GammaClient {
         Ok(all
             .into_iter()
             .filter(|e| {
-                e.slug.as_deref()
+                e.slug
+                    .as_deref()
                     .unwrap_or("")
                     .starts_with("btc-updown-15m")
             })
@@ -984,7 +1066,8 @@ impl GammaClient {
         Ok(resp
             .into_iter()
             .filter(|m| {
-                m.question.as_deref()
+                m.question
+                    .as_deref()
                     .unwrap_or("")
                     .to_lowercase()
                     .contains(&query.to_lowercase())

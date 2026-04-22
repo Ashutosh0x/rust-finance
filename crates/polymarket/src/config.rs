@@ -47,15 +47,27 @@ where
         .collect())
 }
 
-fn default_sig_type() -> u8 { 2 }
-fn default_clob_host() -> String { "https://clob.polymarket.com".into() }
-fn default_gamma_host() -> String { "https://gamma-api.polymarket.com".into() }
-fn default_data_host() -> String { "https://data-api.polymarket.com".into() }
+fn default_sig_type() -> u8 {
+    2
+}
+fn default_clob_host() -> String {
+    "https://clob.polymarket.com".into()
+}
+fn default_gamma_host() -> String {
+    "https://gamma-api.polymarket.com".into()
+}
+fn default_data_host() -> String {
+    "https://data-api.polymarket.com".into()
+}
 fn default_ws_market() -> String {
     "wss://ws-subscriptions-clob.polymarket.com/ws/market".into()
 }
-fn default_chain_id() -> u64 { 137 }
-fn default_copy_pct() -> f64 { 10.0 }
+fn default_chain_id() -> u64 {
+    137
+}
+fn default_copy_pct() -> f64 {
+    10.0
+}
 
 impl PolymarketConfig {
     pub fn from_env() -> Result<Self, envy::Error> {

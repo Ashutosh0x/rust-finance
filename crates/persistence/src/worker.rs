@@ -4,13 +4,13 @@
 // Uses sqlx-postgres sub-crate directly (not the sqlx umbrella)
 // to avoid sqlx-mysql pulling rsa/zeroize which conflicts with solana-sdk.
 
-use std::time::Duration;
-use sqlx_postgres::{PgPool, Postgres};
+use crate::db::MarketTick;
 use sqlx_core::query_builder::QueryBuilder;
+use sqlx_postgres::{PgPool, Postgres};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 use tracing::{error, trace};
-use crate::db::MarketTick;
 
 const BATCH_SIZE: usize = 5000;
 const BATCH_TIMEOUT: Duration = Duration::from_millis(100);
@@ -59,16 +59,16 @@ impl AsyncDbWorker {
         let batch_len = batch.len();
 
         let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
-            "INSERT INTO market_ticks (time, symbol, bid, ask, last_price, volume) "
+            "INSERT INTO market_ticks (time, symbol, bid, ask, last_price, volume) ",
         );
 
         query_builder.push_values(batch.drain(..), |mut b, tick| {
             b.push_bind(tick.time)
-             .push_bind(tick.symbol)
-             .push_bind(tick.bid)
-             .push_bind(tick.ask)
-             .push_bind(tick.last_price)
-             .push_bind(tick.volume);
+                .push_bind(tick.symbol)
+                .push_bind(tick.bid)
+                .push_bind(tick.ask)
+                .push_bind(tick.last_price)
+                .push_bind(tick.volume);
         });
 
         match query_builder.build().execute(&self.pool).await {

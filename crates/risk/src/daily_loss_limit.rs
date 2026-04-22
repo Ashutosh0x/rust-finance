@@ -19,7 +19,10 @@ impl DailyLossLimit {
 
     pub fn is_limit_breached(&self) -> bool {
         if self.current_pnl < -self.max_daily_loss {
-            warn!("Daily loss limit breached! PnL: {}, Limit: -{}", self.current_pnl, self.max_daily_loss);
+            warn!(
+                "Daily loss limit breached! PnL: {}, Limit: -{}",
+                self.current_pnl, self.max_daily_loss
+            );
             true
         } else {
             false

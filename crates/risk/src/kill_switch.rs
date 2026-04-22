@@ -5,8 +5,8 @@
 // into the order submission path — any breach halts trading atomically.
 
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{error, info};
@@ -60,9 +60,9 @@ pub struct RiskConfig {
 impl Default for RiskConfig {
     fn default() -> Self {
         Self {
-            var_95_limit: 0.02,       // 2% of portfolio
-            max_drawdown: 0.05,       // 5% drawdown halt
-            vol_threshold: 0.80,      // 80% annualised vol
+            var_95_limit: 0.02,  // 2% of portfolio
+            max_drawdown: 0.05,  // 5% drawdown halt
+            vol_threshold: 0.80, // 80% annualised vol
             garch_omega: 0.000001,
             garch_alpha: 0.10,
             garch_beta: 0.85,
@@ -111,9 +111,8 @@ impl GarchTracker {
             self.returns.push_back(ret);
 
             // σ²_t = ω + α·ε²_{t-1} + β·σ²_{t-1}
-            self.current_variance = self.omega
-                + self.alpha * ret.powi(2)
-                + self.beta * self.current_variance;
+            self.current_variance =
+                self.omega + self.alpha * ret.powi(2) + self.beta * self.current_variance;
 
             self.last_price = Some(price);
             // Convert daily variance to annualised vol
@@ -220,7 +219,11 @@ impl RiskEngine {
             .garch_trackers
             .entry(symbol.to_string())
             .or_insert_with(|| {
-                GarchTracker::new(self.cfg.garch_omega, self.cfg.garch_alpha, self.cfg.garch_beta)
+                GarchTracker::new(
+                    self.cfg.garch_omega,
+                    self.cfg.garch_alpha,
+                    self.cfg.garch_beta,
+                )
             });
 
         if let Some(ann_vol) = tracker.update(price) {
@@ -275,9 +278,7 @@ impl RiskEngine {
                     actual_loss: limit_dollar,
                 };
                 let _ = self.event_tx.send(event);
-                let reason = format!(
-                    "95% VaR ${var_dollar:.2} exceeds limit ${limit_dollar:.2}"
-                );
+                let reason = format!("95% VaR ${var_dollar:.2} exceeds limit ${limit_dollar:.2}");
                 return self.activate_kill_switch(reason).await;
             }
         }
@@ -326,7 +327,10 @@ impl OrderGuard {
     pub async fn check(&self) -> Result<(), String> {
         let ks = self.kill_switch.read().await;
         if ks.active.load(Ordering::Relaxed) {
-            let reason = ks.reason.clone().unwrap_or_else(|| "Kill switch active".to_string());
+            let reason = ks
+                .reason
+                .clone()
+                .unwrap_or_else(|| "Kill switch active".to_string());
             Err(format!("Order blocked by kill switch: {reason}"))
         } else {
             Ok(())
@@ -403,9 +407,9 @@ mod tests {
     /// under real signal flow, not just in unit-test isolation.
     #[tokio::test]
     async fn test_e2e_kill_switch_blocks_executor_after_drawdown() {
-        use execution::recording_executor::RecordingExecutor;
-        use execution::gateway::{ExecutionGateway, OpenRequest, TimeInForce};
         use common::events::{OrderSide, OrderType};
+        use execution::gateway::{ExecutionGateway, OpenRequest, TimeInForce};
+        use execution::recording_executor::RecordingExecutor;
 
         // Setup: RiskEngine with tight drawdown limit
         let cfg = RiskConfig {
@@ -428,19 +432,36 @@ mod tests {
         // Phase 1: Portfolio healthy — orders should flow through
         engine.update_portfolio(100_000.0).await.unwrap();
         let guard = OrderGuard::new(engine.kill_switch_handle());
-        assert!(guard.check().await.is_ok(), "Guard should pass when healthy");
+        assert!(
+            guard.check().await.is_ok(),
+            "Guard should pass when healthy"
+        );
         let _ = executor.submit_order(make_order()).await;
-        assert_eq!(executor.submission_count(), 1, "Order should reach executor");
+        assert_eq!(
+            executor.submission_count(),
+            1,
+            "Order should reach executor"
+        );
 
         // Phase 2: Drawdown trips kill switch
         let result = engine.update_portfolio(96_000.0).await; // -4% > 3% limit
         assert!(result.is_err(), "Drawdown should trip kill switch");
-        assert!(engine.is_kill_switch_active().await, "Kill switch should be active");
+        assert!(
+            engine.is_kill_switch_active().await,
+            "Kill switch should be active"
+        );
 
         // Phase 3: Guard blocks — executor should NOT receive new orders
-        assert!(guard.check().await.is_err(), "Guard should block after kill switch");
+        assert!(
+            guard.check().await.is_err(),
+            "Guard should block after kill switch"
+        );
         // Do NOT submit — this is the critical invariant
-        assert_eq!(executor.submission_count(), 1, "No new orders after kill switch");
+        assert_eq!(
+            executor.submission_count(),
+            1,
+            "No new orders after kill switch"
+        );
 
         // Phase 4: Reset restores flow
         engine.reset_kill_switch().await;
@@ -463,15 +484,20 @@ mod tests {
         for price in [100.0, 100.5, 101.0, 100.8, 100.2] {
             assert!(engine.on_price_tick("NVDA", price).await.is_ok());
         }
-        assert!(!engine.is_kill_switch_active().await, "Normal vol should not trip");
+        assert!(
+            !engine.is_kill_switch_active().await,
+            "Normal vol should not trip"
+        );
 
         // Inject extreme price shock: 100 → 200 → 50 → 300
         let _ = engine.on_price_tick("NVDA", 200.0).await;
         let result = engine.on_price_tick("NVDA", 50.0).await;
         // After extreme moves, GARCH vol should exceed 50% annualized
         if result.is_err() {
-            assert!(engine.is_kill_switch_active().await,
-                "Extreme vol should trip kill switch");
+            assert!(
+                engine.is_kill_switch_active().await,
+                "Extreme vol should trip kill switch"
+            );
             let guard = OrderGuard::new(engine.kill_switch_handle());
             assert!(guard.check().await.is_err(), "Guard should block");
         }

@@ -1,6 +1,6 @@
+use anyhow::Result;
 use redis::AsyncCommands;
 use redis::Client;
-use anyhow::Result;
 
 pub async fn connect_dragonfly(url: &str) -> Result<redis::aio::MultiplexedConnection> {
     let client = Client::open(url)?;
@@ -8,7 +8,11 @@ pub async fn connect_dragonfly(url: &str) -> Result<redis::aio::MultiplexedConne
     Ok(conn)
 }
 
-pub async fn update_price(conn: &mut redis::aio::MultiplexedConnection, symbol: &str, price: f64) -> Result<()> {
+pub async fn update_price(
+    conn: &mut redis::aio::MultiplexedConnection,
+    symbol: &str,
+    price: f64,
+) -> Result<()> {
     let key = format!("price:{}", symbol);
     let _: () = conn.set(key, price).await?;
     Ok(())

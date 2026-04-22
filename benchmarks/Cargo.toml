@@ -2,6 +2,12 @@
 name = "benchmarks"
 version = "0.1.0"
 edition = "2021"
+description = "Performance benchmarks for RustForge trading components"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 publish = false
 
 [dependencies]

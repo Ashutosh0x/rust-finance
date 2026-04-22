@@ -21,7 +21,12 @@ pub struct Envelope<T> {
 }
 
 impl<T> Envelope<T> {
-    pub fn new(ts_event: UnixNanos, ts_init: UnixNanos, sequence_id: SequenceId, payload: T) -> Self {
+    pub fn new(
+        ts_event: UnixNanos,
+        ts_init: UnixNanos,
+        sequence_id: SequenceId,
+        payload: T,
+    ) -> Self {
         Self {
             ts_event,
             ts_init,
@@ -377,7 +382,9 @@ mod tests {
 
     #[test]
     fn test_postcard_roundtrip_wallet_update() {
-        roundtrip_bot_event(&BotEvent::WalletUpdate { sol_balance: 98.123456 });
+        roundtrip_bot_event(&BotEvent::WalletUpdate {
+            sol_balance: 98.123456,
+        });
     }
 
     #[test]
@@ -511,7 +518,10 @@ mod tests {
         };
         let bytes = postcard::to_allocvec(&event).expect("NaN serialize");
         let decoded: BotEvent = postcard::from_bytes(&bytes).expect("NaN deserialize");
-        if let BotEvent::MarketEvent { volume: Some(v), .. } = decoded {
+        if let BotEvent::MarketEvent {
+            volume: Some(v), ..
+        } = decoded
+        {
             assert!(v.is_nan(), "NaN should survive roundtrip");
         } else {
             panic!("Wrong variant after roundtrip");
@@ -522,13 +532,36 @@ mod tests {
     #[test]
     fn test_postcard_roundtrip_all_variants_exhaustive() {
         let variants: Vec<BotEvent> = vec![
-            BotEvent::MarketEvent { symbol: "A".into(), price: 1.0, volume: None, event_type: "t".into() },
-            BotEvent::QuoteEvent { symbol: "B".into(), bid_price: 1.0, bid_size: 1, ask_price: 2.0, ask_size: 2 },
+            BotEvent::MarketEvent {
+                symbol: "A".into(),
+                price: 1.0,
+                volume: None,
+                event_type: "t".into(),
+            },
+            BotEvent::QuoteEvent {
+                symbol: "B".into(),
+                bid_price: 1.0,
+                bid_size: 1,
+                ask_price: 2.0,
+                ask_size: 2,
+            },
             BotEvent::Feed("raw".into()),
-            BotEvent::AISignal { symbol: "C".into(), action: "BUY".into(), confidence: 0.5, reason: "r".into() },
-            BotEvent::PositionUpdate { token: "SOL".into(), size: 1.0 },
+            BotEvent::AISignal {
+                symbol: "C".into(),
+                action: "BUY".into(),
+                confidence: 0.5,
+                reason: "r".into(),
+            },
+            BotEvent::PositionUpdate {
+                token: "SOL".into(),
+                size: 1.0,
+            },
             BotEvent::WalletUpdate { sol_balance: 0.0 },
-            BotEvent::ExchangeHeartbeat { exchange: "E".into(), status: "ok".into(), latency_ms: 0.1 },
+            BotEvent::ExchangeHeartbeat {
+                exchange: "E".into(),
+                status: "ok".into(),
+                latency_ms: 0.1,
+            },
             BotEvent::TradeSignal("sig".into()),
             BotEvent::Heartbeat,
         ];

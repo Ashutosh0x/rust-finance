@@ -11,7 +11,10 @@ impl MiroFishSimulator {
     }
 
     pub async fn run(&self) -> Result<()> {
-        info!("MiroFish Swarm Simulator running with {} agents...", self.agent_count);
+        info!(
+            "MiroFish Swarm Simulator running with {} agents...",
+            self.agent_count
+        );
         // Will batch simulate different market archetypes
         Ok(())
     }

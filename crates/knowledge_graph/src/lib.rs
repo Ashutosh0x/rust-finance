@@ -15,11 +15,11 @@
 // ============================================================
 
 pub mod graph;
+pub mod impact;
 pub mod ontology;
 pub mod query;
-pub mod impact;
 
-pub use graph::{FinancialGraph, EntityId, EntityNode, Relationship, RelationshipKind};
-pub use ontology::{Ontology, OntologyEntity, OntologyEdge};
-pub use query::{GraphQuery, GraphContext, ImpactPath};
+pub use graph::{EntityId, EntityNode, FinancialGraph, Relationship, RelationshipKind};
 pub use impact::ImpactEngine;
+pub use ontology::{Ontology, OntologyEdge, OntologyEntity};
+pub use query::{GraphContext, GraphQuery, ImpactPath};

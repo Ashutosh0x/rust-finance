@@ -61,12 +61,12 @@ pub fn cost_sensitivity_matrix<S: Strategy + Clone>(
     initial_cash: f64,
 ) -> CostSensitivityReport {
     let cost_grid: Vec<(&str, f64, f64)> = vec![
-        ("Zero cost",        0.0,    0.0),
-        ("Low (1bp/0.5bp)",  0.0001, 0.00005),
+        ("Zero cost", 0.0, 0.0),
+        ("Low (1bp/0.5bp)", 0.0001, 0.00005),
         ("Medium (5bp/1bp)", 0.0005, 0.0001),
-        ("High (10bp/3bp)",  0.0010, 0.0003),
-        ("Severe (20bp/5bp)",0.0020, 0.0005),
-        ("Retail (30bp/10bp)",0.0030,0.0010),
+        ("High (10bp/3bp)", 0.0010, 0.0003),
+        ("Severe (20bp/5bp)", 0.0020, 0.0005),
+        ("Retail (30bp/10bp)", 0.0030, 0.0010),
     ];
 
     let mut scenarios = Vec::with_capacity(cost_grid.len());
@@ -85,8 +85,12 @@ pub fn cost_sensitivity_matrix<S: Strategy + Clone>(
         let mut strategy = strategy_factory();
         let metrics = engine.run(bars, &mut strategy);
 
-        if metrics.sharpe_ratio > best_sharpe { best_sharpe = metrics.sharpe_ratio; }
-        if metrics.sharpe_ratio < worst_sharpe { worst_sharpe = metrics.sharpe_ratio; }
+        if metrics.sharpe_ratio > best_sharpe {
+            best_sharpe = metrics.sharpe_ratio;
+        }
+        if metrics.sharpe_ratio < worst_sharpe {
+            worst_sharpe = metrics.sharpe_ratio;
+        }
 
         scenarios.push(CostScenario {
             label: label.to_string(),
@@ -102,7 +106,10 @@ pub fn cost_sensitivity_matrix<S: Strategy + Clone>(
 
     // Robust = Sharpe stays > 1.0 across at least the first 4 scenarios
     let robust = scenarios.iter().take(4).all(|s| s.sharpe > 1.0);
-    let profitable_worst = scenarios.last().map(|s| s.annual_return > 0.0).unwrap_or(false);
+    let profitable_worst = scenarios
+        .last()
+        .map(|s| s.annual_return > 0.0)
+        .unwrap_or(false);
 
     CostSensitivityReport {
         scenarios,
@@ -121,17 +128,37 @@ pub fn print_cost_sensitivity(report: &CostSensitivityReport) {
     println!("║ SCENARIO             ║ COMM  ║ SLIP  ║ SHARPE ║ ANN. RET  ║ MAX DD      ║");
     println!("╠══════════════════════╬═══════╬═══════╬════════╬═══════════╬═════════════╣");
     for s in &report.scenarios {
-        let grade = if s.sharpe >= 2.5 { "[ELITE]" } else if s.sharpe >= 1.0 { " [PASS]" }
-                    else if s.sharpe > 0.0 { " [WARN]" } else { " [FAIL]" };
-        println!("║ {:20} ║ {:>3.0}bp ║ {:>3.1}bp ║ {:>6.3} ║ {:>8.2}%  ║ {:>8.2}% {} ║",
-            s.label, s.commission_bps, s.slippage_bps,
-            s.sharpe, s.annual_return * 100.0, s.max_drawdown * 100.0, grade);
+        let grade = if s.sharpe >= 2.5 {
+            "[ELITE]"
+        } else if s.sharpe >= 1.0 {
+            " [PASS]"
+        } else if s.sharpe > 0.0 {
+            " [WARN]"
+        } else {
+            " [FAIL]"
+        };
+        println!(
+            "║ {:20} ║ {:>3.0}bp ║ {:>3.1}bp ║ {:>6.3} ║ {:>8.2}%  ║ {:>8.2}% {} ║",
+            s.label,
+            s.commission_bps,
+            s.slippage_bps,
+            s.sharpe,
+            s.annual_return * 100.0,
+            s.max_drawdown * 100.0,
+            grade
+        );
     }
     println!("╠══════════════════════╩═══════╩═══════╩════════╩═══════════╩═════════════╣");
-    println!("║  Sharpe range: {:.3}  |  Robust: {}  |  Worst-case profitable: {} ║",
+    println!(
+        "║  Sharpe range: {:.3}  |  Robust: {}  |  Worst-case profitable: {} ║",
         report.sharpe_range,
         if report.robust_to_costs { "YES" } else { "NO " },
-        if report.profitable_worst_case { "YES" } else { "NO " });
+        if report.profitable_worst_case {
+            "YES"
+        } else {
+            "NO "
+        }
+    );
     println!("╚══════════════════════════════════════════════════════════════════════════╝");
 }
 
@@ -174,8 +201,11 @@ pub fn probability_of_backtest_overfitting<S: Strategy + Clone>(
     let split_size = n / (n_splits * 2);
     if split_size < 10 || strategies.is_empty() {
         return OverfitReport {
-            pbo: 1.0, whites_reality_check_p: 1.0,
-            best_is_rank: 0, strategies_tested: strategies.len(), passes: false,
+            pbo: 1.0,
+            whites_reality_check_p: 1.0,
+            best_is_rank: 0,
+            strategies_tested: strategies.len(),
+            passes: false,
         };
     }
 
@@ -193,7 +223,9 @@ pub fn probability_of_backtest_overfitting<S: Strategy + Clone>(
             let oos_start = is_end;
             let oos_end = (oos_start + split_size).min(n);
 
-            if oos_end <= oos_start { break; }
+            if oos_end <= oos_start {
+                break;
+            }
 
             let is_bars = &bars[is_start..is_end];
             let oos_bars = &bars[oos_start..oos_end];
@@ -232,7 +264,8 @@ pub fn probability_of_backtest_overfitting<S: Strategy + Clone>(
         // Check OOS rank of IS winner
         if split_idx < oos_sharpes[best_is_idx].len() {
             let is_winner_oos = oos_sharpes[best_is_idx][split_idx];
-            let n_better = oos_sharpes.iter()
+            let n_better = oos_sharpes
+                .iter()
                 .filter(|oos| split_idx < oos.len() && oos[split_idx] > is_winner_oos)
                 .count();
             // IS winner not in top half OOS → overfit
@@ -244,28 +277,39 @@ pub fn probability_of_backtest_overfitting<S: Strategy + Clone>(
 
     let pbo = if total_comparisons > 0 {
         overfit_count as f64 / total_comparisons as f64
-    } else { 1.0 };
+    } else {
+        1.0
+    };
 
     // White's Reality Check: bootstrap p-value approximation
     // Use mean OOS performance of best IS strategy vs zero benchmark
-    let _best_is_avg: f64 = is_sharpes.iter()
+    let _best_is_avg: f64 = is_sharpes
+        .iter()
         .map(|v| v.iter().sum::<f64>() / v.len().max(1) as f64)
         .fold(f64::NEG_INFINITY, f64::max);
 
-    let all_oos_means: Vec<f64> = oos_sharpes.iter()
+    let all_oos_means: Vec<f64> = oos_sharpes
+        .iter()
         .map(|v| v.iter().sum::<f64>() / v.len().max(1) as f64)
         .collect();
 
-    let _best_oos_mean = all_oos_means.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let _best_oos_mean = all_oos_means
+        .iter()
+        .cloned()
+        .fold(f64::NEG_INFINITY, f64::max);
     // p-value: fraction of strategies that have OOS Sharpe >= best IS strategy's OOS
-    let best_is_idx = is_sharpes.iter()
+    let best_is_idx = is_sharpes
+        .iter()
         .enumerate()
         .max_by(|a, b| {
             let a_mean = a.1.iter().sum::<f64>() / a.1.len().max(1) as f64;
             let b_mean = b.1.iter().sum::<f64>() / b.1.len().max(1) as f64;
-            a_mean.partial_cmp(&b_mean).unwrap_or(std::cmp::Ordering::Equal)
+            a_mean
+                .partial_cmp(&b_mean)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
-        .map(|(i, _)| i).unwrap_or(0);
+        .map(|(i, _)| i)
+        .unwrap_or(0);
 
     let best_oos = all_oos_means.get(best_is_idx).copied().unwrap_or(0.0);
     let worse_count = all_oos_means.iter().filter(|&&v| v >= best_oos).count();
@@ -274,7 +318,11 @@ pub fn probability_of_backtest_overfitting<S: Strategy + Clone>(
     // Rank of best IS strategy in OOS
     let mut sorted_oos = all_oos_means.clone();
     sorted_oos.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    let best_rank = sorted_oos.iter().position(|&v| (v - best_oos).abs() < 1e-12).unwrap_or(0) + 1;
+    let best_rank = sorted_oos
+        .iter()
+        .position(|&v| (v - best_oos).abs() < 1e-12)
+        .unwrap_or(0)
+        + 1;
 
     let passes = pbo < 0.10 && whites_p < 0.20;
 
@@ -295,17 +343,43 @@ pub fn print_overfit_report(report: &OverfitReport) {
     println!("╠══════════════════════════════╦══════════╦═══════════════════╣");
     println!("║ CHECK                        ║ VALUE    ║ STATUS            ║");
     println!("╠══════════════════════════════╬══════════╬═══════════════════╣");
-    println!("║ PBO (Bailey et al. 2016)     ║ {:>8.4} ║ {:>17} ║",
-        report.pbo, if report.pbo < 0.10 { "PASS < 0.10" } else { "FAIL OVERFIT" });
-    println!("║ White's Reality Check (p)    ║ {:>8.4} ║ {:>17} ║",
+    println!(
+        "║ PBO (Bailey et al. 2016)     ║ {:>8.4} ║ {:>17} ║",
+        report.pbo,
+        if report.pbo < 0.10 {
+            "PASS < 0.10"
+        } else {
+            "FAIL OVERFIT"
+        }
+    );
+    println!(
+        "║ White's Reality Check (p)    ║ {:>8.4} ║ {:>17} ║",
         report.whites_reality_check_p,
-        if report.whites_reality_check_p < 0.20 { "PASS Significant" } else { "FAIL Snooped" });
-    println!("║ Best IS strategy OOS rank    ║ {:>4}/{:<3} ║ {:>17} ║",
-        report.best_is_rank, report.strategies_tested,
-        if report.best_is_rank <= 3 { "PASS Consistent" } else { "FAIL Rank drift" });
+        if report.whites_reality_check_p < 0.20 {
+            "PASS Significant"
+        } else {
+            "FAIL Snooped"
+        }
+    );
+    println!(
+        "║ Best IS strategy OOS rank    ║ {:>4}/{:<3} ║ {:>17} ║",
+        report.best_is_rank,
+        report.strategies_tested,
+        if report.best_is_rank <= 3 {
+            "PASS Consistent"
+        } else {
+            "FAIL Rank drift"
+        }
+    );
     println!("╠══════════════════════════════╩══════════╩═══════════════════╣");
-    println!("║  Overall: {}                                              ║",
-        if report.passes { "[PASS]   " } else { "[FAIL]   " });
+    println!(
+        "║  Overall: {}                                              ║",
+        if report.passes {
+            "[PASS]   "
+        } else {
+            "[FAIL]   "
+        }
+    );
     println!("╚══════════════════════════════════════════════════════════════╝");
 }
 
@@ -350,16 +424,27 @@ pub fn engine_consistency_check<S: Strategy + Clone>(
     let mut strat_b = strategy_factory();
     let metrics_b = engine_b.run(bars, &mut strat_b);
 
-    let returns_a: Vec<f64> = metrics_a.equity_curve.windows(2)
-        .map(|w| (w[1].1 - w[0].1) / w[0].1).collect();
-    let returns_b: Vec<f64> = metrics_b.equity_curve.windows(2)
-        .map(|w| (w[1].1 - w[0].1) / w[0].1).collect();
+    let returns_a: Vec<f64> = metrics_a
+        .equity_curve
+        .windows(2)
+        .map(|w| (w[1].1 - w[0].1) / w[0].1)
+        .collect();
+    let returns_b: Vec<f64> = metrics_b
+        .equity_curve
+        .windows(2)
+        .map(|w| (w[1].1 - w[0].1) / w[0].1)
+        .collect();
 
     let pnl_corr = pearson_correlation(&returns_a, &returns_b);
 
     let trade_delta = if metrics_a.total_trades > 0 {
-        ((metrics_a.total_trades as f64 - metrics_b.total_trades as f64) / metrics_a.total_trades as f64).abs() * 100.0
-    } else { 0.0 };
+        ((metrics_a.total_trades as f64 - metrics_b.total_trades as f64)
+            / metrics_a.total_trades as f64)
+            .abs()
+            * 100.0
+    } else {
+        0.0
+    };
 
     EngineConsistencyResult {
         config_a_label: label_a.to_string(),
@@ -377,14 +462,22 @@ pub fn engine_consistency_check<S: Strategy + Clone>(
 
 fn pearson_correlation(a: &[f64], b: &[f64]) -> f64 {
     let n = a.len().min(b.len());
-    if n < 2 { return 0.0; }
+    if n < 2 {
+        return 0.0;
+    }
     let mean_a = a[..n].iter().sum::<f64>() / n as f64;
     let mean_b = b[..n].iter().sum::<f64>() / n as f64;
-    let cov: f64 = a[..n].iter().zip(b[..n].iter())
-        .map(|(x, y)| (x - mean_a) * (y - mean_b)).sum::<f64>() / n as f64;
+    let cov: f64 = a[..n]
+        .iter()
+        .zip(b[..n].iter())
+        .map(|(x, y)| (x - mean_a) * (y - mean_b))
+        .sum::<f64>()
+        / n as f64;
     let var_a: f64 = a[..n].iter().map(|x| (x - mean_a).powi(2)).sum::<f64>() / n as f64;
     let var_b: f64 = b[..n].iter().map(|x| (x - mean_b).powi(2)).sum::<f64>() / n as f64;
-    if var_a < 1e-15 || var_b < 1e-15 { return 0.0; }
+    if var_a < 1e-15 || var_b < 1e-15 {
+        return 0.0;
+    }
     cov / (var_a.sqrt() * var_b.sqrt())
 }
 
@@ -424,8 +517,13 @@ pub fn capacity_degradation<S: Strategy + Clone>(
     base_config: &BacktestConfig,
 ) -> CapacityReport {
     let capital_levels = [
-        10_000.0, 50_000.0, 100_000.0, 500_000.0,
-        1_000_000.0, 5_000_000.0, 10_000_000.0,
+        10_000.0,
+        50_000.0,
+        100_000.0,
+        500_000.0,
+        1_000_000.0,
+        5_000_000.0,
+        10_000_000.0,
     ];
 
     let mut rows = Vec::with_capacity(capital_levels.len());
@@ -448,7 +546,9 @@ pub fn capacity_degradation<S: Strategy + Clone>(
 
         let avg_slippage = if metrics.total_trades > 0 {
             base_config.slippage_rate * impact_multiplier * 100.0
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         if metrics.sharpe_ratio < 1.0 && capacity_limit.is_none() {
             capacity_limit = Some(capital);
@@ -471,8 +571,12 @@ pub fn capacity_degradation<S: Strategy + Clone>(
         let doublings = (last.capital_usd / first.capital_usd).log2();
         if doublings > 0.0 {
             (first.sharpe - last.sharpe) / doublings
-        } else { 0.0 }
-    } else { 0.0 };
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
 
     CapacityReport {
         rows,
@@ -495,19 +599,38 @@ pub fn print_capacity_report(report: &CapacityReport) {
         } else {
             format!("${:.0}K", row.capital_usd / 1_000.0)
         };
-        let grade = if row.sharpe >= 2.5 { "[ELITE]" } else if row.sharpe >= 1.0 { " [PASS]" }
-                    else if row.sharpe > 0.0 { " [WARN]" } else { " [FAIL]" };
-        println!("║ {:>12} ║ {:>7.3} ║ {:>8.2}%  ║ {:>8.2}%  ║ {:>7.3}% slip {} ║",
-            cap_str, row.sharpe, row.annual_return * 100.0,
-            row.max_drawdown * 100.0, row.avg_slippage_pct, grade);
+        let grade = if row.sharpe >= 2.5 {
+            "[ELITE]"
+        } else if row.sharpe >= 1.0 {
+            " [PASS]"
+        } else if row.sharpe > 0.0 {
+            " [WARN]"
+        } else {
+            " [FAIL]"
+        };
+        println!(
+            "║ {:>12} ║ {:>7.3} ║ {:>8.2}%  ║ {:>8.2}%  ║ {:>7.3}% slip {} ║",
+            cap_str,
+            row.sharpe,
+            row.annual_return * 100.0,
+            row.max_drawdown * 100.0,
+            row.avg_slippage_pct,
+            grade
+        );
     }
     println!("╠══════════════╩═════════╩═══════════╩═══════════╩═════════════════╣");
     if let Some(limit) = report.capacity_limit_usd {
-        println!("║  Capacity limit (Sharpe < 1.0): ${:.0}                        ║", limit);
+        println!(
+            "║  Capacity limit (Sharpe < 1.0): ${:.0}                        ║",
+            limit
+        );
     } else {
         println!("║  Capacity limit: NOT reached within test range                 ║");
     }
-    println!("║  Sharpe decay per capital doubling: {:.4}                      ║", report.sharpe_decay_per_doubling);
+    println!(
+        "║  Sharpe decay per capital doubling: {:.4}                      ║",
+        report.sharpe_decay_per_doubling
+    );
     println!("╚════════════════════════════════════════════════════════════════════╝");
 }
 
@@ -623,15 +746,39 @@ pub fn print_reproducibility_proof(proof: &ReproducibilityProof) {
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║  REPRODUCIBILITY CONTRACT                                  ║");
     println!("╠══════════════════════════════╦═════════════════════════════╣");
-    println!("║  Data hash (input)           ║ {:>016x}            ║", proof.data_hash);
-    println!("║  Config hash                 ║ {:>016x}            ║", proof.config_hash);
-    println!("║  Output hash (equity curve)  ║ {:>016x}            ║", proof.output_hash);
-    println!("║  Audit hash (combined)       ║ {:>016x}            ║", proof.audit_hash);
+    println!(
+        "║  Data hash (input)           ║ {:>016x}            ║",
+        proof.data_hash
+    );
+    println!(
+        "║  Config hash                 ║ {:>016x}            ║",
+        proof.config_hash
+    );
+    println!(
+        "║  Output hash (equity curve)  ║ {:>016x}            ║",
+        proof.output_hash
+    );
+    println!(
+        "║  Audit hash (combined)       ║ {:>016x}            ║",
+        proof.audit_hash
+    );
     println!("╠══════════════════════════════╬═════════════════════════════╣");
-    println!("║  Data points                 ║ {:>27} ║", proof.data_points);
-    println!("║  Timestamp                   ║ {:>27} ║", &proof.run_timestamp[..19]);
-    println!("║  Deterministic (2-run check) ║ {:>27} ║",
-        if proof.verified_deterministic { "VERIFIED" } else { "NON-DETERMINISTIC" });
+    println!(
+        "║  Data points                 ║ {:>27} ║",
+        proof.data_points
+    );
+    println!(
+        "║  Timestamp                   ║ {:>27} ║",
+        &proof.run_timestamp[..19]
+    );
+    println!(
+        "║  Deterministic (2-run check) ║ {:>27} ║",
+        if proof.verified_deterministic {
+            "VERIFIED"
+        } else {
+            "NON-DETERMINISTIC"
+        }
+    );
     println!("╚══════════════════════════════╩═════════════════════════════╝");
 }
 
@@ -665,8 +812,12 @@ pub fn run_full_audit<S: Strategy + Clone>(
         ..config.clone()
     };
     let consistency = engine_consistency_check(
-        bars, &strategy_factory, config, &config_b,
-        "fill_next_open", "fill_current_close",
+        bars,
+        &strategy_factory,
+        config,
+        &config_b,
+        "fill_next_open",
+        "fill_current_close",
     );
 
     // Layer D: Capacity
@@ -679,7 +830,10 @@ pub fn run_full_audit<S: Strategy + Clone>(
 
     let all_pass = cost.robust_to_costs
         && repro.verified_deterministic
-        && capacity.capacity_limit_usd.map(|l| l >= 500_000.0).unwrap_or(true);
+        && capacity
+            .capacity_limit_usd
+            .map(|l| l >= 500_000.0)
+            .unwrap_or(true);
 
     FullAuditReport {
         cost_sensitivity: cost,
@@ -690,21 +844,27 @@ pub fn run_full_audit<S: Strategy + Clone>(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn make_test_bars(n: usize) -> Vec<Bar> {
-        (0..n).map(|i| {
-            let price = 100.0 + (i as f64 * 0.05).sin() * 5.0 + i as f64 * 0.1;
-            Bar {
-                timestamp: i as i64 * 86_400_000,
-                symbol: "TEST".into(),
-                open: price, high: price * 1.01, low: price * 0.99,
-                close: price, volume: 1_000_000.0, bid: price - 0.05, ask: price + 0.05,
-            }
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let price = 100.0 + (i as f64 * 0.05).sin() * 5.0 + i as f64 * 0.1;
+                Bar {
+                    timestamp: i as i64 * 86_400_000,
+                    symbol: "TEST".into(),
+                    open: price,
+                    high: price * 1.01,
+                    low: price * 0.99,
+                    close: price,
+                    volume: 1_000_000.0,
+                    bid: price - 0.05,
+                    ask: price + 0.05,
+                }
+            })
+            .collect()
     }
 
     #[test]
@@ -741,7 +901,10 @@ mod tests {
             || crate::strategy::SimpleMovingAverageCrossover::new(5, 20),
             &config,
         );
-        assert!(proof.verified_deterministic, "Backtest engine must be deterministic");
+        assert!(
+            proof.verified_deterministic,
+            "Backtest engine must be deterministic"
+        );
     }
 
     #[test]
@@ -758,8 +921,10 @@ mod tests {
         let result = engine_consistency_check(
             &bars,
             || crate::strategy::SimpleMovingAverageCrossover::new(5, 20),
-            &config_a, &config_b,
-            "fill_next_open", "fill_current_close",
+            &config_a,
+            &config_b,
+            "fill_next_open",
+            "fill_current_close",
         );
         // Different fill modes should produce somewhat correlated but different results
         assert!(result.sharpe_delta >= 0.0);
@@ -772,13 +937,9 @@ mod tests {
         let s1 = || crate::strategy::SimpleMovingAverageCrossover::new(5, 20);
         let s2 = || crate::strategy::SimpleMovingAverageCrossover::new(10, 30);
         let s3 = || crate::strategy::SimpleMovingAverageCrossover::new(3, 15);
-        let strategies: Vec<&dyn Fn() -> crate::strategy::SimpleMovingAverageCrossover> = vec![&s1, &s2, &s3];
-        let report = probability_of_backtest_overfitting(
-            &bars,
-            &strategies,
-            &config,
-            3,
-        );
+        let strategies: Vec<&dyn Fn() -> crate::strategy::SimpleMovingAverageCrossover> =
+            vec![&s1, &s2, &s3];
+        let report = probability_of_backtest_overfitting(&bars, &strategies, &config, 3);
         // With only 3 strategies and 3 splits, PBO should be low (not heavily data-snooped)
         assert!(report.strategies_tested == 3);
     }

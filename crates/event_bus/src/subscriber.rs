@@ -1,11 +1,11 @@
 use anyhow::Result;
-use tokio::net::TcpStream;
+use common::events::BotEvent;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
-use common::events::BotEvent;
-use tracing::{info, warn, error};
-use tokio_retry::{Retry, strategy::ExponentialBackoff};
+use tokio_retry::{strategy::ExponentialBackoff, Retry};
+use tracing::{error, info, warn};
 
 pub struct EventBusClient {
     addr: String,
@@ -26,14 +26,15 @@ impl EventBusClient {
             let connect_result = Retry::spawn(strategy.clone(), || async {
                 info!("Attempting to connect to EventBus at {}...", addr_clone);
                 TcpStream::connect(&addr_clone).await
-            }).await;
+            })
+            .await;
 
             match connect_result {
                 Ok(stream) => {
                     info!("Successfully connected to EventBus!");
                     let (reader, _) = tokio::io::split(stream);
                     let mut lines = BufReader::new(reader).lines();
-                    
+
                     while let Ok(Some(line)) = lines.next_line().await {
                         if let Ok(event) = serde_json::from_str::<BotEvent>(&line) {
                             if tx.send(event).await.is_err() {

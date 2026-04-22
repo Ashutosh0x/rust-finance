@@ -13,7 +13,10 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Block, Borders, BorderType, Paragraph, canvas::{Canvas, Line as CanvasLine, Rectangle}},
+    widgets::{
+        canvas::{Canvas, Line as CanvasLine, Rectangle},
+        Block, BorderType, Borders, Paragraph,
+    },
     Frame,
 };
 
@@ -24,12 +27,12 @@ const BORDER: Color = Color::Rgb(30, 37, 48);
 const TEXT_PRIMARY: Color = Color::Rgb(226, 232, 240);
 const TEXT_SECONDARY: Color = Color::Rgb(148, 163, 184);
 const TEXT_DIM: Color = Color::Rgb(80, 90, 100);
-const CHART_GREEN: Color = Color::Rgb(0, 200, 180);         // Teal line
-const CHART_FILL_TOP: Color = Color::Rgb(0, 80, 70);        // Area fill darker
+const CHART_GREEN: Color = Color::Rgb(0, 200, 180); // Teal line
+const CHART_FILL_TOP: Color = Color::Rgb(0, 80, 70); // Area fill darker
 #[allow(dead_code)]
-const CHART_FILL_BOT: Color = Color::Rgb(0, 40, 35);        // Area fill darkest
-const VOLUME_BAR: Color = Color::Rgb(60, 70, 80);           // Volume bar gray
-const VOLUME_AVG: Color = Color::Rgb(74, 222, 128);         // Volume SMAVG green
+const CHART_FILL_BOT: Color = Color::Rgb(0, 40, 35); // Area fill darkest
+const VOLUME_BAR: Color = Color::Rgb(60, 70, 80); // Volume bar gray
+const VOLUME_AVG: Color = Color::Rgb(74, 222, 128); // Volume SMAVG green
 const GREEN: Color = Color::Rgb(74, 222, 128);
 const RED: Color = Color::Rgb(248, 113, 113);
 #[allow(dead_code)]
@@ -189,9 +192,9 @@ pub fn render_chart(
     let chart_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2),             // Stats legend
-            Constraint::Percentage(65),        // Price chart
-            Constraint::Percentage(35),        // Volume histogram
+            Constraint::Length(2),      // Stats legend
+            Constraint::Percentage(65), // Price chart
+            Constraint::Percentage(35), // Volume histogram
         ])
         .split(inner);
 
@@ -202,14 +205,27 @@ pub fn render_chart(
 
 /// The stats/legend overlay matching Bloomberg style
 fn render_stats_legend(f: &mut Frame, area: Rect, stats: &ChartStats, _state: &ChartState) {
-    let change_color = if stats.price_change >= 0.0 { GREEN } else { RED };
+    let change_color = if stats.price_change >= 0.0 {
+        GREEN
+    } else {
+        RED
+    };
     let change_sign = if stats.price_change >= 0.0 { "+" } else { "" };
 
     if area.width < 40 {
         let line = Line::from(vec![
-            Span::styled(format!("{:.2} ", stats.last_price), Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
             Span::styled(
-                format!("{}${:.3} ({}{:.2}%)", change_sign, stats.price_change.abs(), change_sign, stats.price_change_pct),
+                format!("{:.2} ", stats.last_price),
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!(
+                    "{}${:.3} ({}{:.2}%)",
+                    change_sign,
+                    stats.price_change.abs(),
+                    change_sign,
+                    stats.price_change_pct
+                ),
                 Style::default().fg(change_color),
             ),
         ]);
@@ -222,19 +238,36 @@ fn render_stats_legend(f: &mut Frame, area: Rect, stats: &ChartStats, _state: &C
     let mcap_str = format_number_with_commas(stats.market_cap);
 
     let price_text = format!(" {:.2}", stats.last_price);
-    let change_text = format!(" {}${:.3} ({}{:.2}%)", change_sign, stats.price_change.abs(), change_sign, stats.price_change_pct);
+    let change_text = format!(
+        " {}${:.3} ({}{:.2}%)",
+        change_sign,
+        stats.price_change.abs(),
+        change_sign,
+        stats.price_change_pct
+    );
     let vol_label = format!("Volume:   {}B", vol_str);
     let svgline = " SVG polyline #8";
     let mcap_label = format!("Market Cap: ${} MB", mcap_str);
 
     let used_line1 = price_text.len() + change_text.len() + vol_label.len();
-    let pad1 = if (area.width as usize) > used_line1 + 4 { area.width as usize - used_line1 - 4 } else { 2 };
+    let pad1 = if (area.width as usize) > used_line1 + 4 {
+        area.width as usize - used_line1 - 4
+    } else {
+        2
+    };
     let used_line2 = svgline.len() + mcap_label.len();
-    let pad2 = if (area.width as usize) > used_line2 + 4 { area.width as usize - used_line2 - 4 } else { 2 };
+    let pad2 = if (area.width as usize) > used_line2 + 4 {
+        area.width as usize - used_line2 - 4
+    } else {
+        2
+    };
 
     let lines = vec![
         Line::from(vec![
-            Span::styled(price_text, Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                price_text,
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(change_text, Style::default().fg(change_color)),
             Span::raw(" ".repeat(pad1)),
             Span::styled(vol_label, Style::default().fg(TEXT_PRIMARY)),
@@ -267,7 +300,8 @@ fn render_price_area(
     let x_min = (x_max - visible_width).max(0.0);
 
     // Filter data to visible range
-    let visible_data: Vec<(f64, f64)> = data.iter()
+    let visible_data: Vec<(f64, f64)> = data
+        .iter()
         .filter(|(x, _)| *x >= x_min && *x <= x_max)
         .cloned()
         .collect();
@@ -277,8 +311,14 @@ fn render_price_area(
     }
 
     // Compute Y bounds with padding
-    let y_min = visible_data.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
-    let y_max = visible_data.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
+    let y_min = visible_data
+        .iter()
+        .map(|(_, y)| *y)
+        .fold(f64::INFINITY, f64::min);
+    let y_max = visible_data
+        .iter()
+        .map(|(_, y)| *y)
+        .fold(f64::NEG_INFINITY, f64::max);
     let y_padding = (y_max - y_min) * 0.1;
     let y_low = y_min - y_padding;
     let y_high = y_max + y_padding;
@@ -301,7 +341,7 @@ fn render_price_area(
             // Main price line
             for i in 0..visible_data.len().saturating_sub(1) {
                 let p1 = visible_data[i];
-                let p2 = visible_data[i+1];
+                let p2 = visible_data[i + 1];
                 ctx.draw(&CanvasLine {
                     x1: p1.0,
                     y1: p1.1,
@@ -344,10 +384,19 @@ fn render_volume_area(
     let header = Line::from(vec![
         Span::styled(" ░ ", Style::default().fg(VOLUME_BAR)),
         Span::styled("Volume       ", Style::default().fg(TEXT_SECONDARY)),
-        Span::styled(format!("{:.3}m   ", stats.volume), Style::default().fg(TEXT_PRIMARY)),
+        Span::styled(
+            format!("{:.3}m   ", stats.volume),
+            Style::default().fg(TEXT_PRIMARY),
+        ),
         Span::styled(" █ ", Style::default().fg(VOLUME_AVG)),
-        Span::styled("SMAVG Volume Histogram(15) ", Style::default().fg(TEXT_SECONDARY)),
-        Span::styled(format!("{:.3}m", stats.volume_smavg), Style::default().fg(TEXT_PRIMARY)),
+        Span::styled(
+            "SMAVG Volume Histogram(15) ",
+            Style::default().fg(TEXT_SECONDARY),
+        ),
+        Span::styled(
+            format!("{:.3}m", stats.volume_smavg),
+            Style::default().fg(TEXT_PRIMARY),
+        ),
     ]);
     f.render_widget(Paragraph::new(header), header_area);
 
@@ -357,7 +406,8 @@ fn render_volume_area(
     let x_max = total_points - state.scroll_offset;
     let x_min = (x_max - visible_width).max(0.0);
 
-    let visible_vol: Vec<(f64, f64)> = volume_data.iter()
+    let visible_vol: Vec<(f64, f64)> = volume_data
+        .iter()
         .filter(|(x, _)| *x >= x_min && *x <= x_max)
         .cloned()
         .collect();
@@ -369,7 +419,10 @@ fn render_volume_area(
         return;
     }
 
-    let v_max = visible_vol.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
+    let v_max = visible_vol
+        .iter()
+        .map(|(_, v)| *v)
+        .fold(f64::NEG_INFINITY, f64::max);
 
     let canvas = Canvas::default()
         .marker(symbols::Marker::Block)
@@ -389,7 +442,7 @@ fn render_volume_area(
             // SMAVG line
             for i in 0..smavg_data.len().saturating_sub(1) {
                 let p1 = smavg_data[i];
-                let p2 = smavg_data[i+1];
+                let p2 = smavg_data[i + 1];
                 ctx.draw(&CanvasLine {
                     x1: p1.0,
                     y1: p1.1,
@@ -406,20 +459,30 @@ fn render_volume_area(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 #[allow(dead_code)]
-fn generate_time_labels(_x_min: f64, _x_max: f64, width: u16, time_range: TimeRange) -> Vec<Span<'static>> {
+fn generate_time_labels(
+    _x_min: f64,
+    _x_max: f64,
+    width: u16,
+    time_range: TimeRange,
+) -> Vec<Span<'static>> {
     let months = match time_range {
-        TimeRange::Day1 => vec!["9:30", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"],
+        TimeRange::Day1 => vec![
+            "9:30", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00",
+        ],
         TimeRange::Week1 => vec!["Mon", "Tue", "Wed", "Thu", "Fri"],
         TimeRange::Month1 => vec!["W1", "W2", "W3", "W4"],
         TimeRange::Month6 => vec!["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        TimeRange::Year1 => vec!["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"],
+        TimeRange::Year1 => vec![
+            "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb",
+        ],
         TimeRange::All => vec!["2020", "2021", "2022", "2023", "2024", "2025"],
     };
 
     let max_labels = (width as usize / 10).max(3).min(months.len());
     let step = months.len() / max_labels.max(1);
 
-    months.iter()
+    months
+        .iter()
         .enumerate()
         .filter(|(i, _)| *i % step == 0)
         .map(|(_, m)| Span::styled(m.to_string(), Style::default().fg(TEXT_DIM)))
@@ -456,7 +519,9 @@ fn format_number_with_commas(n: f64) -> String {
         }
         result.push(c);
     }
-    if whole < 0 { result = format!("-{}", result); }
+    if whole < 0 {
+        result = format!("-{}", result);
+    }
     if frac_part > 0 {
         format!("{}.{}", result, frac_part)
     } else {

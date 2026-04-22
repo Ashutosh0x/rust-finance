@@ -2,8 +2,8 @@
 // Transaction Cost Analysis — measure explicit + implicit execution costs
 // TT won 2026 FOW International Award for this category
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// A single fill record with all data needed for TCA
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,23 +62,26 @@ impl TcaMetrics {
 
         let commission_bps = if notional > 0.0 {
             (fill.commission_usd / notional) * 10_000.0
-        } else { 0.0 };
+        } else {
+            0.0
+        };
 
         // Implementation Shortfall = (fill_price - decision_price) × side_sign
         let is_bps = ((fill.fill_price - fill.decision_price) / fill.decision_price)
-            * fill.side_sign * 10_000.0;
+            * fill.side_sign
+            * 10_000.0;
 
-        let arrival_bps = ((fill.fill_price - fill.arrival_vwap) / fill.arrival_vwap)
-            * fill.side_sign * 10_000.0;
+        let arrival_bps =
+            ((fill.fill_price - fill.arrival_vwap) / fill.arrival_vwap) * fill.side_sign * 10_000.0;
 
-        let vwap_bps = ((fill.fill_price - fill.day_vwap) / fill.day_vwap)
-            * fill.side_sign * 10_000.0;
+        let vwap_bps =
+            ((fill.fill_price - fill.day_vwap) / fill.day_vwap) * fill.side_sign * 10_000.0;
 
         let twap_bps = ((fill.fill_price - fill.interval_twap) / fill.interval_twap)
-            * fill.side_sign * 10_000.0;
-
-        let impact_bps = ((fill.fill_price - fill.decision_price) / fill.decision_price)
+            * fill.side_sign
             * 10_000.0;
+
+        let impact_bps = ((fill.fill_price - fill.decision_price) / fill.decision_price) * 10_000.0;
 
         let latency_ms = fill.fill_ts.saturating_sub(fill.decision_ts) / 1_000;
 
@@ -137,7 +140,10 @@ impl Default for TcaEngine {
 
 impl TcaEngine {
     pub fn new() -> Self {
-        Self { fills: Vec::new(), metrics: Vec::new() }
+        Self {
+            fills: Vec::new(),
+            metrics: Vec::new(),
+        }
     }
 
     pub fn record_fill(&mut self, fill: FillRecord) -> TcaMetrics {
@@ -162,13 +168,37 @@ impl TcaEngine {
         }
         let n = self.metrics.len() as f64;
 
-        let avg_is    = self.metrics.iter().map(|m| m.implementation_shortfall_bps).sum::<f64>() / n;
-        let avg_arr   = self.metrics.iter().map(|m| m.arrival_slippage_bps).sum::<f64>() / n;
-        let avg_vwap  = self.metrics.iter().map(|m| m.vwap_slippage_bps).sum::<f64>() / n;
-        let avg_comm  = self.metrics.iter().map(|m| m.commission_bps).sum::<f64>() / n;
+        let avg_is = self
+            .metrics
+            .iter()
+            .map(|m| m.implementation_shortfall_bps)
+            .sum::<f64>()
+            / n;
+        let avg_arr = self
+            .metrics
+            .iter()
+            .map(|m| m.arrival_slippage_bps)
+            .sum::<f64>()
+            / n;
+        let avg_vwap = self
+            .metrics
+            .iter()
+            .map(|m| m.vwap_slippage_bps)
+            .sum::<f64>()
+            / n;
+        let avg_comm = self.metrics.iter().map(|m| m.commission_bps).sum::<f64>() / n;
         let avg_total = self.metrics.iter().map(|m| m.total_cost_bps).sum::<f64>() / n;
-        let avg_lat   = self.metrics.iter().map(|m| m.latency_ms as f64).sum::<f64>() / n;
-        let total_not = self.fills.iter().map(|f| f.fill_price * f.quantity).sum::<f64>();
+        let avg_lat = self
+            .metrics
+            .iter()
+            .map(|m| m.latency_ms as f64)
+            .sum::<f64>()
+            / n;
+        let total_not = self
+            .fills
+            .iter()
+            .map(|f| f.fill_price * f.quantity)
+            .sum::<f64>();
 
         // Per-strategy aggregation
         let mut by_strategy: HashMap<String, (usize, f64, f64)> = HashMap::new();
@@ -178,22 +208,42 @@ impl TcaEngine {
             e.1 += m.implementation_shortfall_bps;
             e.2 += m.latency_ms as f64;
         }
-        let by_strategy = by_strategy.into_iter().map(|(k, (cnt, is_sum, lat_sum))| {
-            let n = cnt as f64;
-            (k, StrategyTca { fill_count: cnt, avg_is_bps: is_sum / n, avg_latency_ms: lat_sum / n })
-        }).collect();
+        let by_strategy = by_strategy
+            .into_iter()
+            .map(|(k, (cnt, is_sum, lat_sum))| {
+                let n = cnt as f64;
+                (
+                    k,
+                    StrategyTca {
+                        fill_count: cnt,
+                        avg_is_bps: is_sum / n,
+                        avg_latency_ms: lat_sum / n,
+                    },
+                )
+            })
+            .collect();
 
         // Best / worst execution hour
         let mut hour_costs: HashMap<u8, Vec<f64>> = HashMap::new();
         for (fill, m) in self.fills.iter().zip(self.metrics.iter()) {
             let hour = ((fill.fill_ts / 1_000_000) % 86400 / 3600) as u8;
-            hour_costs.entry(hour).or_default().push(m.implementation_shortfall_bps);
+            hour_costs
+                .entry(hour)
+                .or_default()
+                .push(m.implementation_shortfall_bps);
         }
-        let hour_avgs: Vec<(u8, f64)> = hour_costs.iter()
+        let hour_avgs: Vec<(u8, f64)> = hour_costs
+            .iter()
             .map(|(h, costs)| (*h, costs.iter().sum::<f64>() / costs.len() as f64))
             .collect();
-        let best_hour  = hour_avgs.iter().min_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).map(|(h, _)| *h);
-        let worst_hour = hour_avgs.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).map(|(h, _)| *h);
+        let best_hour = hour_avgs
+            .iter()
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .map(|(h, _)| *h);
+        let worst_hour = hour_avgs
+            .iter()
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .map(|(h, _)| *h);
 
         TcaReport {
             fill_count: self.metrics.len(),
@@ -211,6 +261,9 @@ impl TcaEngine {
     }
 
     pub fn metrics_for_strategy(&self, strategy: &str) -> Vec<&TcaMetrics> {
-        self.metrics.iter().filter(|m| m.strategy == strategy).collect()
+        self.metrics
+            .iter()
+            .filter(|m| m.strategy == strategy)
+            .collect()
     }
 }

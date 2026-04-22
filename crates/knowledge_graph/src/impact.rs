@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use crate::graph::FinancialGraph;
 use crate::query::{ImpactPath, ImpactStep};
+use std::collections::HashMap;
 
 /// Quantifies how a shock to entity A propagates to entity B.
 /// Used by ReACT report_agent to score scenario impacts.
@@ -30,7 +30,7 @@ impl<'a> ImpactEngine<'a> {
     pub fn propagate_shock(
         &self,
         source_id: &str,
-        shock_magnitude: f64,  // -1.0 to +1.0
+        shock_magnitude: f64, // -1.0 to +1.0
         max_hops: usize,
     ) -> Vec<ImpactScore> {
         let mut scores: Vec<ImpactScore> = Vec::new();
@@ -49,7 +49,10 @@ impl<'a> ImpactEngine<'a> {
         );
 
         scores.sort_by(|a, b| {
-            b.score.abs().partial_cmp(&a.score.abs()).unwrap_or(std::cmp::Ordering::Equal)
+            b.score
+                .abs()
+                .partial_cmp(&a.score.abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         scores
     }
@@ -67,21 +70,24 @@ impl<'a> ImpactEngine<'a> {
     }
 
     /// Human-readable impact table for Dexter AI prompt
-    pub fn impact_table(
-        &self,
-        source_id: &str,
-        shock_magnitude: f64,
-        top_n: usize,
-    ) -> String {
+    pub fn impact_table(&self, source_id: &str, shock_magnitude: f64, top_n: usize) -> String {
         let scores = self.propagate_shock(source_id, shock_magnitude, 2);
-        let source_name = self.graph.get_entity(source_id)
+        let source_name = self
+            .graph
+            .get_entity(source_id)
             .map(|e| e.name.as_str())
             .unwrap_or(source_id);
 
-        let dir = if shock_magnitude > 0.0 { "rises" } else { "falls" };
+        let dir = if shock_magnitude > 0.0 {
+            "rises"
+        } else {
+            "falls"
+        };
         let mut lines = vec![format!(
             "Impact analysis: if {} {} by {:.0}%:",
-            source_name, dir, shock_magnitude.abs() * 100.0
+            source_name,
+            dir,
+            shock_magnitude.abs() * 100.0
         )];
 
         for s in scores.iter().take(top_n) {
@@ -155,7 +161,11 @@ impl<'a> ImpactEngine<'a> {
                     rel.kind.label(),
                     rel.description,
                     hop_score.abs() * 100.0,
-                    if hop_score > 0.0 { "bullish" } else { "bearish" }
+                    if hop_score > 0.0 {
+                        "bullish"
+                    } else {
+                        "bearish"
+                    }
                 );
 
                 results.retain(|r| r.target_id != target.id);
@@ -204,7 +214,11 @@ mod tests {
 
         // Oil up 20% should be bearish for airlines
         if let Some(score) = airline_score {
-            assert!(score.score < 0.0, "Oil up should be bearish for airlines, got {}", score.score);
+            assert!(
+                score.score < 0.0,
+                "Oil up should be bearish for airlines, got {}",
+                score.score
+            );
         }
     }
 

@@ -11,18 +11,18 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 // use crate::hybrid_pipeline::FusedContext; // FusedContext lives in daemon module
-// We will access FusedContext directly during compilation if possible, 
+// We will access FusedContext directly during compilation if possible,
 // or define DexterSignal here.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DexterSignal {
     pub symbol: String,
     pub direction: TradeDirection,
-    pub confidence: f64,          // 0.0–1.0
+    pub confidence: f64, // 0.0–1.0
     pub entry_price: f64,
     pub stop_loss: f64,
     pub take_profit: f64,
-    pub position_size_pct: f64,   // % of portfolio to allocate
+    pub position_size_pct: f64, // % of portfolio to allocate
     pub time_horizon: TimeHorizon,
     pub thesis: String,           // 2-3 sentences, specific and quantitative
     pub key_risks: Vec<String>,   // Max 3 concrete risk factors
@@ -50,7 +50,7 @@ pub enum Recommendation {
     Buy,
     Sell,
     Hold,
-    Risk,     // Hedge/reduce risk
+    Risk, // Hedge/reduce risk
 }
 
 /// Matches what you see in the TUI Dexter panel
@@ -167,7 +167,9 @@ Rules:
 ///   LLM_PROVIDER=groq    → Groq cloud API (rate limited)
 ///   (default)            → Ollama if OLLAMA_MODEL is set, else Groq
 async fn call_llm_json(system: &str, user: &str) -> Result<String> {
-    let provider = std::env::var("LLM_PROVIDER").unwrap_or_default().to_lowercase();
+    let provider = std::env::var("LLM_PROVIDER")
+        .unwrap_or_default()
+        .to_lowercase();
     let ollama_model = std::env::var("OLLAMA_MODEL").ok();
 
     let use_ollama = provider == "ollama" || (provider.is_empty() && ollama_model.is_some());
@@ -181,10 +183,10 @@ async fn call_llm_json(system: &str, user: &str) -> Result<String> {
 
 /// Ollama backend — OpenAI-compatible API at localhost:11434. No rate limits.
 async fn call_ollama_json(system: &str, user: &str) -> Result<String> {
-    let model = std::env::var("OLLAMA_MODEL")
-        .unwrap_or_else(|_| "deepseek-v3.1:671b-cloud".to_string());
-    let host = std::env::var("OLLAMA_HOST")
-        .unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let model =
+        std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "deepseek-v3.1:671b-cloud".to_string());
+    let host =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(600)) // 10min — qwen3:8b on 4GB VRAM takes ~90s/call
         .build()?;
@@ -213,14 +215,19 @@ async fn call_ollama_json(system: &str, user: &str) -> Result<String> {
     let json: serde_json::Value = resp.json().await?;
 
     if !status.is_success() {
-        let err_msg = json.get("error")
+        let err_msg = json
+            .get("error")
             .and_then(|e| e.as_str())
             .unwrap_or("unknown Ollama error");
         anyhow::bail!("Ollama error ({}): {}", status, err_msg);
     }
 
     // Ollama native response: { "message": { "role": "assistant", "content": "..." } }
-    if let Some(content) = json.get("message").and_then(|m| m.get("content")).and_then(|c| c.as_str()) {
+    if let Some(content) = json
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+    {
         return Ok(content.to_string());
     }
 
@@ -270,7 +277,8 @@ async fn call_groq_json(system: &str, user: &str) -> Result<String> {
     let json: serde_json::Value = resp.json().await?;
 
     if !status.is_success() {
-        let err_msg = json.get("error")
+        let err_msg = json
+            .get("error")
             .and_then(|e| e.get("message"))
             .and_then(|m| m.as_str())
             .unwrap_or("unknown API error");
@@ -280,7 +288,11 @@ async fn call_groq_json(system: &str, user: &str) -> Result<String> {
     // OpenAI-compatible response: choices[0].message.content
     if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
         if let Some(first) = choices.first() {
-            if let Some(text) = first.get("message").and_then(|m| m.get("content")).and_then(|t| t.as_str()) {
+            if let Some(text) = first
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|t| t.as_str())
+            {
                 return Ok(text.to_string());
             }
         }

@@ -86,10 +86,7 @@ impl MarketDataSource for PolymarketSource {
             .await
             .map_err(|e| IngestionError::ConnectionFailed(e.to_string()))?;
 
-        debug!(
-            markets = asset_ids.len(),
-            "Polymarket subscription sent"
-        );
+        debug!(markets = asset_ids.len(), "Polymarket subscription sent");
 
         let seq_gen = Arc::clone(&self.seq_gen);
 
@@ -204,18 +201,30 @@ fn parse_price_change(
     // Polymarket prices are in cents (0.00 to 1.00)
     let price = json
         .get("price")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or(v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or(v.as_f64())
+        })
         .unwrap_or(0.0);
 
     // Best bid/ask if available
     let bid = json
         .get("best_bid")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or(v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or(v.as_f64())
+        })
         .unwrap_or(price - 0.01);
 
     let ask = json
         .get("best_ask")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or(v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or(v.as_f64())
+        })
         .unwrap_or(price + 0.01);
 
     let event = MarketEvent::Quote(QuoteEvent {
@@ -262,13 +271,21 @@ fn parse_poly_trade(
 
     let price = json
         .get("price")
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or(v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or(v.as_f64())
+        })
         .unwrap_or(0.0);
 
     let size = json
         .get("size")
         .or_else(|| json.get("amount"))
-        .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok()).or(v.as_f64()))
+        .and_then(|v| {
+            v.as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+                .or(v.as_f64())
+        })
         .unwrap_or(0.0);
 
     let side_str = json.get("side").and_then(|v| v.as_str()).unwrap_or("");

@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 pub struct MessageRequest {
@@ -48,7 +48,9 @@ impl AnthropicClient {
 
     pub async fn send_message(&self, req: MessageRequest) -> Result<String> {
         let url = "https://api.anthropic.com/v1/messages";
-        let res = self.client.post(url)
+        let res = self
+            .client
+            .post(url)
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
@@ -63,11 +65,13 @@ impl AnthropicClient {
         }
 
         let resp: MessageResponse = res.json().await?;
-        
-        let text = resp.content.into_iter()
+
+        let text = resp
+            .content
+            .into_iter()
             .find_map(|b| b.text)
             .unwrap_or_else(|| "No text response".to_string());
-            
+
         Ok(text)
     }
 }

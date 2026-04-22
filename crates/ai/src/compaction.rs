@@ -6,8 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use tracing::{debug, info, warn};
 use thiserror::Error;
+use tracing::{debug, info, warn};
 
 const ANTHROPIC_API_BASE: &str = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -16,7 +16,7 @@ const COMPACTION_BETA: &str = "message-batches-2024-09-24,interleaved-thinking-2
 /// A single message in the conversation history.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
-    pub role: String,   // "user" | "assistant"
+    pub role: String, // "user" | "assistant"
     pub content: MessageContent,
 }
 
@@ -30,7 +30,9 @@ pub enum MessageContent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     /// Injected by the Compaction API — contains the rolling summary.
     ServerToolUse {
         id: String,

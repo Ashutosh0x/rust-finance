@@ -1,5 +1,5 @@
-use anyhow::{Result, Context};
-use reqwest::{Client, header};
+use anyhow::{Context, Result};
+use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -23,10 +23,8 @@ pub struct AlpacaConfig {
 impl AlpacaConfig {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
-            key_id: std::env::var("ALPACA_API_KEY")
-                .unwrap_or_default(),
-            secret_key: std::env::var("ALPACA_SECRET_KEY")
-                .unwrap_or_default(),
+            key_id: std::env::var("ALPACA_API_KEY").unwrap_or_default(),
+            secret_key: std::env::var("ALPACA_SECRET_KEY").unwrap_or_default(),
             base_url: std::env::var("ALPACA_BASE_URL")
                 .unwrap_or_else(|_| "https://paper-api.alpaca.markets".to_string()),
             data_url: std::env::var("ALPACA_DATA_URL")
@@ -388,11 +386,21 @@ impl AlpacaRestClient {
         timeframe: Option<&str>,
     ) -> Result<PortfolioHistory> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(p) = period { params.push(("period", p.to_string())); }
-        if let Some(tf) = timeframe { params.push(("timeframe", tf.to_string())); }
+        if let Some(p) = period {
+            params.push(("period", p.to_string()));
+        }
+        if let Some(tf) = timeframe {
+            params.push(("timeframe", tf.to_string()));
+        }
 
         let url = format!("{}/v2/account/portfolio/history", self.base_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -403,11 +411,21 @@ impl AlpacaRestClient {
         limit: Option<u32>,
     ) -> Result<Vec<AccountActivity>> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(t) = activity_type { params.push(("activity_type", t.to_string())); }
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
+        if let Some(t) = activity_type {
+            params.push(("activity_type", t.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
 
         let url = format!("{}/v2/account/activities", self.base_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -418,7 +436,13 @@ impl AlpacaRestClient {
     /// POST /v2/orders — submit order
     pub async fn place_order(&self, req: &OrderRequest) -> Result<Order> {
         let url = format!("{}/v2/orders", self.base_url);
-        let resp = self.client.post(&url).json(req).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(req)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -433,17 +457,33 @@ impl AlpacaRestClient {
         symbols: Option<&[&str]>,
     ) -> Result<Vec<Order>> {
         let mut params: Vec<(String, String)> = Vec::new();
-        if let Some(s) = status { params.push(("status".into(), s.to_string())); }
-        if let Some(l) = limit { params.push(("limit".into(), l.to_string())); }
-        if let Some(a) = after { params.push(("after".into(), a.to_string())); }
-        if let Some(u) = until { params.push(("until".into(), u.to_string())); }
-        if let Some(d) = direction { params.push(("direction".into(), d.to_string())); }
+        if let Some(s) = status {
+            params.push(("status".into(), s.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit".into(), l.to_string()));
+        }
+        if let Some(a) = after {
+            params.push(("after".into(), a.to_string()));
+        }
+        if let Some(u) = until {
+            params.push(("until".into(), u.to_string()));
+        }
+        if let Some(d) = direction {
+            params.push(("direction".into(), d.to_string()));
+        }
         if let Some(syms) = symbols {
             params.push(("symbols".into(), syms.join(",")));
         }
 
         let url = format!("{}/v2/orders", self.base_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -480,15 +520,27 @@ impl AlpacaRestClient {
         time_in_force: Option<&str>,
     ) -> Result<Order> {
         let mut body = serde_json::Map::new();
-        if let Some(q) = qty { body.insert("qty".into(), serde_json::json!(q)); }
-        if let Some(lp) = limit_price { body.insert("limit_price".into(), serde_json::json!(lp)); }
-        if let Some(sp) = stop_price { body.insert("stop_price".into(), serde_json::json!(sp)); }
-        if let Some(tif) = time_in_force { body.insert("time_in_force".into(), serde_json::json!(tif)); }
+        if let Some(q) = qty {
+            body.insert("qty".into(), serde_json::json!(q));
+        }
+        if let Some(lp) = limit_price {
+            body.insert("limit_price".into(), serde_json::json!(lp));
+        }
+        if let Some(sp) = stop_price {
+            body.insert("stop_price".into(), serde_json::json!(sp));
+        }
+        if let Some(tif) = time_in_force {
+            body.insert("time_in_force".into(), serde_json::json!(tif));
+        }
 
         let url = format!("{}/v2/orders/{}", self.base_url, order_id);
-        let resp = self.client.patch(&url)
+        let resp = self
+            .client
+            .patch(&url)
             .json(&serde_json::Value::Object(body))
-            .send().await?.error_for_status()?;
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -514,7 +566,9 @@ impl AlpacaRestClient {
     pub async fn close_position(&self, symbol: &str, qty: Option<f64>) -> Result<Order> {
         let url = format!("{}/v2/positions/{}", self.base_url, symbol);
         let mut req = self.client.delete(&url);
-        if let Some(q) = qty { req = req.query(&[("qty", q.to_string())]); }
+        if let Some(q) = qty {
+            req = req.query(&[("qty", q.to_string())]);
+        }
         let resp = req.send().await?.error_for_status()?;
         Ok(resp.json().await?)
     }
@@ -538,12 +592,24 @@ impl AlpacaRestClient {
         exchange: Option<&str>,
     ) -> Result<Vec<Asset>> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(s) = status { params.push(("status", s.to_string())); }
-        if let Some(c) = asset_class { params.push(("asset_class", c.to_string())); }
-        if let Some(e) = exchange { params.push(("exchange", e.to_string())); }
+        if let Some(s) = status {
+            params.push(("status", s.to_string()));
+        }
+        if let Some(c) = asset_class {
+            params.push(("asset_class", c.to_string()));
+        }
+        if let Some(e) = exchange {
+            params.push(("exchange", e.to_string()));
+        }
 
         let url = format!("{}/v2/assets", self.base_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -572,11 +638,21 @@ impl AlpacaRestClient {
         end: Option<&str>,
     ) -> Result<Vec<Calendar>> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(s) = start { params.push(("start", s.to_string())); }
-        if let Some(e) = end { params.push(("end", e.to_string())); }
+        if let Some(s) = start {
+            params.push(("start", s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end", e.to_string()));
+        }
 
         let url = format!("{}/v2/calendar", self.base_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -594,16 +670,28 @@ impl AlpacaRestClient {
         limit: Option<u32>,
         feed: Option<&str>,
     ) -> Result<BarsResponse> {
-        let mut params: Vec<(&str, String)> = vec![
-            ("timeframe", timeframe.to_string()),
-        ];
-        if let Some(s) = start { params.push(("start", s.to_string())); }
-        if let Some(e) = end { params.push(("end", e.to_string())); }
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
-        if let Some(f) = feed { params.push(("feed", f.to_string())); }
+        let mut params: Vec<(&str, String)> = vec![("timeframe", timeframe.to_string())];
+        if let Some(s) = start {
+            params.push(("start", s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end", e.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
+        if let Some(f) = feed {
+            params.push(("feed", f.to_string()));
+        }
 
         let url = format!("{}/v2/stocks/{}/bars", self.data_url, symbol);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -621,13 +709,27 @@ impl AlpacaRestClient {
             ("symbols".into(), symbols.join(",")),
             ("timeframe".into(), timeframe.to_string()),
         ];
-        if let Some(s) = start { params.push(("start".into(), s.to_string())); }
-        if let Some(e) = end { params.push(("end".into(), e.to_string())); }
-        if let Some(l) = limit { params.push(("limit".into(), l.to_string())); }
-        if let Some(f) = feed { params.push(("feed".into(), f.to_string())); }
+        if let Some(s) = start {
+            params.push(("start".into(), s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end".into(), e.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit".into(), l.to_string()));
+        }
+        if let Some(f) = feed {
+            params.push(("feed".into(), f.to_string()));
+        }
 
         let url = format!("{}/v2/stocks/bars", self.data_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -641,13 +743,27 @@ impl AlpacaRestClient {
         feed: Option<&str>,
     ) -> Result<TradesResponse> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(s) = start { params.push(("start", s.to_string())); }
-        if let Some(e) = end { params.push(("end", e.to_string())); }
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
-        if let Some(f) = feed { params.push(("feed", f.to_string())); }
+        if let Some(s) = start {
+            params.push(("start", s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end", e.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
+        if let Some(f) = feed {
+            params.push(("feed", f.to_string()));
+        }
 
         let url = format!("{}/v2/stocks/{}/trades", self.data_url, symbol);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -661,27 +777,45 @@ impl AlpacaRestClient {
         feed: Option<&str>,
     ) -> Result<QuotesResponse> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(s) = start { params.push(("start", s.to_string())); }
-        if let Some(e) = end { params.push(("end", e.to_string())); }
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
-        if let Some(f) = feed { params.push(("feed", f.to_string())); }
+        if let Some(s) = start {
+            params.push(("start", s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end", e.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
+        if let Some(f) = feed {
+            params.push(("feed", f.to_string()));
+        }
 
         let url = format!("{}/v2/stocks/{}/quotes", self.data_url, symbol);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
     /// GET /v2/stocks/{symbol}/snapshot — latest snapshot
-    pub async fn get_stock_snapshot(
-        &self,
-        symbol: &str,
-        feed: Option<&str>,
-    ) -> Result<Snapshot> {
+    pub async fn get_stock_snapshot(&self, symbol: &str, feed: Option<&str>) -> Result<Snapshot> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(f) = feed { params.push(("feed", f.to_string())); }
+        if let Some(f) = feed {
+            params.push(("feed", f.to_string()));
+        }
 
         let url = format!("{}/v2/stocks/{}/snapshot", self.data_url, symbol);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -691,13 +825,19 @@ impl AlpacaRestClient {
         symbols: &[&str],
         feed: Option<&str>,
     ) -> Result<std::collections::HashMap<String, Snapshot>> {
-        let mut params: Vec<(String, String)> = vec![
-            ("symbols".into(), symbols.join(",")),
-        ];
-        if let Some(f) = feed { params.push(("feed".into(), f.to_string())); }
+        let mut params: Vec<(String, String)> = vec![("symbols".into(), symbols.join(","))];
+        if let Some(f) = feed {
+            params.push(("feed".into(), f.to_string()));
+        }
 
         let url = format!("{}/v2/stocks/snapshots", self.data_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -718,30 +858,50 @@ impl AlpacaRestClient {
             ("symbols", symbol.to_string()),
             ("timeframe", timeframe.to_string()),
         ];
-        if let Some(s) = start { params.push(("start", s.to_string())); }
-        if let Some(e) = end { params.push(("end", e.to_string())); }
-        if let Some(l) = limit { params.push(("limit", l.to_string())); }
+        if let Some(s) = start {
+            params.push(("start", s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end", e.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.to_string()));
+        }
 
         let url = format!("{}/v1beta3/crypto/us/bars", self.data_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
     /// GET /v1beta3/crypto/us/latest/bars — latest crypto bar
     pub async fn get_latest_crypto_bar(&self, symbol: &str) -> Result<serde_json::Value> {
         let url = format!("{}/v1beta3/crypto/us/latest/bars", self.data_url);
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .query(&[("symbols", symbol)])
-            .send().await?.error_for_status()?;
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
     /// GET /v1beta3/crypto/us/snapshots — crypto snapshots
     pub async fn get_crypto_snapshots(&self, symbols: &[&str]) -> Result<serde_json::Value> {
         let url = format!("{}/v1beta3/crypto/us/snapshots", self.data_url);
-        let resp = self.client.get(&url)
+        let resp = self
+            .client
+            .get(&url)
             .query(&[("symbols", symbols.join(","))])
-            .send().await?.error_for_status()?;
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 
@@ -758,13 +918,27 @@ impl AlpacaRestClient {
         limit: Option<u32>,
     ) -> Result<serde_json::Value> {
         let mut params: Vec<(String, String)> = Vec::new();
-        if let Some(syms) = symbols { params.push(("symbols".into(), syms.join(","))); }
-        if let Some(s) = start { params.push(("start".into(), s.to_string())); }
-        if let Some(e) = end { params.push(("end".into(), e.to_string())); }
-        if let Some(l) = limit { params.push(("limit".into(), l.to_string())); }
+        if let Some(syms) = symbols {
+            params.push(("symbols".into(), syms.join(",")));
+        }
+        if let Some(s) = start {
+            params.push(("start".into(), s.to_string()));
+        }
+        if let Some(e) = end {
+            params.push(("end".into(), e.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit".into(), l.to_string()));
+        }
 
         let url = format!("{}/v1beta1/news", self.data_url);
-        let resp = self.client.get(&url).query(&params).send().await?.error_for_status()?;
+        let resp = self
+            .client
+            .get(&url)
+            .query(&params)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(resp.json().await?)
     }
 }

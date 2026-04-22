@@ -26,7 +26,7 @@ pub struct MarketSnapshot {
 /// Vote cast by a single simulated agent.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AgentVote {
-    Buy(f64),   // confidence 0.0–1.0
+    Buy(f64), // confidence 0.0–1.0
     Sell(f64),
     Hold,
 }
@@ -195,7 +195,11 @@ fn simulate_agent(agent_id: usize, snap: &MarketSnapshot, cfg: &SwarmConfig) -> 
     // ── Spread signal ────────────────────────────────────────────────────────
     let spread_pct = (snap.ask - snap.bid) / (snap.price + f64::EPSILON);
     // Tight spread → more confident in direction, wide spread → hold
-    let spread_signal = if spread_pct < 0.001 { 1.0 } else { -spread_pct * 10.0 };
+    let spread_signal = if spread_pct < 0.001 {
+        1.0
+    } else {
+        -spread_pct * 10.0
+    };
     score += (w_spread / w_sum) * spread_signal;
 
     debug!(agent_id, score = format!("{:.4}", score), "Agent vote");
@@ -233,9 +237,7 @@ mod tests {
     use super::*;
 
     fn make_snapshot(trend: f64) -> MarketSnapshot {
-        let history: Vec<f64> = (0..50)
-            .map(|i| 100.0 + i as f64 * trend)
-            .collect();
+        let history: Vec<f64> = (0..50).map(|i| 100.0 + i as f64 * trend).collect();
         let price = *history.last().unwrap();
         MarketSnapshot {
             symbol: "TEST".to_string(),
@@ -250,7 +252,14 @@ mod tests {
     #[tokio::test]
     async fn test_bullish_trend_produces_buy_signal() {
         let snap = make_snapshot(0.5); // strong uptrend
-        let signal = run_swarm(snap, SwarmConfig { n_agents: 100, ..Default::default() }).await;
+        let signal = run_swarm(
+            snap,
+            SwarmConfig {
+                n_agents: 100,
+                ..Default::default()
+            },
+        )
+        .await;
         assert_eq!(signal.dominant_action, "BUY");
         assert!(signal.net_score > 0.0);
     }
@@ -258,7 +267,14 @@ mod tests {
     #[tokio::test]
     async fn test_bearish_trend_produces_sell_signal() {
         let snap = make_snapshot(-2.0); // strong downtrend
-        let signal = run_swarm(snap, SwarmConfig { n_agents: 100, ..Default::default() }).await;
+        let signal = run_swarm(
+            snap,
+            SwarmConfig {
+                n_agents: 100,
+                ..Default::default()
+            },
+        )
+        .await;
         assert_eq!(signal.dominant_action, "SELL");
         assert!(signal.net_score < 0.0);
     }
@@ -266,7 +282,10 @@ mod tests {
     #[tokio::test]
     async fn test_agents_run_count_matches_config() {
         let snap = make_snapshot(0.0);
-        let cfg = SwarmConfig { n_agents: 500, ..Default::default() };
+        let cfg = SwarmConfig {
+            n_agents: 500,
+            ..Default::default()
+        };
         let signal = run_swarm(snap, cfg).await;
         assert_eq!(signal.agents_run, 500);
     }

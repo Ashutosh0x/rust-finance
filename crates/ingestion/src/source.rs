@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use common::events::{Envelope, MarketEvent};
-use std::pin::Pin;
 use futures::Stream;
+use std::pin::Pin;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataType {
@@ -30,7 +30,8 @@ pub enum IngestionError {
     Other(#[from] anyhow::Error),
 }
 
-pub type MarketStream = Pin<Box<dyn Stream<Item = Result<Envelope<MarketEvent>, IngestionError>> + Send>>;
+pub type MarketStream =
+    Pin<Box<dyn Stream<Item = Result<Envelope<MarketEvent>, IngestionError>> + Send>>;
 
 #[async_trait]
 pub trait MarketDataSource: Send + Sync {

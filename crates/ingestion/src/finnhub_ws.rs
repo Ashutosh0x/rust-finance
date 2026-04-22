@@ -3,7 +3,7 @@ use common::events::BotEvent;
 use futures::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::protocol::Message;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 #[derive(serde::Deserialize)]
 struct FinnhubTradeMsg {

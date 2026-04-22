@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct Position {
     pub symbol: String,
-    pub quantity: f64,       // negative for short
+    pub quantity: f64, // negative for short
     pub current_price: f64,
 }
 
@@ -45,7 +45,10 @@ pub struct VarCalculator {
 
 impl VarCalculator {
     pub fn new(min_history_days: usize) -> Self {
-        Self { returns_history: HashMap::new(), min_history_days }
+        Self {
+            returns_history: HashMap::new(),
+            min_history_days,
+        }
     }
 
     /// Feed daily returns data. Call once per day per symbol.
@@ -61,16 +64,27 @@ impl VarCalculator {
     /// Historical VaR — non-parametric, uses actual return distribution
     /// Most accurate because it captures fat tails and skew
     pub fn historical_var(&self, positions: &[Position]) -> Option<VarResult> {
-        if positions.is_empty() { return None; }
+        if positions.is_empty() {
+            return None;
+        }
 
         // Ensure sufficient history for all positions
         for pos in positions {
             let hist = self.returns_history.get(&pos.symbol)?;
-            if hist.len() < self.min_history_days { return None; }
+            if hist.len() < self.min_history_days {
+                return None;
+            }
         }
 
-        let n_days = self.returns_history.values().map(|h| h.len()).min().unwrap_or(0);
-        if n_days < self.min_history_days { return None; }
+        let n_days = self
+            .returns_history
+            .values()
+            .map(|h| h.len())
+            .min()
+            .unwrap_or(0);
+        if n_days < self.min_history_days {
+            return None;
+        }
 
         // Compute portfolio P&L for each historical day
         let mut pnl_series: Vec<f64> = Vec::with_capacity(n_days);
@@ -101,7 +115,9 @@ impl VarCalculator {
         let tail_95: Vec<f64> = sorted[..=idx_95].to_vec();
         let cvar_95 = if !tail_95.is_empty() {
             -tail_95.iter().sum::<f64>() / tail_95.len() as f64
-        } else { var_95 };
+        } else {
+            var_95
+        };
 
         let portfolio_notional: f64 = positions.iter().map(|p| p.notional().abs()).sum();
 
@@ -115,7 +131,7 @@ impl VarCalculator {
         Some(VarResult {
             var_95_1d_usd: var_95,
             var_99_1d_usd: var_99,
-            var_99_10d_usd: var_99 * 10.0f64.sqrt(),  // Basel scaling
+            var_99_10d_usd: var_99 * 10.0f64.sqrt(), // Basel scaling
             var_95_1d_pct: var_95 / portfolio_notional.max(1.0) * 100.0,
             var_99_1d_pct: var_99 / portfolio_notional.max(1.0) * 100.0,
             cvar_95_usd: cvar_95,
@@ -126,14 +142,18 @@ impl VarCalculator {
 
     /// Parametric (Delta-Normal) VaR — faster, assumes normal distribution
     pub fn parametric_var(&self, positions: &[Position]) -> Option<VarResult> {
-        if positions.is_empty() { return None; }
+        if positions.is_empty() {
+            return None;
+        }
 
         let mut portfolio_variance = 0.0;
         let mut component_var = HashMap::new();
 
         for pos in positions {
             let hist = self.returns_history.get(&pos.symbol)?;
-            if hist.len() < self.min_history_days { return None; }
+            if hist.len() < self.min_history_days {
+                return None;
+            }
 
             // Position standard deviation
             let daily_vol = Self::std_dev(hist);
@@ -157,7 +177,7 @@ impl VarCalculator {
             var_99_10d_usd: var_99 * 10.0f64.sqrt(),
             var_95_1d_pct: var_95 / portfolio_notional.max(1.0) * 100.0,
             var_99_1d_pct: var_99 / portfolio_notional.max(1.0) * 100.0,
-            cvar_95_usd: var_95 * 1.2,  // Approximate CVaR for normal distribution
+            cvar_95_usd: var_95 * 1.2, // Approximate CVaR for normal distribution
             portfolio_notional,
             component_var,
         })
@@ -174,10 +194,14 @@ impl VarCalculator {
     ///   - 3.5 for crypto
     ///   - 8.0 for bonds
     pub fn parametric_var_student_t(&self, positions: &[Position], nu: f64) -> Option<VarResult> {
-        use statrs::distribution::{StudentsT, ContinuousCDF};
+        use statrs::distribution::{ContinuousCDF, StudentsT};
 
-        if positions.is_empty() { return None; }
-        if nu <= 2.0 { return None; } // Student-t variance undefined for ν ≤ 2
+        if positions.is_empty() {
+            return None;
+        }
+        if nu <= 2.0 {
+            return None;
+        } // Student-t variance undefined for ν ≤ 2
 
         let t_dist = StudentsT::new(0.0, 1.0, nu).ok()?;
         let z_95_t = t_dist.inverse_cdf(0.95).abs();
@@ -191,7 +215,9 @@ impl VarCalculator {
 
         for pos in positions {
             let hist = self.returns_history.get(&pos.symbol)?;
-            if hist.len() < self.min_history_days { return None; }
+            if hist.len() < self.min_history_days {
+                return None;
+            }
 
             let daily_vol = Self::std_dev(hist);
             let pos_dollar_vol = pos.notional().abs() * daily_vol / 100.0;
@@ -233,7 +259,10 @@ impl VarCalculator {
 mod tests {
     use super::*;
 
-    fn make_calculator_with_normal_returns(sigma_pct: f64, n_days: usize) -> (VarCalculator, Vec<Position>) {
+    fn make_calculator_with_normal_returns(
+        sigma_pct: f64,
+        n_days: usize,
+    ) -> (VarCalculator, Vec<Position>) {
         let mut calc = VarCalculator::new(20);
         // Generate deterministic pseudo-normal returns using simple xorshift
         let mut rng: u64 = 12345;
@@ -258,16 +287,24 @@ mod tests {
     fn test_var_95_vs_99_ordering() {
         let (calc, positions) = make_calculator_with_normal_returns(1.5, 252);
         let result = calc.historical_var(&positions).unwrap();
-        assert!(result.var_99_1d_usd >= result.var_95_1d_usd,
-            "VaR99 ({:.2}) must be >= VaR95 ({:.2})", result.var_99_1d_usd, result.var_95_1d_usd);
+        assert!(
+            result.var_99_1d_usd >= result.var_95_1d_usd,
+            "VaR99 ({:.2}) must be >= VaR95 ({:.2})",
+            result.var_99_1d_usd,
+            result.var_95_1d_usd
+        );
     }
 
     #[test]
     fn test_cvar_exceeds_var() {
         let (calc, positions) = make_calculator_with_normal_returns(1.5, 252);
         let result = calc.historical_var(&positions).unwrap();
-        assert!(result.cvar_95_usd >= result.var_95_1d_usd,
-            "CVaR ({:.2}) must be >= VaR ({:.2})", result.cvar_95_usd, result.var_95_1d_usd);
+        assert!(
+            result.cvar_95_usd >= result.var_95_1d_usd,
+            "CVaR ({:.2}) must be >= VaR ({:.2})",
+            result.cvar_95_usd,
+            result.var_95_1d_usd
+        );
     }
 
     #[test]
@@ -277,7 +314,10 @@ mod tests {
         assert!(result.is_none(), "Empty portfolio should return None");
 
         let result2 = calc.parametric_var(&[]);
-        assert!(result2.is_none(), "Empty portfolio parametric should return None");
+        assert!(
+            result2.is_none(),
+            "Empty portfolio parametric should return None"
+        );
     }
 
     #[test]
@@ -286,7 +326,11 @@ mod tests {
         for i in 0..20 {
             calc.update_returns("TEST", (i as f64) * 0.01);
         }
-        let positions = vec![Position { symbol: "TEST".into(), quantity: 100.0, current_price: 100.0 }];
+        let positions = vec![Position {
+            symbol: "TEST".into(),
+            quantity: 100.0,
+            current_price: 100.0,
+        }];
         let result = calc.historical_var(&positions);
         assert!(result.is_none(), "Insufficient history should return None");
     }
@@ -297,26 +341,41 @@ mod tests {
         let result = calc.historical_var(&positions).unwrap();
         let expected_10d = result.var_99_1d_usd * 10.0_f64.sqrt();
         let relative_err = (result.var_99_10d_usd - expected_10d).abs() / expected_10d.max(0.001);
-        assert!(relative_err < 0.001,
-            "10-day VaR ({:.4}) should equal 1-day × √10 ({:.4})", result.var_99_10d_usd, expected_10d);
+        assert!(
+            relative_err < 0.001,
+            "10-day VaR ({:.4}) should equal 1-day × √10 ({:.4})",
+            result.var_99_10d_usd,
+            expected_10d
+        );
     }
 
     #[test]
     fn test_parametric_var_positive() {
         let (calc, positions) = make_calculator_with_normal_returns(1.5, 252);
         let result = calc.parametric_var(&positions).unwrap();
-        assert!(result.var_95_1d_usd > 0.0, "Parametric VaR95 must be positive");
-        assert!(result.var_99_1d_usd > 0.0, "Parametric VaR99 must be positive");
-        assert!(result.var_99_1d_usd >= result.var_95_1d_usd,
-            "Parametric VaR99 >= VaR95");
+        assert!(
+            result.var_95_1d_usd > 0.0,
+            "Parametric VaR95 must be positive"
+        );
+        assert!(
+            result.var_99_1d_usd > 0.0,
+            "Parametric VaR99 must be positive"
+        );
+        assert!(
+            result.var_99_1d_usd >= result.var_95_1d_usd,
+            "Parametric VaR99 >= VaR95"
+        );
     }
 
     #[test]
     fn test_var_percentage_bounded() {
         let (calc, positions) = make_calculator_with_normal_returns(1.5, 252);
         let result = calc.historical_var(&positions).unwrap();
-        assert!(result.var_95_1d_pct > 0.0 && result.var_95_1d_pct < 100.0,
-            "VaR percentage should be between 0 and 100, got {}", result.var_95_1d_pct);
+        assert!(
+            result.var_95_1d_pct > 0.0 && result.var_95_1d_pct < 100.0,
+            "VaR percentage should be between 0 and 100, got {}",
+            result.var_95_1d_pct
+        );
     }
 
     #[test]
@@ -324,21 +383,34 @@ mod tests {
         let mut calc = VarCalculator::new(20);
         let mut rng: u64 = 99;
         for _ in 0..100 {
-            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
             let u = (rng as f64) / (u64::MAX as f64);
             calc.update_returns("A", (u - 0.5) * 4.0);
-            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
             let u2 = (rng as f64) / (u64::MAX as f64);
             calc.update_returns("B", (u2 - 0.5) * 4.0);
         }
         let positions = vec![
-            Position { symbol: "A".into(), quantity: 50.0, current_price: 100.0 },
-            Position { symbol: "B".into(), quantity: 50.0, current_price: 100.0 },
+            Position {
+                symbol: "A".into(),
+                quantity: 50.0,
+                current_price: 100.0,
+            },
+            Position {
+                symbol: "B".into(),
+                quantity: 50.0,
+                current_price: 100.0,
+            },
         ];
         let result = calc.historical_var(&positions).unwrap();
         let component_sum: f64 = result.component_var.values().sum();
         // Component VaR should roughly equal total VaR (exactly equal for our simple weighting)
-        let relative_diff = (component_sum - result.var_99_1d_usd).abs() / result.var_99_1d_usd.max(0.001);
+        let relative_diff =
+            (component_sum - result.var_99_1d_usd).abs() / result.var_99_1d_usd.max(0.001);
         assert!(relative_diff < 0.01, "Component VaR sum should ≈ total VaR");
     }
 
@@ -352,24 +424,39 @@ mod tests {
 
         // They won't match exactly (different methods), but should be within 3×
         let ratio = hist.var_95_1d_usd / para.var_95_1d_usd.max(0.001);
-        assert!(ratio > 0.2 && ratio < 5.0,
+        assert!(
+            ratio > 0.2 && ratio < 5.0,
             "Parametric vs Historical VaR ratio too extreme: {:.2} (hist={:.2}, para={:.2})",
-            ratio, hist.var_95_1d_usd, para.var_95_1d_usd);
+            ratio,
+            hist.var_95_1d_usd,
+            para.var_95_1d_usd
+        );
     }
 
     /// Doubling position size should approximately double VaR.
     #[test]
     fn test_var_scales_with_position_size() {
         let (calc, _) = make_calculator_with_normal_returns(1.5, 252);
-        let small = vec![Position { symbol: "TEST".into(), quantity: 50.0, current_price: 100.0 }];
-        let large = vec![Position { symbol: "TEST".into(), quantity: 100.0, current_price: 100.0 }];
+        let small = vec![Position {
+            symbol: "TEST".into(),
+            quantity: 50.0,
+            current_price: 100.0,
+        }];
+        let large = vec![Position {
+            symbol: "TEST".into(),
+            quantity: 100.0,
+            current_price: 100.0,
+        }];
 
         let var_small = calc.parametric_var(&small).unwrap().var_95_1d_usd;
         let var_large = calc.parametric_var(&large).unwrap().var_95_1d_usd;
 
         let ratio = var_large / var_small.max(0.001);
-        assert!((ratio - 2.0).abs() < 0.01,
-            "VaR should scale linearly with position: ratio={:.4}, expected 2.0", ratio);
+        assert!(
+            (ratio - 2.0).abs() < 0.01,
+            "VaR should scale linearly with position: ratio={:.4}, expected 2.0",
+            ratio
+        );
     }
 
     /// VaR with a single holding should equal the component VaR for that holding.
@@ -379,8 +466,11 @@ mod tests {
         let result = calc.historical_var(&positions).unwrap();
         assert_eq!(result.component_var.len(), 1);
         let component = result.component_var.get("TEST").unwrap();
-        let relative_diff = (component - result.var_99_1d_usd).abs() / result.var_99_1d_usd.max(0.001);
-        assert!(relative_diff < 0.01,
-            "Single-position component VaR should equal total VaR");
+        let relative_diff =
+            (component - result.var_99_1d_usd).abs() / result.var_99_1d_usd.max(0.001);
+        assert!(
+            relative_diff < 0.01,
+            "Single-position component VaR should equal total VaR"
+        );
     }
 }

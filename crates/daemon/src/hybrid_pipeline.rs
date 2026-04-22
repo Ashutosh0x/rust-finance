@@ -14,8 +14,8 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, info, warn};
 
-use common::events::BotEvent; // assuming BotEvent is in common::events
 use ai::dexter::DexterSignal;
+use common::events::BotEvent; // assuming BotEvent is in common::events
 use risk::gate::RiskVerdict;
 use std::fmt;
 
@@ -26,9 +26,9 @@ pub struct OrderRequest {
 }
 
 use knowledge_graph::graph::FinancialGraph;
-use knowledge_graph::query::{GraphQuery, GraphQueryEngine};
 use knowledge_graph::impact::ImpactEngine;
-use swarm_sim::{SwarmEngine, SwarmStep, SwarmConfig, MarketState as SwarmMarketState};
+use knowledge_graph::query::{GraphQuery, GraphQueryEngine};
+use swarm_sim::{MarketState as SwarmMarketState, SwarmConfig, SwarmEngine, SwarmStep};
 
 // Mock MarketEvent based on usage if it doesn't already exist where expected
 #[derive(Debug, Clone)]
@@ -46,9 +46,10 @@ pub struct LocalOrderBook {
 }
 
 impl LocalOrderBook {
-    pub fn imbalance(&self, _levels: usize) -> f64 { 0.0 }
+    pub fn imbalance(&self, _levels: usize) -> f64 {
+        0.0
+    }
 }
-
 
 // ── Stage outputs (typed pipeline bus) ──────────────────────────────────────
 
@@ -59,12 +60,12 @@ pub struct QuantSnapshot {
     pub symbol: String,
     pub price: f64,
     pub rsi_14: f64,
-    pub garch_vol_forecast: f64,    // GARCH(1,1) next-period variance
-    pub heston_implied_vol: f64,    // From your existing pricing crate
+    pub garch_vol_forecast: f64, // GARCH(1,1) next-period variance
+    pub heston_implied_vol: f64, // From your existing pricing crate
     pub vwap: f64,
-    pub order_book_imbalance: f64,  // [-1, 1], from live order book
-    pub momentum_signal: f64,       // Composite: 1h + 1d + MACD
-    pub bsm_fair_value: Option<f64>,// Option fair value if chain available
+    pub order_book_imbalance: f64,   // [-1, 1], from live order book
+    pub momentum_signal: f64,        // Composite: 1h + 1d + MACD
+    pub bsm_fair_value: Option<f64>, // Option fair value if chain available
 }
 
 impl risk::gate::QuantSnapshotLike for QuantSnapshot {
@@ -79,8 +80,8 @@ impl risk::gate::QuantSnapshotLike for QuantSnapshot {
 pub struct FusedContext {
     pub quant: QuantSnapshot,
     pub swarm: SwarmStep,
-    pub graph_context: String,   // to_prompt_block() string
-    pub impact_table: String,    // ImpactEngine output
+    pub graph_context: String, // to_prompt_block() string
+    pub impact_table: String,  // ImpactEngine output
 }
 
 impl FusedContext {
@@ -126,7 +127,8 @@ Confidence:    {:.1}%
             self.quant.order_book_imbalance,
             imbalance_label(self.quant.order_book_imbalance),
             self.quant.momentum_signal,
-            self.quant.bsm_fair_value
+            self.quant
+                .bsm_fair_value
                 .map(|v| format!("BSM Fair Value: ${:.2}", v))
                 .unwrap_or_default(),
             self.swarm.round,
@@ -148,22 +150,30 @@ impl ai::dexter::FusedContextLike for FusedContext {
     fn to_dexter_system_prompt(&self) -> String {
         self.to_dexter_system_prompt()
     }
-    
+
     fn get_symbol(&self) -> String {
         self.quant.symbol.clone()
     }
 }
 
 fn rsi_label(rsi: f64) -> &'static str {
-    if rsi > 70.0 { "OVERBOUGHT" }
-    else if rsi < 30.0 { "OVERSOLD" }
-    else { "neutral" }
+    if rsi > 70.0 {
+        "OVERBOUGHT"
+    } else if rsi < 30.0 {
+        "OVERSOLD"
+    } else {
+        "neutral"
+    }
 }
 
 fn imbalance_label(imb: f64) -> &'static str {
-    if imb > 0.3 { "bid heavy" }
-    else if imb < -0.3 { "ask heavy" }
-    else { "balanced" }
+    if imb > 0.3 {
+        "bid heavy"
+    } else if imb < -0.3 {
+        "ask heavy"
+    } else {
+        "balanced"
+    }
 }
 
 // ── Pipeline orchestrator ────────────────────────────────────────────────────
@@ -204,7 +214,12 @@ impl HybridPipeline {
         event_tx: broadcast::Sender<BotEvent>,
         config: PipelineConfig,
     ) -> Self {
-        Self { graph, swarm, event_tx, config }
+        Self {
+            graph,
+            swarm,
+            event_tx,
+            config,
+        }
     }
 
     /// Main pipeline cycle — called every N rounds from the daemon.
@@ -213,7 +228,11 @@ impl HybridPipeline {
 
         // ── Stage 1: Quant snapshot ────────────────────────────────────────
         let quant = self.compute_quant(market);
-        debug!("[Pipeline] Quant: RSI={:.1} vol={:.2}%", quant.rsi_14, quant.garch_vol_forecast * 100.0);
+        debug!(
+            "[Pipeline] Quant: RSI={:.1} vol={:.2}%",
+            quant.rsi_14,
+            quant.garch_vol_forecast * 100.0
+        );
 
         // ── Stage 2: Latest swarm step (zero-copy read) ────────────────────
         let swarm_step = {
@@ -262,7 +281,10 @@ impl HybridPipeline {
         match verdict {
             RiskVerdict::Approved(order) => {
                 // ── Stage 6: Execution ─────────────────────────────────────
-                info!("[Pipeline] EXECUTING: {:?} {} @ market", order.side, order.symbol);
+                info!(
+                    "[Pipeline] EXECUTING: {:?} {} @ market",
+                    order.side, order.symbol
+                );
                 // let _ = self.event_tx.send(BotEvent::TradeSignal(dexter_signal));
                 // execution::submit(order).await;
             }
@@ -284,7 +306,8 @@ impl HybridPipeline {
         let heston_iv = 0.02; //heston::implied_vol(market.price, market.price_history.as_slice());
         let rsi = 50.0; // crate::indicators::rsi_14(market.price_history.as_slice());
         let momentum = 0.0; // crate::indicators::composite_momentum(market.price_history.as_slice());
-        let imbalance = market.order_book
+        let imbalance = market
+            .order_book
             .as_ref()
             .map(|ob| ob.imbalance(5))
             .unwrap_or(0.0);
@@ -304,11 +327,8 @@ impl HybridPipeline {
 }
 
 // Placeholder — replace with real broadcast channel consumer in production
-fn build_swarm_step_from_stats(
-    stats: &swarm_sim::engine::EngineStats,
-    price: f64,
-) -> SwarmStep {
-    use swarm_sim::signal::{SwarmSignal, SignalDirection, Conviction, MarketRegime};
+fn build_swarm_step_from_stats(stats: &swarm_sim::engine::EngineStats, price: f64) -> SwarmStep {
+    use swarm_sim::signal::{Conviction, MarketRegime, SignalDirection, SwarmSignal};
 
     let market_state = SwarmMarketState::new("LIVE", price);
     let buy_frac = stats.long_agents as f64 / stats.agent_count as f64;

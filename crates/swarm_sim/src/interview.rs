@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use crate::agent::{Agent, AgentId, ActionReason, TraderType};
+use crate::agent::{ActionReason, Agent, AgentId, TraderType};
 use crate::signal::SwarmSignal;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TradeReason {
@@ -24,23 +24,51 @@ pub enum RiskStatus {
 pub struct InterviewEngine;
 
 impl InterviewEngine {
-    pub fn interview_agent(agent: &Agent, reason: &ActionReason, max_position_usd: f64) -> TradeReason {
+    pub fn interview_agent(
+        agent: &Agent,
+        reason: &ActionReason,
+        max_position_usd: f64,
+    ) -> TradeReason {
         let primary = Self::explain_reason(reason);
         let factors = Self::contributing_factors(&agent, reason);
         let risk_status = Self::assess_risk(&agent, max_position_usd);
 
         let action_summary = match reason {
-            ActionReason::RsiOversold { rsi } => format!("Bought on RSI oversold signal (RSI={:.1})", rsi),
-            ActionReason::RsiOverbought { rsi } => format!("Sold on RSI overbought signal (RSI={:.1})", rsi),
-            ActionReason::MomentumSignal { strength } => format!("Momentum trade, strength={:.3}", strength),
-            ActionReason::MeanReversion { fair_value, current } => format!("Mean reversion: FV={:.2} current={:.2}", fair_value, current),
+            ActionReason::RsiOversold { rsi } => {
+                format!("Bought on RSI oversold signal (RSI={:.1})", rsi)
+            }
+            ActionReason::RsiOverbought { rsi } => {
+                format!("Sold on RSI overbought signal (RSI={:.1})", rsi)
+            }
+            ActionReason::MomentumSignal { strength } => {
+                format!("Momentum trade, strength={:.3}", strength)
+            }
+            ActionReason::MeanReversion {
+                fair_value,
+                current,
+            } => format!(
+                "Mean reversion: FV={:.2} current={:.2}",
+                fair_value, current
+            ),
             ActionReason::PanicSell => "Capitulation sell after loss streak".to_string(),
-            ActionReason::FomoEntry => "FOMO buy — price breaking out in short-term memory".to_string(),
-            ActionReason::NewsShock { sentiment } => format!("News-driven trade, sentiment={:.2}", sentiment),
-            ActionReason::ArbitrageOpportunity { spread_bps } => format!("Arbitrage: {:.2}bps spread captured", spread_bps),
+            ActionReason::FomoEntry => {
+                "FOMO buy — price breaking out in short-term memory".to_string()
+            }
+            ActionReason::NewsShock { sentiment } => {
+                format!("News-driven trade, sentiment={:.2}", sentiment)
+            }
+            ActionReason::ArbitrageOpportunity { spread_bps } => {
+                format!("Arbitrage: {:.2}bps spread captured", spread_bps)
+            }
             ActionReason::SpreadCapture => "Market making: spread capture".to_string(),
             ActionReason::VolatilityBreakout => "Volatility breakout trade".to_string(),
-            ActionReason::RiskLimitHit { position_usd, limit_usd } => format!("FORCED REDUCE: position ${:.0} exceeded limit ${:.0}", position_usd, limit_usd),
+            ActionReason::RiskLimitHit {
+                position_usd,
+                limit_usd,
+            } => format!(
+                "FORCED REDUCE: position ${:.0} exceeded limit ${:.0}",
+                position_usd, limit_usd
+            ),
             ActionReason::Random => "Random action (retail noise)".to_string(),
         };
 
@@ -75,10 +103,23 @@ impl InterviewEngine {
         )
     }
 
-    pub fn interview_batch(agents: &[Agent], max_position_usd: f64, limit: usize) -> Vec<TradeReason> {
+    pub fn interview_batch(
+        agents: &[Agent],
+        max_position_usd: f64,
+        limit: usize,
+    ) -> Vec<TradeReason> {
         let dummy_reason = ActionReason::Random;
-        let mut reasons: Vec<TradeReason> = agents.iter().take(limit * 10).map(|a| Self::interview_agent(a, &dummy_reason, max_position_usd)).collect();
-        reasons.sort_by(|a, b| b.unrealized_pnl.abs().partial_cmp(&a.unrealized_pnl.abs()).unwrap_or(std::cmp::Ordering::Equal));
+        let mut reasons: Vec<TradeReason> = agents
+            .iter()
+            .take(limit * 10)
+            .map(|a| Self::interview_agent(a, &dummy_reason, max_position_usd))
+            .collect();
+        reasons.sort_by(|a, b| {
+            b.unrealized_pnl
+                .abs()
+                .partial_cmp(&a.unrealized_pnl.abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         reasons.truncate(limit);
         reasons
     }
@@ -102,13 +143,49 @@ impl InterviewEngine {
 
     fn contributing_factors(agent: &Agent, _reason: &ActionReason) -> Vec<String> {
         let mut factors = Vec::new();
-        if agent.state.position_usd.abs() > 0.0 { factors.push(format!("Existing position: ${:.0} ({})", agent.state.position_usd.abs(), if agent.state.position_usd > 0.0 { "long" } else { "short" })); }
-        if agent.state.unrealized_pnl != 0.0 { factors.push(format!("Unrealized PnL: ${:.2} ({:.2}%)", agent.state.unrealized_pnl, agent.state.unrealized_pnl / agent.state.position_usd.abs().max(1.0) * 100.0)); }
-        if agent.state.loss_streak > 0 { factors.push(format!("Loss streak: {} consecutive losing rounds", agent.state.loss_streak)); }
+        if agent.state.position_usd.abs() > 0.0 {
+            factors.push(format!(
+                "Existing position: ${:.0} ({})",
+                agent.state.position_usd.abs(),
+                if agent.state.position_usd > 0.0 {
+                    "long"
+                } else {
+                    "short"
+                }
+            ));
+        }
+        if agent.state.unrealized_pnl != 0.0 {
+            factors.push(format!(
+                "Unrealized PnL: ${:.2} ({:.2}%)",
+                agent.state.unrealized_pnl,
+                agent.state.unrealized_pnl / agent.state.position_usd.abs().max(1.0) * 100.0
+            ));
+        }
+        if agent.state.loss_streak > 0 {
+            factors.push(format!(
+                "Loss streak: {} consecutive losing rounds",
+                agent.state.loss_streak
+            ));
+        }
         match &agent.state.trader_type {
-            TraderType::HedgeFund => { factors.push(format!("Fair value estimate: ${:.2}", agent.state.fair_value_estimate)); },
-            TraderType::NewsTrader => { factors.push(format!("Current sentiment loading: {:.2}", agent.state.current_sentiment)); },
-            TraderType::Retail => { factors.push(format!("Price memory depth: {} observations", agent.state.price_memory.len())); },
+            TraderType::HedgeFund => {
+                factors.push(format!(
+                    "Fair value estimate: ${:.2}",
+                    agent.state.fair_value_estimate
+                ));
+            }
+            TraderType::NewsTrader => {
+                factors.push(format!(
+                    "Current sentiment loading: {:.2}",
+                    agent.state.current_sentiment
+                ));
+            }
+            TraderType::Retail => {
+                factors.push(format!(
+                    "Price memory depth: {} observations",
+                    agent.state.price_memory.len()
+                ));
+            }
             _ => {}
         }
         factors
@@ -116,6 +193,12 @@ impl InterviewEngine {
 
     fn assess_risk(agent: &Agent, max_position_usd: f64) -> RiskStatus {
         let pct = agent.state.position_usd.abs() / max_position_usd;
-        if pct >= 1.0 { RiskStatus::AtLimit } else if pct >= 0.75 { RiskStatus::NearLimit { pct_of_limit: pct } } else { RiskStatus::Healthy }
+        if pct >= 1.0 {
+            RiskStatus::AtLimit
+        } else if pct >= 0.75 {
+            RiskStatus::NearLimit { pct_of_limit: pct }
+        } else {
+            RiskStatus::Healthy
+        }
     }
 }

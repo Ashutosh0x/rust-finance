@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
-use common::Action;
 use anyhow::Result;
+use common::Action;
 
 #[allow(dead_code)]
 pub struct InferenceEngine {
@@ -24,13 +24,13 @@ impl InferenceEngine {
     pub fn predict(&self, inputs: &[f32]) -> Result<Action> {
         // Placeholder inference logic
         // let output = session.run(inputs)?;
-        
+
         // Mock logic based on simple input threshold
         if inputs.first().unwrap_or(&0.0) > &0.5 {
-            Ok(Action::Buy { 
-                token: "SOL".to_string(), 
-                size: 0.1, 
-                confidence: 0.85 
+            Ok(Action::Buy {
+                token: "SOL".to_string(),
+                size: 0.1,
+                confidence: 0.85,
             })
         } else {
             Ok(Action::Hold)

@@ -4,15 +4,18 @@
 // and system metrics to the frontend dashboard.
 
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     response::IntoResponse,
     routing::get,
     Router,
 };
+use common::events::BotEvent;
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::{info, error};
-use common::events::BotEvent; // assuming BotEvent exists in common
+use tracing::{error, info}; // assuming BotEvent exists in common
 
 #[derive(Clone)]
 pub struct AppState {
@@ -41,10 +44,7 @@ async fn health_check() -> &'static str {
 
 // ── WebSocket Handler ─────────────────────────────────────────────────────────
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
@@ -63,7 +63,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                     }
                 }
             }
-            
+
             // Listen for client disconnects / pings
             msg = socket.recv() => {
                 match msg {

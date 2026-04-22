@@ -1,14 +1,14 @@
 #![forbid(unsafe_code)]
-use tokio::{
-    net::TcpListener,
-    io::{AsyncWriteExt, AsyncReadExt},
-    sync::{mpsc, broadcast},
-};
 use common::events::{BotEvent, ControlCommand};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    sync::{broadcast, mpsc},
+};
 use tracing::info;
 
-pub mod subscriber;
 pub mod health;
+pub mod subscriber;
 
 #[derive(Clone)]
 pub struct EventBus {
@@ -28,9 +28,9 @@ impl EventBus {
                 info!("TUI connected from: {}", addr);
                 let (mut reader, mut writer) = tokio::io::split(stream);
                 let mut client_rx = tx_clone.subscribe();
-                
+
                 let cmd_tx_inner = control_tx.clone();
-                
+
                 // Read task (TUI -> Daemon)
                 tokio::spawn(async move {
                     let mut length_buf = [0u8; 4];
@@ -39,8 +39,10 @@ impl EventBus {
                             break;
                         }
                         let len = u32::from_le_bytes(length_buf) as usize;
-                        if len > 1024 * 1024 { break; } // Safety limit
-                        
+                        if len > 1024 * 1024 {
+                            break;
+                        } // Safety limit
+
                         let mut buf = vec![0u8; len];
                         if reader.read_exact(&mut buf).await.is_err() {
                             break;
@@ -77,7 +79,7 @@ impl EventBus {
     pub fn broadcast(&self, event: BotEvent) {
         let _ = self.tx.send(event);
     }
-    
+
     pub fn subscribe(&self) -> broadcast::Receiver<BotEvent> {
         self.tx.subscribe()
     }

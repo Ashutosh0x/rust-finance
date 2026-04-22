@@ -7,7 +7,7 @@ use common::models::order::Order;
 #[derive(Debug, Clone)]
 pub struct PreTradeConfig {
     /// Maximum single order size as multiple of average order size
-    pub max_order_size_multiplier: f64,      // e.g. 2.0 = reject if 2× normal size
+    pub max_order_size_multiplier: f64, // e.g. 2.0 = reject if 2× normal size
     /// Maximum price deviation from last trade price (fraction, e.g. 0.05 = 5%)
     pub max_price_deviation_pct: f64,
     /// Maximum daily notional value across all orders
@@ -38,7 +38,7 @@ pub struct PreTradeState {
     pub daily_notional_used: f64,
     pub orders_this_second: u32,
     pub last_second_ts: u64,
-    pub average_order_size: f64,  // rolling average, updated per fill
+    pub average_order_size: f64, // rolling average, updated per fill
 }
 
 pub struct PreTradeGuard {
@@ -48,11 +48,19 @@ pub struct PreTradeGuard {
 
 impl PreTradeGuard {
     pub fn new(config: PreTradeConfig) -> Self {
-        Self { config, state: PreTradeState::default() }
+        Self {
+            config,
+            state: PreTradeState::default(),
+        }
     }
 
     /// Run every check. Returns Ok(()) or the first violation found.
-    pub fn check(&mut self, order: &Order, last_price: f64, now_ts_secs: u64) -> Result<(), ComplianceError> {
+    pub fn check(
+        &mut self,
+        order: &Order,
+        last_price: f64,
+        now_ts_secs: u64,
+    ) -> Result<(), ComplianceError> {
         self.check_notional_single(order, last_price)?;
         self.check_daily_notional(order, last_price)?;
         self.check_price_deviation(order, last_price)?;
@@ -139,8 +147,7 @@ impl PreTradeGuard {
         let notional = fill_price * quantity as f64;
         self.state.daily_notional_used += notional;
         // Exponential moving average of order size (α = 0.1)
-        self.state.average_order_size =
-            0.9 * self.state.average_order_size + 0.1 * quantity as f64;
+        self.state.average_order_size = 0.9 * self.state.average_order_size + 0.1 * quantity as f64;
     }
 
     /// Call at midnight / session reset

@@ -15,8 +15,8 @@
 //! 4. Receive events: `{"stream":"trade_updates","data":{"event":"fill",...}}`
 
 use anyhow::{Context, Result};
-use compact_str::CompactString;
 use common::events::{OrderAccepted, OrderCancelled, OrderEvent, OrderFilled, OrderRejected};
+use compact_str::CompactString;
 use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
 use tokio::sync::mpsc;
@@ -109,10 +109,8 @@ impl TradeUpdateConfig {
     /// Create from environment variables.
     pub fn from_env(paper: bool) -> Result<Self> {
         Ok(Self {
-            api_key: std::env::var("ALPACA_API_KEY")
-                .context("ALPACA_API_KEY not set")?,
-            secret_key: std::env::var("ALPACA_SECRET_KEY")
-                .context("ALPACA_SECRET_KEY not set")?,
+            api_key: std::env::var("ALPACA_API_KEY").context("ALPACA_API_KEY not set")?,
+            secret_key: std::env::var("ALPACA_SECRET_KEY").context("ALPACA_SECRET_KEY not set")?,
             paper,
         })
     }
@@ -146,7 +144,10 @@ pub async fn run_trade_updates(
                 backoff_secs = 1;
             }
             Err(e) => {
-                error!("Trade updates stream error: {:?}. Reconnecting in {}s...", e, backoff_secs);
+                error!(
+                    "Trade updates stream error: {:?}. Reconnecting in {}s...",
+                    e, backoff_secs
+                );
             }
         }
 
@@ -191,7 +192,10 @@ async fn run_trade_updates_inner(
                 if status == "authorized" {
                     info!("Trade updates authenticated successfully.");
                 } else {
-                    return Err(anyhow::anyhow!("Trade updates auth failed: status={}", status));
+                    return Err(anyhow::anyhow!(
+                        "Trade updates auth failed: status={}",
+                        status
+                    ));
                 }
             }
             Err(e) => {
@@ -258,12 +262,7 @@ async fn run_trade_updates_inner(
 /// Parse a trade update data payload into an `OrderEvent`.
 fn parse_trade_update(data: &TradeUpdateData) -> Option<OrderEvent> {
     let order = data.order.as_ref()?;
-    let client_id = CompactString::from(
-        order
-            .client_order_id
-            .as_deref()
-            .unwrap_or(&order.id),
-    );
+    let client_id = CompactString::from(order.client_order_id.as_deref().unwrap_or(&order.id));
     let venue_id = CompactString::from(&order.id);
 
     match data.event.as_str() {
@@ -413,9 +412,14 @@ fn parse_trade_update(data: &TradeUpdateData) -> Option<OrderEvent> {
         }
 
         // ── Other lifecycle events (logged, not emitted) ───────────────
-        "pending_new" | "pending_cancel" | "pending_replace"
-        | "calculated" | "suspended" | "order_replace_rejected"
-        | "order_cancel_rejected" | "stopped" => {
+        "pending_new"
+        | "pending_cancel"
+        | "pending_replace"
+        | "calculated"
+        | "suspended"
+        | "order_replace_rejected"
+        | "order_cancel_rejected"
+        | "stopped" => {
             debug!(
                 "[TradeUpdate] {}: {} ({})",
                 data.event,

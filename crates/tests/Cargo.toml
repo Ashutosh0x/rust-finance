@@ -2,6 +2,12 @@
 name = "tests"
 version = "0.1.0"
 edition = "2021"
+description = "Integration test suite for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dev-dependencies]
 tokio = { version = "1.35", features = ["full"] }

@@ -57,7 +57,7 @@ impl Default for SwarmConfig {
             contrarian_fraction: 0.12,
             rounds_per_day: 390,
             round_delay_ms: 100,
-            price_impact_lambda: 0.00001,   // multiplicative — % impact per $1M flow
+            price_impact_lambda: 0.00001, // multiplicative — % impact per $1M flow
             base_spread_frac: 0.0005,
             annualized_vol: 0.20,
             activation_prob: 0.30,
@@ -69,14 +69,14 @@ impl Default for SwarmConfig {
             signal_emit_interval: 5,
 
             // v2.1 defaults — calibrated for ±2-10% drift over 200 rounds
-            cash_per_agent_usd: 10_000.0,       // $50M total pool (vs old $500M)
-            mean_reversion_speed: 0.05,          // 5% reversion (vs old 2%)
-            max_drift_pct: 20.0,                 // hard cap ±20%
-            spread_bps_liquid: 2.0,              // 0.02% for SPY, QQQ
-            spread_bps_illiquid: 8.0,            // 0.08% for FXI, EEM
-            max_deploy_per_round: 500.0,         // 5% of $10K cash/round
-            inventory_decay_rate: 0.005,         // 0.5%/round → full shed ~140 rounds
-            seed: 0,                             // 0 = legacy compatible
+            cash_per_agent_usd: 10_000.0, // $50M total pool (vs old $500M)
+            mean_reversion_speed: 0.05,   // 5% reversion (vs old 2%)
+            max_drift_pct: 20.0,          // hard cap ±20%
+            spread_bps_liquid: 2.0,       // 0.02% for SPY, QQQ
+            spread_bps_illiquid: 8.0,     // 0.08% for FXI, EEM
+            max_deploy_per_round: 500.0,  // 5% of $10K cash/round
+            inventory_decay_rate: 0.005,  // 0.5%/round → full shed ~140 rounds
+            seed: 0,                      // 0 = legacy compatible
         }
     }
 }
@@ -113,7 +113,10 @@ impl SwarmConfig {
             + self.contrarian_fraction;
 
         if (sum - 1.0).abs() > 0.001 {
-            return Err(format!("Trader type fractions sum to {:.4}, must equal 1.0", sum));
+            return Err(format!(
+                "Trader type fractions sum to {:.4}, must equal 1.0",
+                sum
+            ));
         }
         if self.cash_per_agent_usd <= 0.0 {
             return Err("cash_per_agent_usd must be positive".to_string());

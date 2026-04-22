@@ -44,7 +44,9 @@ impl AlpacaFeed {
 }
 
 impl Default for AlpacaFeed {
-    fn default() -> Self { AlpacaFeed::Iex }
+    fn default() -> Self {
+        AlpacaFeed::Iex
+    }
 }
 
 impl std::str::FromStr for AlpacaFeed {
@@ -71,11 +73,23 @@ pub struct AlpacaWs {
 
 impl AlpacaWs {
     pub fn new(api_key: String, secret_key: String, symbols: Vec<String>) -> Self {
-        Self { api_key, secret_key, symbols, feed: AlpacaFeed::Iex, sandbox: false }
+        Self {
+            api_key,
+            secret_key,
+            symbols,
+            feed: AlpacaFeed::Iex,
+            sandbox: false,
+        }
     }
 
-    pub fn with_feed(mut self, feed: AlpacaFeed) -> Self { self.feed = feed; self }
-    pub fn with_sandbox(mut self, sandbox: bool) -> Self { self.sandbox = sandbox; self }
+    pub fn with_feed(mut self, feed: AlpacaFeed) -> Self {
+        self.feed = feed;
+        self
+    }
+    pub fn with_sandbox(mut self, sandbox: bool) -> Self {
+        self.sandbox = sandbox;
+        self
+    }
 
     fn ws_url(&self) -> String {
         let host = if self.sandbox {
@@ -88,7 +102,11 @@ impl AlpacaWs {
 
     pub async fn run(&self, tx: mpsc::UnboundedSender<BotEvent>) -> Result<()> {
         let url = self.ws_url();
-        info!("Connecting to Alpaca WS ({} feed) at {}", self.feed.name(), url);
+        info!(
+            "Connecting to Alpaca WS ({} feed) at {}",
+            self.feed.name(),
+            url
+        );
 
         let (ws_stream, _) = tokio_tungstenite::connect_async(&url).await?;
         info!("Alpaca WS Connected (feed: {}).", self.feed.name());
@@ -127,7 +145,11 @@ impl AlpacaWs {
         }
 
         write.send(Message::Text(sub.to_string())).await?;
-        info!("Subscribed to {} symbols on {} feed", self.symbols.len(), self.feed.name());
+        info!(
+            "Subscribed to {} symbols on {} feed",
+            self.symbols.len(),
+            self.feed.name()
+        );
 
         // 4. Process messages
         while let Some(msg) = read.next().await {
@@ -143,7 +165,9 @@ impl AlpacaWs {
                                         let price = item["p"].as_f64().unwrap_or(0.0);
                                         let volume = item["s"].as_f64();
                                         let _ = tx.send(BotEvent::MarketEvent {
-                                            symbol, price, volume,
+                                            symbol,
+                                            price,
+                                            volume,
                                             event_type: "trade".into(),
                                         });
                                     }
@@ -162,7 +186,9 @@ impl AlpacaWs {
                                         let price = item["c"].as_f64().unwrap_or(0.0);
                                         let volume = item["v"].as_f64();
                                         let _ = tx.send(BotEvent::MarketEvent {
-                                            symbol, price, volume,
+                                            symbol,
+                                            price,
+                                            volume,
                                             event_type: "bar".into(),
                                         });
                                     }
@@ -171,7 +197,8 @@ impl AlpacaWs {
                                         let price = item["p"].as_f64().unwrap_or(0.0);
                                         info!("[SIP] Trade correction: {} @ {}", symbol, price);
                                         let _ = tx.send(BotEvent::MarketEvent {
-                                            symbol, price,
+                                            symbol,
+                                            price,
                                             event_type: "correction".into(),
                                             volume: item["s"].as_f64(),
                                         });
@@ -180,7 +207,8 @@ impl AlpacaWs {
                                         let symbol = item["S"].as_str().unwrap_or("").to_string();
                                         warn!("[SIP] Trade cancel: {} id={}", symbol, item["i"]);
                                         let _ = tx.send(BotEvent::MarketEvent {
-                                            symbol, price: 0.0,
+                                            symbol,
+                                            price: 0.0,
                                             event_type: "cancel".into(),
                                             volume: None,
                                         });
@@ -189,9 +217,13 @@ impl AlpacaWs {
                                         let symbol = item["S"].as_str().unwrap_or("").to_string();
                                         let upper = item["u"].as_f64().unwrap_or(0.0);
                                         let lower = item["d"].as_f64().unwrap_or(0.0);
-                                        info!("[SIP] LULD {}: [{:.2}, {:.2}]", symbol, lower, upper);
+                                        info!(
+                                            "[SIP] LULD {}: [{:.2}, {:.2}]",
+                                            symbol, lower, upper
+                                        );
                                         let _ = tx.send(BotEvent::MarketEvent {
-                                            symbol, price: upper,
+                                            symbol,
+                                            price: upper,
                                             event_type: "luld".into(),
                                             volume: Some(lower),
                                         });
@@ -202,7 +234,8 @@ impl AlpacaWs {
                                         let sm = item["sm"].as_str().unwrap_or("");
                                         info!("[SIP] Trading status {}: {}", symbol, sm);
                                         let _ = tx.send(BotEvent::MarketEvent {
-                                            symbol, price: 0.0,
+                                            symbol,
+                                            price: 0.0,
                                             event_type: format!("status:{}", sc),
                                             volume: None,
                                         });
@@ -213,8 +246,13 @@ impl AlpacaWs {
                         }
                     }
                 }
-                Ok(Message::Ping(p)) => { let _ = write.send(Message::Pong(p)).await; }
-                Err(e) => { error!("Alpaca WS Error: {}", e); break; }
+                Ok(Message::Ping(p)) => {
+                    let _ = write.send(Message::Pong(p)).await;
+                }
+                Err(e) => {
+                    error!("Alpaca WS Error: {}", e);
+                    break;
+                }
                 _ => {}
             }
         }

@@ -25,8 +25,8 @@ use ratatui::{
     symbols,
     text::{Line, Span},
     widgets::{
-        Axis, Block, Borders, Cell, Chart, Dataset, GraphType,
-        List, ListItem, Paragraph, Row, Table,
+        Axis, Block, Borders, Cell, Chart, Dataset, GraphType, List, ListItem, Paragraph, Row,
+        Table,
     },
     Frame,
 };
@@ -50,7 +50,8 @@ pub fn render(f: &mut Frame, state: &AppState) {
         Constraint::Fill(1),
         Constraint::Length(3),
         Constraint::Length(1),
-    ]).split(area);
+    ])
+    .split(area);
     let index_strip = areas[0];
     let main = areas[1];
     let order_entry = areas[2];
@@ -65,18 +66,17 @@ pub fn render(f: &mut Frame, state: &AppState) {
         Constraint::Length(26),
         Constraint::Fill(1),
         Constraint::Length(36),
-    ]).split(main);
-    
+    ])
+    .split(main);
+
     let left_col = cols[0];
     let center_col = cols[1];
     let right_col = cols[2];
 
     // ── Left: Watchlist + Dexter Alerts ───────────────────────────────────
-    let left_areas = Layout::vertical([
-        Constraint::Fill(1),
-        Constraint::Length(12),
-    ]).split(left_col);
-    
+    let left_areas =
+        Layout::vertical([Constraint::Fill(1), Constraint::Length(12)]).split(left_col);
+
     let watchlist = left_areas[0];
     let alerts = left_areas[1];
 
@@ -88,8 +88,9 @@ pub fn render(f: &mut Frame, state: &AppState) {
         Constraint::Length(18),
         Constraint::Length(12),
         Constraint::Fill(1),
-    ]).split(center_col);
-    
+    ])
+    .split(center_col);
+
     let chart_area = center_areas[0];
     let order_book = center_areas[1];
     let ai_row = center_areas[2];
@@ -97,11 +98,9 @@ pub fn render(f: &mut Frame, state: &AppState) {
     render_price_chart(f, chart_area, state);
     render_order_book(f, order_book, state);
 
-    let ai_areas = Layout::horizontal([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ]).split(ai_row);
-    
+    let ai_areas =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(ai_row);
+
     let dexter_panel = ai_areas[0];
     let swarm_panel = ai_areas[1];
 
@@ -113,8 +112,9 @@ pub fn render(f: &mut Frame, state: &AppState) {
         Constraint::Length(12),
         Constraint::Length(12),
         Constraint::Fill(1),
-    ]).split(right_col);
-    
+    ])
+    .split(right_col);
+
     let positions = right_areas[0];
     let polymarket = right_areas[1];
     let news = right_areas[2];
@@ -128,15 +128,18 @@ pub fn render(f: &mut Frame, state: &AppState) {
 
 fn render_index_strip(f: &mut Frame, area: Rect, state: &AppState) {
     let indices = ["NYSE", "NASDAQ", "CME", "CBOE", "LSE", "CRYPTO"];
-    let spans: Vec<Span> = indices.iter().flat_map(|&name| {
-        let is_live = state.connected_venues.contains(&name.to_string());
-        let dot_color = if is_live { GREEN } else { DIM };
-        vec![
-            Span::styled(format!(" {} ", name), Style::default().fg(FG)),
-            Span::styled("●", Style::default().fg(dot_color)),
-            Span::styled(" | ", Style::default().fg(DIM)),
-        ]
-    }).collect();
+    let spans: Vec<Span> = indices
+        .iter()
+        .flat_map(|&name| {
+            let is_live = state.connected_venues.contains(&name.to_string());
+            let dot_color = if is_live { GREEN } else { DIM };
+            vec![
+                Span::styled(format!(" {} ", name), Style::default().fg(FG)),
+                Span::styled("●", Style::default().fg(dot_color)),
+                Span::styled(" | ", Style::default().fg(DIM)),
+            ]
+        })
+        .collect();
 
     let strip_text = if state.selected_symbol.is_some() {
         format!(
@@ -157,41 +160,60 @@ fn render_index_strip(f: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_watchlist(f: &mut Frame, area: Rect, state: &AppState) {
-    let header = Row::new(vec!["Symbol", "Price", "Change"])
-        .style(Style::default().fg(DIM));
+    let header = Row::new(vec!["Symbol", "Price", "Change"]).style(Style::default().fg(DIM));
 
-    let rows: Vec<Row> = state.watchlist.iter().map(|item| {
-        let change_color = if item.change_pct >= 0.0 { GREEN } else { RED };
-        let change_str = format!("{:+.2}%", item.change_pct);
-        Row::new(vec![
-            Cell::from(item.symbol.as_str()).style(Style::default().fg(FG).add_modifier(Modifier::BOLD)),
-            Cell::from(format!("{:.2}", item.price)).style(Style::default().fg(FG)),
-            Cell::from(change_str).style(Style::default().fg(change_color)),
-        ])
-    }).collect();
+    let rows: Vec<Row> = state
+        .watchlist
+        .iter()
+        .map(|item| {
+            let change_color = if item.change_pct >= 0.0 { GREEN } else { RED };
+            let change_str = format!("{:+.2}%", item.change_pct);
+            Row::new(vec![
+                Cell::from(item.symbol.as_str())
+                    .style(Style::default().fg(FG).add_modifier(Modifier::BOLD)),
+                Cell::from(format!("{:.2}", item.price)).style(Style::default().fg(FG)),
+                Cell::from(change_str).style(Style::default().fg(change_color)),
+            ])
+        })
+        .collect();
 
-    let table = Table::new(rows, [Constraint::Length(6), Constraint::Length(8), Constraint::Length(8)])
-        .header(header)
-        .block(Block::bordered().title(Span::styled(" Watchlist ", Style::default().fg(CYAN))));
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(6),
+            Constraint::Length(8),
+            Constraint::Length(8),
+        ],
+    )
+    .header(header)
+    .block(Block::bordered().title(Span::styled(" Watchlist ", Style::default().fg(CYAN))));
 
     f.render_widget(table, area);
 }
 
 fn render_dexter_alerts(f: &mut Frame, area: Rect, state: &AppState) {
-    let items: Vec<ListItem> = state.dexter_alerts.iter().rev().take(8).map(|alert| {
-        let color = match alert.severity.as_str() {
-            "buy" => GREEN,
-            "risk" => RED,
-            _ => AMBER,
-        };
-        ListItem::new(Line::from(vec![
-            Span::styled("● ", Style::default().fg(color)),
-            Span::styled(alert.message.as_str(), Style::default().fg(FG)),
-        ]))
-    }).collect();
+    let items: Vec<ListItem> = state
+        .dexter_alerts
+        .iter()
+        .rev()
+        .take(8)
+        .map(|alert| {
+            let color = match alert.severity.as_str() {
+                "buy" => GREEN,
+                "risk" => RED,
+                _ => AMBER,
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled("● ", Style::default().fg(color)),
+                Span::styled(alert.message.as_str(), Style::default().fg(FG)),
+            ]))
+        })
+        .collect();
 
     f.render_widget(
-        List::new(items).block(Block::bordered().title(Span::styled(" Dexter Alerts ", Style::default().fg(AMBER)))),
+        List::new(items).block(
+            Block::bordered().title(Span::styled(" Dexter Alerts ", Style::default().fg(AMBER))),
+        ),
         area,
     );
 }
@@ -201,37 +223,52 @@ fn render_price_chart(f: &mut Frame, area: Rect, state: &AppState) {
         return;
     }
 
-    let data: Vec<(f64, f64)> = state.price_history.iter().enumerate()
+    let data: Vec<(f64, f64)> = state
+        .price_history
+        .iter()
+        .enumerate()
         .map(|(i, &p)| (i as f64, p))
         .collect();
 
     let min_price = data.iter().map(|(_, p)| *p).fold(f64::INFINITY, f64::min);
-    let max_price = data.iter().map(|(_, p)| *p).fold(f64::NEG_INFINITY, f64::max);
+    let max_price = data
+        .iter()
+        .map(|(_, p)| *p)
+        .fold(f64::NEG_INFINITY, f64::max);
     let price_range = (max_price - min_price) * 0.1;
 
     let current = state.price_history.last().cloned().unwrap_or(0.0);
     let first = state.price_history.first().cloned().unwrap_or(0.0);
     let color = if current >= first { GREEN } else { RED };
 
-    let datasets = vec![
-        Dataset::default()
-            .marker(symbols::Marker::Braille)
-            .graph_type(GraphType::Line)
-            .style(Style::default().fg(color))
-            .data(&data),
-    ];
+    let datasets = vec![Dataset::default()
+        .marker(symbols::Marker::Braille)
+        .graph_type(GraphType::Line)
+        .style(Style::default().fg(color))
+        .data(&data)];
 
     let title = format!(
         " {} — {:.2}  {:+.3} ({:+.2}%) ",
         state.selected_symbol.as_deref().unwrap_or("NVDA"),
         current,
         current - first,
-        if first != 0.0 { (current - first) / first * 100.0 } else { 0.0 },
+        if first != 0.0 {
+            (current - first) / first * 100.0
+        } else {
+            0.0
+        },
     );
 
     let chart = Chart::new(datasets)
-        .block(Block::bordered().title(Span::styled(title, Style::default().fg(color).add_modifier(Modifier::BOLD))))
-        .x_axis(Axis::default().style(Style::default().fg(DIM)).bounds([0.0, data.len() as f64]))
+        .block(Block::bordered().title(Span::styled(
+            title,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        )))
+        .x_axis(
+            Axis::default()
+                .style(Style::default().fg(DIM))
+                .bounds([0.0, data.len() as f64]),
+        )
         .y_axis(
             Axis::default()
                 .style(Style::default().fg(DIM))
@@ -250,24 +287,35 @@ fn render_order_book(f: &mut Frame, area: Rect, state: &AppState) {
         Constraint::Percentage(45),
         Constraint::Length(14),
         Constraint::Percentage(45),
-    ]).split(area);
-    
+    ])
+    .split(area);
+
     let asks_area = areas[0];
     let mid_area = areas[1];
     let bids_area = areas[2];
 
     // Asks (red, sorted desc)
-    let ask_rows: Vec<Row> = state.order_book.asks.iter().take(7).map(|level| {
-        Row::new(vec![
-            Cell::from(format!("${:.2}", level.price)).style(Style::default().fg(RED)),
-            Cell::from(format!("{}", level.size)),
-            Cell::from(format!("{:.0}M", level.total / 1_000_000.0)),
-        ])
-    }).collect();
+    let ask_rows: Vec<Row> = state
+        .order_book
+        .asks
+        .iter()
+        .take(7)
+        .map(|level| {
+            Row::new(vec![
+                Cell::from(format!("${:.2}", level.price)).style(Style::default().fg(RED)),
+                Cell::from(format!("{}", level.size)),
+                Cell::from(format!("{:.0}M", level.total / 1_000_000.0)),
+            ])
+        })
+        .collect();
 
     let ask_table = Table::new(
         ask_rows,
-        [Constraint::Length(9), Constraint::Length(6), Constraint::Length(6)],
+        [
+            Constraint::Length(9),
+            Constraint::Length(6),
+            Constraint::Length(6),
+        ],
     )
     .header(Row::new(vec!["Asks", "Size", "Total"]).style(Style::default().fg(DIM)))
     .block(Block::default().borders(Borders::LEFT | Borders::TOP | Borders::BOTTOM));
@@ -275,7 +323,11 @@ fn render_order_book(f: &mut Frame, area: Rect, state: &AppState) {
     f.render_widget(ask_table, asks_area);
 
     // Mid price + spread
-    let spread_pct = state.order_book.asks.first().zip(state.order_book.bids.first())
+    let spread_pct = state
+        .order_book
+        .asks
+        .first()
+        .zip(state.order_book.bids.first())
         .map(|(a, b)| {
             if b.price != 0.0 {
                 (a.price - b.price) / b.price * 100.0
@@ -285,38 +337,72 @@ fn render_order_book(f: &mut Frame, area: Rect, state: &AppState) {
         })
         .unwrap_or(0.0);
 
-    let mid_price = (state.order_book.asks.first().map(|a| a.price).unwrap_or(0.0)
-        + state.order_book.bids.first().map(|b| b.price).unwrap_or(0.0)) / 2.0;
+    let mid_price = (state
+        .order_book
+        .asks
+        .first()
+        .map(|a| a.price)
+        .unwrap_or(0.0)
+        + state
+            .order_book
+            .bids
+            .first()
+            .map(|b| b.price)
+            .unwrap_or(0.0))
+        / 2.0;
 
     let mid_lines = vec![
-        Line::from(Span::styled("Order Book", Style::default().fg(CYAN).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Order Book",
+            Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from(Span::styled("Spread", Style::default().fg(DIM))),
-        Line::from(Span::styled(format!("{:.2}%", spread_pct), Style::default().fg(FG))),
+        Line::from(Span::styled(
+            format!("{:.2}%", spread_pct),
+            Style::default().fg(FG),
+        )),
         Line::from(""),
         Line::from(Span::styled("Mid price", Style::default().fg(DIM))),
-        Line::from(Span::styled(format!("{:.2}", mid_price), Style::default().fg(FG))),
+        Line::from(Span::styled(
+            format!("{:.2}", mid_price),
+            Style::default().fg(FG),
+        )),
         Line::from(""),
         Line::from(Span::styled(
             format!("Buy/Sell imbal {:+.0}%", state.order_book.imbalance * 100.0),
-            Style::default().fg(if state.order_book.imbalance > 0.0 { GREEN } else { RED }),
+            Style::default().fg(if state.order_book.imbalance > 0.0 {
+                GREEN
+            } else {
+                RED
+            }),
         )),
     ];
 
     f.render_widget(Paragraph::new(mid_lines), mid_area);
 
     // Bids (green, sorted desc)
-    let bid_rows: Vec<Row> = state.order_book.bids.iter().take(7).map(|level| {
-        Row::new(vec![
-            Cell::from(format!("${:.2}", level.price)).style(Style::default().fg(GREEN)),
-            Cell::from(format!("{}", level.size)),
-            Cell::from(format!("{:.0}M", level.total / 1_000_000.0)),
-        ])
-    }).collect();
+    let bid_rows: Vec<Row> = state
+        .order_book
+        .bids
+        .iter()
+        .take(7)
+        .map(|level| {
+            Row::new(vec![
+                Cell::from(format!("${:.2}", level.price)).style(Style::default().fg(GREEN)),
+                Cell::from(format!("{}", level.size)),
+                Cell::from(format!("{:.0}M", level.total / 1_000_000.0)),
+            ])
+        })
+        .collect();
 
     let bid_table = Table::new(
         bid_rows,
-        [Constraint::Length(9), Constraint::Length(6), Constraint::Length(6)],
+        [
+            Constraint::Length(9),
+            Constraint::Length(6),
+            Constraint::Length(6),
+        ],
     )
     .header(Row::new(vec!["Bids", "Size", "Total"]).style(Style::default().fg(DIM)))
     .block(Block::default().borders(Borders::RIGHT | Borders::TOP | Borders::BOTTOM));
@@ -327,8 +413,10 @@ fn render_order_book(f: &mut Frame, area: Rect, state: &AppState) {
 fn render_dexter_panel(f: &mut Frame, area: Rect, state: &AppState) {
     let Some(signal) = &state.dexter_signal else {
         f.render_widget(
-            Paragraph::new("Dexter AI loading…")
-                .block(Block::bordered().title(Span::styled(" ◉ DEXTER — FINANCIAL ANALYST ", Style::default().fg(CYAN)))),
+            Paragraph::new("Dexter AI loading…").block(Block::bordered().title(Span::styled(
+                " ◉ DEXTER — FINANCIAL ANALYST ",
+                Style::default().fg(CYAN),
+            ))),
             area,
         );
         return;
@@ -367,7 +455,10 @@ fn render_dexter_panel(f: &mut Frame, area: Rect, state: &AppState) {
     lines.push(Line::from(""));
 
     for risk in &signal.key_risks {
-        lines.push(Line::from(Span::styled(format!("[!] {}", risk), Style::default().fg(AMBER))));
+        lines.push(Line::from(Span::styled(
+            format!("[!] {}", risk),
+            Style::default().fg(AMBER),
+        )));
     }
 
     lines.push(Line::from(""));
@@ -376,21 +467,29 @@ fn render_dexter_panel(f: &mut Frame, area: Rect, state: &AppState) {
     lines.push(Line::from(vec![
         Span::styled(
             format!(" {:?} ", signal.recommendation),
-            Style::default().fg(Color::Black).bg(rec_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Black)
+                .bg(rec_color)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(
             format!(" CONF {:.0}% ", signal.confidence * 100.0),
-            Style::default().fg(Color::Black).bg(if signal.confidence > 0.70 { GREEN } else { AMBER }),
+            Style::default()
+                .fg(Color::Black)
+                .bg(if signal.confidence > 0.70 {
+                    GREEN
+                } else {
+                    AMBER
+                }),
         ),
     ]));
 
     f.render_widget(
-        Paragraph::new(lines)
-            .block(Block::bordered().title(Span::styled(
-                " ◉ DEXTER — FINANCIAL ANALYST ",
-                Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
-            ))),
+        Paragraph::new(lines).block(Block::bordered().title(Span::styled(
+            " ◉ DEXTER — FINANCIAL ANALYST ",
+            Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+        ))),
         area,
     );
 }
@@ -398,8 +497,12 @@ fn render_dexter_panel(f: &mut Frame, area: Rect, state: &AppState) {
 fn render_swarm_panel(f: &mut Frame, area: Rect, state: &AppState) {
     let Some(step) = &state.swarm_step else {
         f.render_widget(
-            Paragraph::new("Swarm simulation loading…")
-                .block(Block::bordered().title(Span::styled(" ◉ MIROFISH — SWARM SIMULATION ", Style::default().fg(Color::Magenta)))),
+            Paragraph::new("Swarm simulation loading…").block(Block::bordered().title(
+                Span::styled(
+                    " ◉ MIROFISH — SWARM SIMULATION ",
+                    Style::default().fg(Color::Magenta),
+                ),
+            )),
             area,
         );
         return;
@@ -409,11 +512,18 @@ fn render_swarm_panel(f: &mut Frame, area: Rect, state: &AppState) {
 
     let mut lines = vec![
         Line::from(Span::styled(
-            format!("{},{} agent simulation running…", 5_000usize.to_string().chars().next().unwrap_or('5'), "000"),
+            format!(
+                "{},{} agent simulation running…",
+                5_000usize.to_string().chars().next().unwrap_or('5'),
+                "000"
+            ),
             Style::default().fg(FG),
         )),
         Line::from(""),
-        Line::from(Span::styled("Scenario probability", Style::default().fg(FG).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Scenario probability",
+            Style::default().fg(FG).add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
     ];
 
@@ -450,10 +560,14 @@ fn render_swarm_panel(f: &mut Frame, area: Rect, state: &AppState) {
     ]));
 
     f.render_widget(
-        Paragraph::new(lines).block(Block::bordered().title(Span::styled(
-            " ◉ MIROFISH — SWARM SIMULATION ",
-            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
-        ))),
+        Paragraph::new(lines).block(
+            Block::bordered().title(Span::styled(
+                " ◉ MIROFISH — SWARM SIMULATION ",
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
+            )),
+        ),
         area,
     );
 }
@@ -464,42 +578,66 @@ fn render_prob_bar(label: &str, pct: u16, color: Color) -> Line<'static> {
     Line::from(vec![
         Span::styled(format!("{:<9}", label), Style::default().fg(FG)),
         Span::styled(bar, Style::default().fg(color)),
-        Span::styled(format!(" {}%", pct), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format!(" {}%", pct),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ),
     ])
 }
 
 fn render_positions(f: &mut Frame, area: Rect, state: &AppState) {
-    let header = Row::new(vec!["Holding", "P&L", ""])
-        .style(Style::default().fg(DIM));
+    let header = Row::new(vec!["Holding", "P&L", ""]).style(Style::default().fg(DIM));
 
-    let rows: Vec<Row> = state.positions.iter().map(|pos| {
-        let pnl_color = if pos.pnl >= 0.0 { GREEN } else { RED };
-        let pct_color = if pos.pnl_pct >= 0.0 { GREEN } else { RED };
-        Row::new(vec![
-            Cell::from(pos.symbol.as_str()).style(Style::default().fg(FG).add_modifier(Modifier::BOLD)),
-            Cell::from(format!("{:+.2}", pos.pnl)).style(Style::default().fg(pnl_color)),
-            Cell::from(format!("{:+.2}%", pos.pnl_pct)).style(Style::default().fg(pct_color)),
-        ])
-    }).collect();
+    let rows: Vec<Row> = state
+        .positions
+        .iter()
+        .map(|pos| {
+            let pnl_color = if pos.pnl >= 0.0 { GREEN } else { RED };
+            let pct_color = if pos.pnl_pct >= 0.0 { GREEN } else { RED };
+            Row::new(vec![
+                Cell::from(pos.symbol.as_str())
+                    .style(Style::default().fg(FG).add_modifier(Modifier::BOLD)),
+                Cell::from(format!("{:+.2}", pos.pnl)).style(Style::default().fg(pnl_color)),
+                Cell::from(format!("{:+.2}%", pos.pnl_pct)).style(Style::default().fg(pct_color)),
+            ])
+        })
+        .collect();
 
     f.render_widget(
-        Table::new(rows, [Constraint::Length(10), Constraint::Length(10), Constraint::Length(8)])
-            .header(header)
-            .block(Block::bordered().title(Span::styled(" Open Positions ", Style::default().fg(CYAN)))),
+        Table::new(
+            rows,
+            [
+                Constraint::Length(10),
+                Constraint::Length(10),
+                Constraint::Length(8),
+            ],
+        )
+        .header(header)
+        .block(
+            Block::bordered().title(Span::styled(" Open Positions ", Style::default().fg(CYAN))),
+        ),
         area,
     );
 }
 
 fn render_news_feed(f: &mut Frame, area: Rect, state: &AppState) {
-    let items: Vec<ListItem> = state.news.iter().take(12).map(|item| {
-        ListItem::new(vec![
-            Line::from(Span::styled(item.headline.as_str(), Style::default().fg(FG))),
-            Line::from(Span::styled(
-                format!("{} • {}m ago", item.source, item.age_minutes),
-                Style::default().fg(DIM),
-            )),
-        ])
-    }).collect();
+    let items: Vec<ListItem> = state
+        .news
+        .iter()
+        .take(12)
+        .map(|item| {
+            ListItem::new(vec![
+                Line::from(Span::styled(
+                    item.headline.as_str(),
+                    Style::default().fg(FG),
+                )),
+                Line::from(Span::styled(
+                    format!("{} • {}m ago", item.source, item.age_minutes),
+                    Style::default().fg(DIM),
+                )),
+            ])
+        })
+        .collect();
 
     f.render_widget(
         List::new(items)
@@ -513,20 +651,37 @@ fn render_order_entry(f: &mut Frame, area: Rect, order: &AppState) {
 
     let content = Line::from(vec![
         Span::styled(" Symbol ", Style::default().fg(DIM)),
-        Span::styled(format!("{:<6}", order.symbol), Style::default().fg(FG).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format!("{:<6}", order.symbol),
+            Style::default().fg(FG).add_modifier(Modifier::BOLD),
+        ),
         Span::styled("  Qty ", Style::default().fg(DIM)),
         Span::styled(format!("{}", order.quantity), Style::default().fg(FG)),
         Span::styled("  Price ", Style::default().fg(DIM)),
         Span::styled(order.price_str.to_string(), Style::default().fg(FG)),
         Span::styled("  LMT / MKT / STP / IOC  ", Style::default().fg(DIM)),
-        Span::styled(" BUY ", Style::default().fg(Color::Black).bg(GREEN).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " BUY ",
+            Style::default()
+                .fg(Color::Black)
+                .bg(GREEN)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("  "),
-        Span::styled(" SELL ", Style::default().fg(Color::Black).bg(RED).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " SELL ",
+            Style::default()
+                .fg(Color::Black)
+                .bg(RED)
+                .add_modifier(Modifier::BOLD),
+        ),
     ]);
 
     f.render_widget(
-        Paragraph::new(content)
-            .block(Block::bordered().title(Span::styled(" Order Entry Strip ", Style::default().fg(CYAN)))),
+        Paragraph::new(content).block(Block::bordered().title(Span::styled(
+            " Order Entry Strip ",
+            Style::default().fg(CYAN),
+        ))),
         area,
     );
 }
@@ -545,10 +700,7 @@ fn render_status_bar(f: &mut Frame, area: Rect, state: &AppState) {
         state.session_uptime_min,
     );
 
-    f.render_widget(
-        Paragraph::new(status).style(Style::default().fg(DIM)),
-        area,
-    );
+    f.render_widget(Paragraph::new(status).style(Style::default().fg(DIM)), area);
 }
 
 fn render_polymarket_panel(f: &mut Frame, area: Rect, state: &AppState) {
@@ -556,24 +708,31 @@ fn render_polymarket_panel(f: &mut Frame, area: Rect, state: &AppState) {
         .title(Span::styled(" Polymarket ", Style::default().fg(CYAN)))
         .borders(Borders::ALL);
 
-    let header = Row::new(vec!["Market", "YES", "NO", "24h Vol"])
-        .style(Style::default().fg(DIM));
+    let header = Row::new(vec!["Market", "YES", "NO", "24h Vol"]).style(Style::default().fg(DIM));
 
-    let rows: Vec<Row> = state.polymarket.markets.iter().map(|m| {
-        Row::new(vec![
-            Cell::from(m.question.chars().take(40).collect::<String>()),
-            Cell::from(format!("YES: ${:.2}", m.yes_price)).style(Style::default().fg(GREEN)),
-            Cell::from(format!("NO: ${:.2}", m.no_price)).style(Style::default().fg(RED)),
-            Cell::from(format!("Vol: ${:.0}", m.volume_24hr)),
-        ])
-    }).collect();
+    let rows: Vec<Row> = state
+        .polymarket
+        .markets
+        .iter()
+        .map(|m| {
+            Row::new(vec![
+                Cell::from(m.question.chars().take(40).collect::<String>()),
+                Cell::from(format!("YES: ${:.2}", m.yes_price)).style(Style::default().fg(GREEN)),
+                Cell::from(format!("NO: ${:.2}", m.no_price)).style(Style::default().fg(RED)),
+                Cell::from(format!("Vol: ${:.0}", m.volume_24hr)),
+            ])
+        })
+        .collect();
 
-    let table = Table::new(rows, [
-        Constraint::Percentage(50),
-        Constraint::Percentage(15),
-        Constraint::Percentage(15),
-        Constraint::Percentage(20),
-    ])
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(50),
+            Constraint::Percentage(15),
+            Constraint::Percentage(15),
+            Constraint::Percentage(20),
+        ],
+    )
     .header(header)
     .block(block);
 

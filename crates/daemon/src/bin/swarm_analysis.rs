@@ -20,11 +20,11 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::Semaphore;
-use swarm_sim::{SwarmEngine, SwarmConfig, MarketState};
-use daemon::hybrid_pipeline::{QuantSnapshot, FusedContext};
-use risk::garch::{GarchParams, GarchState, GjrGarchParams, GjrGarchState};
+use daemon::hybrid_pipeline::{FusedContext, QuantSnapshot};
 use ingestion::finnhub_rest::FinnhubClient;
+use risk::garch::{GarchParams, GarchState, GjrGarchParams, GjrGarchState};
+use swarm_sim::{MarketState, SwarmConfig, SwarmEngine};
+use tokio::sync::Semaphore;
 
 /// Asset definition — prices are fetched LIVE from Finnhub, not hardcoded.
 #[derive(Clone)]
@@ -41,7 +41,9 @@ struct AssetDef {
 /// Example: SWARM_CUSTOM=SUZLON.NS:Suzlon_Energy:Indian_Equity:0.45
 /// Multiple: SWARM_CUSTOM=SUZLON.NS:Suzlon_Energy:Indian_Equity:0.45,RELIANCE.NS:Reliance:Indian_Equity:0.30
 fn parse_custom_symbols() -> Vec<AssetDef> {
-    let Ok(raw) = std::env::var("SWARM_CUSTOM") else { return vec![]; };
+    let Ok(raw) = std::env::var("SWARM_CUSTOM") else {
+        return vec![];
+    };
     let mut defs = Vec::new();
     for entry in raw.split(',') {
         let parts: Vec<&str> = entry.trim().split(':').collect();
@@ -51,10 +53,23 @@ fn parse_custom_symbols() -> Vec<AssetDef> {
             let name: &'static str = Box::leak(parts[1].replace('_', " ").into_boxed_str());
             let class: &'static str = Box::leak(parts[2].replace('_', " ").into_boxed_str());
             let ann_vol: f64 = parts[3].parse().unwrap_or(0.35);
-            eprintln!("  🔧 Custom asset: {} ({}) vol={:.0}%", symbol, name, ann_vol * 100.0);
-            defs.push(AssetDef { symbol, name, class, ann_vol });
+            eprintln!(
+                "  🔧 Custom asset: {} ({}) vol={:.0}%",
+                symbol,
+                name,
+                ann_vol * 100.0
+            );
+            defs.push(AssetDef {
+                symbol,
+                name,
+                class,
+                ann_vol,
+            });
         } else {
-            eprintln!("  ⚠ Invalid SWARM_CUSTOM entry '{}' — need SYMBOL:Name:Class:Vol", entry);
+            eprintln!(
+                "  ⚠ Invalid SWARM_CUSTOM entry '{}' — need SYMBOL:Name:Class:Vol",
+                entry
+            );
         }
     }
     defs
@@ -65,35 +80,107 @@ struct Asset {
     symbol: String,
     name: String,
     class: String,
-    price: f64,        // LIVE from Finnhub
+    price: f64, // LIVE from Finnhub
     ann_vol: f64,
-    real_rsi: f64,     // Computed from real 14-day candle history
+    real_rsi: f64,               // Computed from real 14-day candle history
     historical_closes: Vec<f64>, // Real daily closes for seeding MarketState
 }
 
 const ASSET_DEFS: &[AssetDef] = &[
     // ── US Large-Cap Stocks ──
-    AssetDef { symbol: "NVDA",  name: "NVIDIA Corp",           class: "US Equity",    ann_vol: 0.55 },
-    AssetDef { symbol: "AAPL",  name: "Apple Inc",             class: "US Equity",    ann_vol: 0.25 },
-    AssetDef { symbol: "TSLA",  name: "Tesla Inc",             class: "US Equity",    ann_vol: 0.65 },
-    AssetDef { symbol: "MSFT",  name: "Microsoft Corp",        class: "US Equity",    ann_vol: 0.25 },
-    AssetDef { symbol: "AMZN",  name: "Amazon.com",            class: "US Equity",    ann_vol: 0.35 },
-
+    AssetDef {
+        symbol: "NVDA",
+        name: "NVIDIA Corp",
+        class: "US Equity",
+        ann_vol: 0.55,
+    },
+    AssetDef {
+        symbol: "AAPL",
+        name: "Apple Inc",
+        class: "US Equity",
+        ann_vol: 0.25,
+    },
+    AssetDef {
+        symbol: "TSLA",
+        name: "Tesla Inc",
+        class: "US Equity",
+        ann_vol: 0.65,
+    },
+    AssetDef {
+        symbol: "MSFT",
+        name: "Microsoft Corp",
+        class: "US Equity",
+        ann_vol: 0.25,
+    },
+    AssetDef {
+        symbol: "AMZN",
+        name: "Amazon.com",
+        class: "US Equity",
+        ann_vol: 0.35,
+    },
     // ── Broad ETFs ──
-    AssetDef { symbol: "SPY",   name: "S&P 500 ETF",           class: "ETF",          ann_vol: 0.15 },
-    AssetDef { symbol: "QQQ",   name: "Nasdaq-100 ETF",        class: "ETF",          ann_vol: 0.22 },
-    AssetDef { symbol: "IWM",   name: "Russell 2000 ETF",      class: "ETF",          ann_vol: 0.20 },
-    AssetDef { symbol: "GLD",   name: "Gold ETF",              class: "Commodity",    ann_vol: 0.15 },
-    AssetDef { symbol: "TLT",   name: "20+ Year Treasury ETF", class: "Fixed Income", ann_vol: 0.18 },
-
+    AssetDef {
+        symbol: "SPY",
+        name: "S&P 500 ETF",
+        class: "ETF",
+        ann_vol: 0.15,
+    },
+    AssetDef {
+        symbol: "QQQ",
+        name: "Nasdaq-100 ETF",
+        class: "ETF",
+        ann_vol: 0.22,
+    },
+    AssetDef {
+        symbol: "IWM",
+        name: "Russell 2000 ETF",
+        class: "ETF",
+        ann_vol: 0.20,
+    },
+    AssetDef {
+        symbol: "GLD",
+        name: "Gold ETF",
+        class: "Commodity",
+        ann_vol: 0.15,
+    },
+    AssetDef {
+        symbol: "TLT",
+        name: "20+ Year Treasury ETF",
+        class: "Fixed Income",
+        ann_vol: 0.18,
+    },
     // ── Sector ETFs ──
-    AssetDef { symbol: "XLK",   name: "Technology Select",     class: "Sector ETF",   ann_vol: 0.22 },
-    AssetDef { symbol: "XLF",   name: "Financial Select",      class: "Sector ETF",   ann_vol: 0.18 },
-    AssetDef { symbol: "XLE",   name: "Energy Select",         class: "Sector ETF",   ann_vol: 0.28 },
-
+    AssetDef {
+        symbol: "XLK",
+        name: "Technology Select",
+        class: "Sector ETF",
+        ann_vol: 0.22,
+    },
+    AssetDef {
+        symbol: "XLF",
+        name: "Financial Select",
+        class: "Sector ETF",
+        ann_vol: 0.18,
+    },
+    AssetDef {
+        symbol: "XLE",
+        name: "Energy Select",
+        class: "Sector ETF",
+        ann_vol: 0.28,
+    },
     // ── International / Emerging ──
-    AssetDef { symbol: "EEM",   name: "Emerging Markets ETF",  class: "Intl ETF",     ann_vol: 0.20 },
-    AssetDef { symbol: "FXI",   name: "China Large-Cap ETF",   class: "Intl ETF",     ann_vol: 0.30 },
+    AssetDef {
+        symbol: "EEM",
+        name: "Emerging Markets ETF",
+        class: "Intl ETF",
+        ann_vol: 0.20,
+    },
+    AssetDef {
+        symbol: "FXI",
+        name: "China Large-Cap ETF",
+        class: "Intl ETF",
+        ann_vol: 0.30,
+    },
 ];
 
 /// Simulation parameters — rounds configurable via SWARM_ROUNDS env var
@@ -116,7 +203,10 @@ async fn main() -> anyhow::Result<()> {
     let rounds = sim_rounds();
     println!("╔══════════════════════════════════════════════════════════════════╗");
     println!("║   🦀 RustForge AI Swarm Analysis — Live Market Intelligence    ║");
-    println!("║   5000 Agents · {} Rounds · GARCH(1,1) · Dexter AI          ║", rounds);
+    println!(
+        "║   5000 Agents · {} Rounds · GARCH(1,1) · Dexter AI          ║",
+        rounds
+    );
     println!("╚══════════════════════════════════════════════════════════════════╝");
     println!();
 
@@ -124,7 +214,9 @@ async fn main() -> anyhow::Result<()> {
     let dry_run = std::env::var("DRY_RUN").unwrap_or_default() == "1";
     let ollama_model = std::env::var("OLLAMA_MODEL").ok();
     let groq_key = std::env::var("GROQ_API_KEY").unwrap_or_default();
-    let provider = std::env::var("LLM_PROVIDER").unwrap_or_default().to_lowercase();
+    let provider = std::env::var("LLM_PROVIDER")
+        .unwrap_or_default()
+        .to_lowercase();
 
     let use_ollama = provider == "ollama" || (provider.is_empty() && ollama_model.is_some());
     let ai_enabled = !dry_run && (use_ollama || (!groq_key.is_empty() && groq_key != "mock_key"));
@@ -136,7 +228,8 @@ async fn main() -> anyhow::Result<()> {
         println!("  ✅ Ollama — Dexter AI via local inference (no rate limits)");
         println!("  📡 Model: {}", model);
     } else if ai_enabled {
-        let model = std::env::var("GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
+        let model =
+            std::env::var("GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
         println!("  ✅ Groq API — Dexter AI via cloud inference");
         println!("  📡 Model: {}", model);
     } else {
@@ -146,12 +239,12 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Ollama health check — wait up to 60s for Ollama to be ready ─────────
     if use_ollama && !dry_run {
-        let host = std::env::var("OLLAMA_HOST")
-            .unwrap_or_else(|_| "http://localhost:11434".to_string());
+        let host =
+            std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://localhost:11434".to_string());
         println!();
         println!("  🔍 Checking Ollama availability...");
         match wait_for_ollama(&host, std::time::Duration::from_secs(60)).await {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) => {
                 eprintln!("  ❌ Ollama not available: {}", e);
                 eprintln!("     Start Ollama with: ollama serve");
@@ -174,7 +267,8 @@ async fn main() -> anyhow::Result<()> {
     // Usage: SWARM_SYMBOLS=GLD or SWARM_SYMBOLS=GLD,NVDA,SPY or SWARM_SYMBOLS=SUZLON.NS
     let filtered_defs: Vec<AssetDef> = if let Ok(filter) = std::env::var("SWARM_SYMBOLS") {
         let symbols: Vec<&str> = filter.split(',').map(|s| s.trim()).collect();
-        let filtered: Vec<AssetDef> = all_defs.into_iter()
+        let filtered: Vec<AssetDef> = all_defs
+            .into_iter()
             .filter(|d| symbols.iter().any(|s| s.eq_ignore_ascii_case(d.symbol)))
             .collect();
         if filtered.is_empty() {
@@ -197,7 +291,10 @@ async fn main() -> anyhow::Result<()> {
             a
         }
         Err(e) => {
-            eprintln!("  ❌ Finnhub error: {}. Cannot proceed without live prices.", e);
+            eprintln!(
+                "  ❌ Finnhub error: {}. Cannot proceed without live prices.",
+                e
+            );
             eprintln!("     Verify FINNHUB_API_KEY is set and valid.");
             std::process::exit(1);
         }
@@ -210,12 +307,12 @@ async fn main() -> anyhow::Result<()> {
     let total_start = Instant::now();
     let ai_semaphore = Arc::new(Semaphore::new(2));
 
-    let futures: Vec<_> = assets.iter().enumerate()
+    let futures: Vec<_> = assets
+        .iter()
+        .enumerate()
         .map(|(idx, asset)| {
             let sem = ai_semaphore.clone();
-            async move {
-                analyse_asset(asset, ai_enabled, idx, rounds, sem).await
-            }
+            async move { analyse_asset(asset, ai_enabled, idx, rounds, sem).await }
         })
         .collect();
     let results = futures::future::join_all(futures).await;
@@ -223,26 +320,39 @@ async fn main() -> anyhow::Result<()> {
     // ── Summary table ───────────────────────────────────────────────────────
     println!();
     println!("═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════");
-    println!("  {:<7} {:<22} {:<13} {:>9} {:>10} {:>7} {:>9} {:>7} {:>7} {:>6} {:>12}  {:<10}",
-        "SYMBOL", "NAME", "CLASS", "LIVE $", "SWARM", "CONF%", "GARCH_A%", "R_RSI", "S_RSI", "DRIFT", "TOT_FLOW", "VERDICT");
+    println!(
+        "  {:<7} {:<22} {:<13} {:>9} {:>10} {:>7} {:>9} {:>7} {:>7} {:>6} {:>12}  {:<10}",
+        "SYMBOL",
+        "NAME",
+        "CLASS",
+        "LIVE $",
+        "SWARM",
+        "CONF%",
+        "GARCH_A%",
+        "R_RSI",
+        "S_RSI",
+        "DRIFT",
+        "TOT_FLOW",
+        "VERDICT"
+    );
     println!("═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════");
 
     for r in &results {
         let direction_icon = match r.direction.as_str() {
-            "Long"  => "🟢 LONG ",
+            "Long" => "🟢 LONG ",
             "Short" => "🔴 SHORT",
-            _       => "⚪ FLAT ",
+            _ => "⚪ FLAT ",
         };
         let verdict_icon = match r.risk_verdict.as_str() {
             "Approved" => "✅ GO",
-            "Hedge"    => "🛡️ HEDGE",
+            "Hedge" => "🛡️ HEDGE",
             "Unstable" => "⚠️ DRIFT",
-            _          => "❌ PASS",
+            _ => "❌ PASS",
         };
         let conviction = match r.conviction.as_str() {
-            "High"   => "H",
+            "High" => "H",
             "Medium" => "M",
-            _        => "L",
+            _ => "L",
         };
         let drift_str = format!("{:+.1}%", r.drift_pct * 100.0);
 
@@ -262,19 +372,38 @@ async fn main() -> anyhow::Result<()> {
     println!("═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════");
 
     // ── Actionable signals ──────────────────────────────────────────────────
-    let approved: Vec<&AssetResult> = results.iter().filter(|r| r.risk_verdict == "Approved").collect();
-    let hedges: Vec<&AssetResult> = results.iter().filter(|r| r.risk_verdict == "Hedge").collect();
-    let unstable: Vec<&AssetResult> = results.iter().filter(|r| r.risk_verdict == "Unstable").collect();
+    let approved: Vec<&AssetResult> = results
+        .iter()
+        .filter(|r| r.risk_verdict == "Approved")
+        .collect();
+    let hedges: Vec<&AssetResult> = results
+        .iter()
+        .filter(|r| r.risk_verdict == "Hedge")
+        .collect();
+    let unstable: Vec<&AssetResult> = results
+        .iter()
+        .filter(|r| r.risk_verdict == "Unstable")
+        .collect();
 
     println!();
     if !approved.is_empty() {
         println!("  📊 ACTIONABLE SIGNALS ({}):", approved.len());
         for r in &approved {
-            let thesis_safe: String = r.ai_thesis.as_deref()
+            let thesis_safe: String = r
+                .ai_thesis
+                .as_deref()
                 .unwrap_or("(no AI)")
-                .chars().take(120).collect();
-            println!("    → {} {} @ ${:.2} | conf={:.0}% | flow=${:+.0}K",
-                r.symbol, r.direction, r.live_price, r.confidence * 100.0, r.total_flow / 1000.0);
+                .chars()
+                .take(120)
+                .collect();
+            println!(
+                "    → {} {} @ ${:.2} | conf={:.0}% | flow=${:+.0}K",
+                r.symbol,
+                r.direction,
+                r.live_price,
+                r.confidence * 100.0,
+                r.total_flow / 1000.0
+            );
             println!("      AI: {}", thesis_safe);
         }
     }
@@ -283,8 +412,11 @@ async fn main() -> anyhow::Result<()> {
         println!();
         println!("  🛡️  HEDGE SIGNALS ({}):", hedges.len());
         for r in &hedges {
-            println!("    → {} — GARCH annualized vol={:.1}% exceeds 40% circuit breaker",
-                r.symbol, r.garch_vol_ann * 100.0);
+            println!(
+                "    → {} — GARCH annualized vol={:.1}% exceeds 40% circuit breaker",
+                r.symbol,
+                r.garch_vol_ann * 100.0
+            );
         }
     }
 
@@ -292,8 +424,13 @@ async fn main() -> anyhow::Result<()> {
         println!();
         println!("  ⚠️  UNSTABLE SIMULATIONS ({}):", unstable.len());
         for r in &unstable {
-            println!("    → {} — price drifted {:+.1}% from live ${:.2} (sim=${:.2})",
-                r.symbol, r.drift_pct * 100.0, r.live_price, r.sim_price);
+            println!(
+                "    → {} — price drifted {:+.1}% from live ${:.2} (sim=${:.2})",
+                r.symbol,
+                r.drift_pct * 100.0,
+                r.live_price,
+                r.sim_price
+            );
         }
     }
 
@@ -345,11 +482,17 @@ async fn fetch_live_assets(defs: &[AssetDef]) -> anyhow::Result<Vec<Asset>> {
                 // Finnhub doesn't have this symbol — try Yahoo Finance
                 match fetch_yahoo_quote(def.symbol).await {
                     Ok((price, chg)) => {
-                        eprintln!("    📊 {} quote via Yahoo Finance: ${:.2}", def.symbol, price);
+                        eprintln!(
+                            "    📊 {} quote via Yahoo Finance: ${:.2}",
+                            def.symbol, price
+                        );
                         (price, chg)
                     }
                     Err(e) => {
-                        eprintln!("    ⚠ {} no quote from any source: {} — skipping", def.symbol, e);
+                        eprintln!(
+                            "    ⚠ {} no quote from any source: {} — skipping",
+                            def.symbol, e
+                        );
                         continue;
                     }
                 }
@@ -369,11 +512,20 @@ async fn fetch_live_assets(defs: &[AssetDef]) -> anyhow::Result<Vec<Asset>> {
         let (real_rsi, historical_closes) = match candles {
             Ok(c) if c.close.len() >= 15 => {
                 let rsi = compute_rsi_14(&c.close);
-                eprintln!("    📊 {} got {} Finnhub candles, RSI={:.1}", def.symbol, c.close.len(), rsi);
+                eprintln!(
+                    "    📊 {} got {} Finnhub candles, RSI={:.1}",
+                    def.symbol,
+                    c.close.len(),
+                    rsi
+                );
                 (rsi, c.close)
             }
             Ok(c) if c.close.len() >= 2 => {
-                eprintln!("    ⚠ {} got only {} Finnhub candles (need 15 for RSI)", def.symbol, c.close.len());
+                eprintln!(
+                    "    ⚠ {} got only {} Finnhub candles (need 15 for RSI)",
+                    def.symbol,
+                    c.close.len()
+                );
                 (50.0, c.close)
             }
             _ => {
@@ -387,12 +539,21 @@ async fn fetch_live_assets(defs: &[AssetDef]) -> anyhow::Result<Vec<Asset>> {
                         match fetch_alpaca_daily_bars(def.symbol, key, secret, 45).await {
                             Ok(closes) if closes.len() >= 15 => {
                                 let rsi = compute_rsi_14(&closes);
-                                eprintln!("    📊 {} got {} Alpaca bars, RSI={:.1}", def.symbol, closes.len(), rsi);
+                                eprintln!(
+                                    "    📊 {} got {} Alpaca bars, RSI={:.1}",
+                                    def.symbol,
+                                    closes.len(),
+                                    rsi
+                                );
                                 result = (rsi, closes);
                                 got_bars = true;
                             }
                             Ok(closes) if closes.len() >= 2 => {
-                                eprintln!("    ⚠ {} got only {} Alpaca bars", def.symbol, closes.len());
+                                eprintln!(
+                                    "    ⚠ {} got only {} Alpaca bars",
+                                    def.symbol,
+                                    closes.len()
+                                );
                                 result = (50.0, closes);
                                 got_bars = true;
                             }
@@ -406,7 +567,12 @@ async fn fetch_live_assets(defs: &[AssetDef]) -> anyhow::Result<Vec<Asset>> {
                     match fetch_yahoo_daily_closes(def.symbol, 45).await {
                         Ok(closes) if closes.len() >= 15 => {
                             let rsi = compute_rsi_14(&closes);
-                            eprintln!("    📊 {} got {} Yahoo bars, RSI={:.1}", def.symbol, closes.len(), rsi);
+                            eprintln!(
+                                "    📊 {} got {} Yahoo bars, RSI={:.1}",
+                                def.symbol,
+                                closes.len(),
+                                rsi
+                            );
                             result = (rsi, closes);
                         }
                         Ok(closes) if closes.len() >= 2 => {
@@ -417,7 +583,10 @@ async fn fetch_live_assets(defs: &[AssetDef]) -> anyhow::Result<Vec<Asset>> {
                             eprintln!("    ⚠ {} no historical bars from any source", def.symbol);
                         }
                         Err(e) => {
-                            eprintln!("    ❌ {} all candle sources failed (last: {})", def.symbol, e);
+                            eprintln!(
+                                "    ❌ {} all candle sources failed (last: {})",
+                                def.symbol, e
+                            );
                         }
                     }
                 }
@@ -426,7 +595,10 @@ async fn fetch_live_assets(defs: &[AssetDef]) -> anyhow::Result<Vec<Asset>> {
             }
         };
 
-        eprint!("  📈 {:<6} ${:<9.2}  RSI={:.1}  ", def.symbol, current_price, real_rsi);
+        eprint!(
+            "  📈 {:<6} ${:<9.2}  RSI={:.1}  ",
+            def.symbol, current_price, real_rsi
+        );
         if change_pct >= 0.0 {
             eprintln!("▲ {:+.2}%", change_pct);
         } else {
@@ -465,10 +637,7 @@ async fn fetch_alpaca_daily_bars(
     let start_date = chrono::Utc::now() - chrono::Duration::days(days_back);
     let start_str = start_date.format("%Y-%m-%d").to_string();
 
-    let url = format!(
-        "https://data.alpaca.markets/v2/stocks/{}/bars",
-        symbol
-    );
+    let url = format!("https://data.alpaca.markets/v2/stocks/{}/bars", symbol);
 
     let resp = client
         .get(&url)
@@ -578,10 +747,7 @@ async fn fetch_yahoo_daily_closes(symbol: &str, days_back: i64) -> anyhow::Resul
 
     let resp = client
         .get(&url)
-        .query(&[
-            ("interval", "1d"),
-            ("range", &range),
-        ])
+        .query(&[("interval", "1d"), ("range", &range)])
         .send()
         .await?;
 
@@ -598,11 +764,7 @@ async fn fetch_yahoo_daily_closes(symbol: &str, days_back: i64) -> anyhow::Resul
     let closes: Vec<f64> = json
         .pointer("/chart/result/0/indicators/quote/0/close")
         .and_then(|c| c.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_f64())
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect())
         .unwrap_or_default();
 
     Ok(closes)
@@ -670,7 +832,13 @@ struct AssetResult {
     ai_thesis: Option<String>,
 }
 
-async fn analyse_asset(asset: &Asset, ai_enabled: bool, idx: usize, rounds: u64, ai_semaphore: Arc<Semaphore>) -> AssetResult {
+async fn analyse_asset(
+    asset: &Asset,
+    ai_enabled: bool,
+    idx: usize,
+    rounds: u64,
+    ai_semaphore: Arc<Semaphore>,
+) -> AssetResult {
     let start = Instant::now();
 
     // ── Swarm simulation — seeded at LIVE price + real candle history ────────
@@ -695,7 +863,8 @@ async fn analyse_asset(asset: &Asset, ai_enabled: bool, idx: usize, rounds: u64,
     }
     // Update VWAP from real data instead of single-point init
     if !asset.historical_closes.is_empty() {
-        let mean_close: f64 = asset.historical_closes.iter().sum::<f64>() / asset.historical_closes.len() as f64;
+        let mean_close: f64 =
+            asset.historical_closes.iter().sum::<f64>() / asset.historical_closes.len() as f64;
         engine.market.vwap = mean_close;
     }
 
@@ -720,7 +889,7 @@ async fn analyse_asset(asset: &Asset, ai_enabled: bool, idx: usize, rounds: u64,
         omega: daily_var_seed * 0.01,
         alpha: 0.05,
         beta: 0.90,
-        gamma: 0.08,  // leverage coefficient — negative shocks amplify vol
+        gamma: 0.08, // leverage coefficient — negative shocks amplify vol
     };
     let mut garch = GjrGarchState::new(gjr_params, daily_var_seed);
 
@@ -786,8 +955,14 @@ async fn analyse_asset(asset: &Asset, ai_enabled: bool, idx: usize, rounds: u64,
         _ => "–",
     };
     let ai_tag = if ai_thesis.is_some() { " +AI" } else { "" };
-    eprintln!("  {} {:<7} ({}) {:.0}ms{}",
-        verdict_tag, asset.symbol, asset.class, elapsed.as_millis(), ai_tag);
+    eprintln!(
+        "  {} {:<7} ({}) {:.0}ms{}",
+        verdict_tag,
+        asset.symbol,
+        asset.class,
+        elapsed.as_millis(),
+        ai_tag
+    );
 
     AssetResult {
         symbol: asset.symbol.clone(),
@@ -816,8 +991,8 @@ async fn call_dexter_for_asset(
 ) -> anyhow::Result<ai::dexter::DexterSignal> {
     let quant = QuantSnapshot {
         symbol: asset.symbol.clone(),
-        price: asset.price,         // LIVE price, not simulated
-        rsi_14: asset.real_rsi,     // REAL RSI from Finnhub candles
+        price: asset.price,     // LIVE price, not simulated
+        rsi_14: asset.real_rsi, // REAL RSI from Finnhub candles
         garch_vol_forecast: garch_vol_ann,
         heston_implied_vol: 0.0,
         vwap: asset.price * 0.998,
@@ -854,7 +1029,8 @@ async fn call_dexter_for_asset(
 /// Each symbol produces a different seed, ensuring per-asset behavioral diversity
 /// in the swarm simulation while remaining reproducible across runs.
 fn symbol_seed(symbol: &str) -> u64 {
-    symbol.bytes()
+    symbol
+        .bytes()
         .enumerate()
         .fold(0x517cc1b727220a95u64, |acc, (i, b)| {
             acc.wrapping_mul(6364136223846793005)
@@ -871,13 +1047,17 @@ async fn wait_for_ollama(host: &str, timeout: std::time::Duration) -> anyhow::Re
     let mut attempt = 0u32;
 
     loop {
-        match client.get(format!("{}/api/tags", host))
+        match client
+            .get(format!("{}/api/tags", host))
             .timeout(std::time::Duration::from_secs(3))
             .send()
             .await
         {
             Ok(resp) if resp.status().is_success() => {
-                println!("  ✅ Ollama connected (took {:.1}s)", start.elapsed().as_secs_f64());
+                println!(
+                    "  ✅ Ollama connected (took {:.1}s)",
+                    start.elapsed().as_secs_f64()
+                );
                 return Ok(());
             }
             Ok(resp) => {
@@ -885,7 +1065,11 @@ async fn wait_for_ollama(host: &str, timeout: std::time::Duration) -> anyhow::Re
             }
             Err(e) => {
                 if start.elapsed() > timeout {
-                    anyhow::bail!("Ollama not available after {:.0}s: {}", timeout.as_secs_f64(), e);
+                    anyhow::bail!(
+                        "Ollama not available after {:.0}s: {}",
+                        timeout.as_secs_f64(),
+                        e
+                    );
                 }
                 eprintln!("  ⏳ Waiting for Ollama... attempt {} ({})", attempt + 1, e);
             }

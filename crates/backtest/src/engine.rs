@@ -3,13 +3,13 @@
 // Backtesting engine — replays historical OHLCV bars through a strategy,
 // simulates fills against bid/ask, and computes performance metrics.
 
-use serde::{Deserialize, Serialize};
 use crate::strategy::{Strategy, StrategySignal};
+use serde::{Deserialize, Serialize};
 
 /// A single historical OHLCV + spread bar.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bar {
-    pub timestamp: i64,  // Unix ms
+    pub timestamp: i64, // Unix ms
     pub symbol: String,
     pub open: f64,
     pub high: f64,
@@ -25,7 +25,7 @@ pub struct Bar {
 pub struct SimulatedFill {
     pub timestamp: i64,
     pub symbol: String,
-    pub qty: f64,         // positive = buy, negative = sell
+    pub qty: f64, // positive = buy, negative = sell
     pub price: f64,
     pub commission: f64,
     pub slippage: f64,
@@ -49,8 +49,8 @@ impl Default for BacktestConfig {
     fn default() -> Self {
         Self {
             initial_cash: 100_000.0,
-            commission_rate: 0.0005,  // 5 bps
-            slippage_rate: 0.0001,    // 1 bp
+            commission_rate: 0.0005, // 5 bps
+            slippage_rate: 0.0001,   // 1 bp
             fill_on_next_open: true,
             allow_short: true,
         }
@@ -77,7 +77,7 @@ pub struct BacktestMetrics {
 pub struct BacktestEngine {
     cfg: BacktestConfig,
     cash: f64,
-    positions: std::collections::HashMap<String, f64>,  // symbol → qty
+    positions: std::collections::HashMap<String, f64>, // symbol → qty
     cost_basis: std::collections::HashMap<String, f64>,
     equity_curve: Vec<(i64, f64)>,
     fills: Vec<SimulatedFill>,
@@ -133,8 +133,8 @@ impl BacktestEngine {
 
     fn execute_signal(&mut self, signal: &StrategySignal, price: f64, timestamp: i64) {
         let slippage = match signal.qty {
-            q if q > 0.0 => price * self.cfg.slippage_rate,   // Buy: price goes up
-            _ => -price * self.cfg.slippage_rate,              // Sell: price goes down
+            q if q > 0.0 => price * self.cfg.slippage_rate, // Buy: price goes up
+            _ => -price * self.cfg.slippage_rate,           // Sell: price goes down
         };
         let fill_price = price + slippage;
         let notional = fill_price * signal.qty.abs();
@@ -162,10 +162,14 @@ impl BacktestEngine {
         } else {
             self.positions.insert(signal.symbol.clone(), new_qty);
             // Update VWAP cost basis
-            let prev_cost = self.cost_basis.get(&signal.symbol).copied().unwrap_or(fill_price);
+            let prev_cost = self
+                .cost_basis
+                .get(&signal.symbol)
+                .copied()
+                .unwrap_or(fill_price);
             if (current_qty > 0.0) == (signal.qty > 0.0) {
-                let vwap = (prev_cost * current_qty.abs() + fill_price * signal.qty.abs())
-                    / new_qty.abs();
+                let vwap =
+                    (prev_cost * current_qty.abs() + fill_price * signal.qty.abs()) / new_qty.abs();
                 self.cost_basis.insert(signal.symbol.clone(), vwap);
             } else {
                 self.cost_basis.insert(signal.symbol.clone(), fill_price);
@@ -183,18 +187,21 @@ impl BacktestEngine {
     }
 
     fn mark_to_market(&self, bar: &Bar) -> f64 {
-        let pos_value: f64 = self
-            .positions
-            .iter()
-            .map(|(sym, qty)| {
-                if sym == &bar.symbol {
-                    qty * bar.close
-                } else {
-                    let last_price = self.last_prices.get(sym).copied().unwrap_or_else(|| self.cost_basis.get(sym).copied().unwrap_or(0.0));
-                    qty * last_price
-                }
-            })
-            .sum();
+        let pos_value: f64 =
+            self.positions
+                .iter()
+                .map(|(sym, qty)| {
+                    if sym == &bar.symbol {
+                        qty * bar.close
+                    } else {
+                        let last_price =
+                            self.last_prices.get(sym).copied().unwrap_or_else(|| {
+                                self.cost_basis.get(sym).copied().unwrap_or(0.0)
+                            });
+                        qty * last_price
+                    }
+                })
+                .sum();
         self.cash + pos_value
     }
 
@@ -232,8 +239,8 @@ impl BacktestEngine {
 
         // Sortino ratio (downside deviation only)
         let downside: Vec<f64> = returns.iter().filter(|&&r| r < 0.0).copied().collect();
-        let downside_variance = downside.iter().map(|r| r.powi(2)).sum::<f64>()
-            / downside.len().max(1) as f64;
+        let downside_variance =
+            downside.iter().map(|r| r.powi(2)).sum::<f64>() / downside.len().max(1) as f64;
         let downside_std = downside_variance.sqrt();
         let sortino = if downside_std > 0.0 {
             mean_ret / downside_std * (252.0_f64).sqrt()
@@ -245,9 +252,13 @@ impl BacktestEngine {
         let mut peak = initial;
         let mut max_dd = 0.0_f64;
         for (_, equity) in &self.equity_curve {
-            if *equity > peak { peak = *equity; }
+            if *equity > peak {
+                peak = *equity;
+            }
             let dd = (peak - equity) / peak;
-            if dd > max_dd { max_dd = dd; }
+            if dd > max_dd {
+                max_dd = dd;
+            }
         }
 
         // Win rate & profit factor
@@ -255,9 +266,17 @@ impl BacktestEngine {
             let mut w = Vec::new();
             let mut l = Vec::new();
             for fill in &self.fills {
-                let cost = self.cost_basis.get(&fill.symbol).copied().unwrap_or(fill.price);
+                let cost = self
+                    .cost_basis
+                    .get(&fill.symbol)
+                    .copied()
+                    .unwrap_or(fill.price);
                 let pnl = (fill.price - cost) * fill.qty - fill.commission;
-                if pnl > 0.0 { w.push(pnl); } else { l.push(pnl.abs()); }
+                if pnl > 0.0 {
+                    w.push(pnl);
+                } else {
+                    l.push(pnl.abs());
+                }
             }
             (w, l)
         };
@@ -270,7 +289,11 @@ impl BacktestEngine {
         };
         let gross_profit: f64 = wins.iter().sum();
         let gross_loss: f64 = losses.iter().sum();
-        let profit_factor = if gross_loss > 0.0 { gross_profit / gross_loss } else { f64::INFINITY };
+        let profit_factor = if gross_loss > 0.0 {
+            gross_profit / gross_loss
+        } else {
+            f64::INFINITY
+        };
 
         let avg_trade_pnl = if total_trades > 0 {
             (gross_profit - gross_loss) / total_trades as f64
@@ -300,20 +323,22 @@ mod tests {
     use crate::strategy::SimpleMovingAverageCrossover;
 
     fn make_trending_bars(n: usize, trend: f64) -> Vec<Bar> {
-        (0..n).map(|i| {
-            let price = 100.0 + i as f64 * trend;
-            Bar {
-                timestamp: i as i64 * 86_400_000,
-                symbol: "TEST".into(),
-                open: price,
-                high: price * 1.01,
-                low: price * 0.99,
-                close: price,
-                volume: 1_000_000.0,
-                bid: price - 0.05,
-                ask: price + 0.05,
-            }
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let price = 100.0 + i as f64 * trend;
+                Bar {
+                    timestamp: i as i64 * 86_400_000,
+                    symbol: "TEST".into(),
+                    open: price,
+                    high: price * 1.01,
+                    low: price * 0.99,
+                    close: price,
+                    volume: 1_000_000.0,
+                    bid: price - 0.05,
+                    ask: price + 0.05,
+                }
+            })
+            .collect()
     }
 
     #[test]

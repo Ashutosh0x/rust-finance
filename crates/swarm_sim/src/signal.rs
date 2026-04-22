@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::market::MarketState;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwarmSignal {
@@ -44,7 +44,13 @@ pub enum MarketRegime {
 }
 
 impl SwarmSignal {
-    pub fn from_round(round: u64, market: &MarketState, buy_fraction: f64, sell_fraction: f64, net_flow_usd: f64) -> Self {
+    pub fn from_round(
+        round: u64,
+        market: &MarketState,
+        buy_fraction: f64,
+        sell_fraction: f64,
+        net_flow_usd: f64,
+    ) -> Self {
         let neutral_prob = (1.0 - buy_fraction - sell_fraction).max(0.0);
 
         let direction = if buy_fraction > sell_fraction + 0.15 {
@@ -56,7 +62,13 @@ impl SwarmSignal {
         };
 
         let margin = (buy_fraction - sell_fraction).abs();
-        let conviction = if margin > 0.30 { Conviction::High } else if margin > 0.15 { Conviction::Medium } else { Conviction::Low };
+        let conviction = if margin > 0.30 {
+            Conviction::High
+        } else if margin > 0.15 {
+            Conviction::Medium
+        } else {
+            Conviction::Low
+        };
 
         let regime = detect_regime(market, net_flow_usd);
 
@@ -111,10 +123,10 @@ impl SwarmSignal {
         };
 
         let raw_confidence = 0.30 * agreement_score
-                           + 0.20 * flow_score
-                           + 0.15 * drift_score
-                           + 0.15 * vol_score
-                           + 0.20 * rsi_score;
+            + 0.20 * flow_score
+            + 0.15 * drift_score
+            + 0.15 * vol_score
+            + 0.20 * rsi_score;
 
         // Clamp to [0.35, 0.92] — never 100%, never below 35%
         let confidence = raw_confidence.clamp(0.35, 0.92);
@@ -146,16 +158,24 @@ impl SwarmSignal {
     }
 
     pub fn is_actionable(&self) -> bool {
-        self.conviction != Conviction::Low && !matches!(self.regime, MarketRegime::HighVolatility) && self.confidence > 0.40
+        self.conviction != Conviction::Low
+            && !matches!(self.regime, MarketRegime::HighVolatility)
+            && self.confidence > 0.40
     }
 }
 
 fn detect_regime(market: &MarketState, net_flow: f64) -> MarketRegime {
     let flow_fraction = (net_flow.abs() / 1_000_000.0).min(1.0);
 
-    if market.is_high_vol() { MarketRegime::HighVolatility }
-    else if flow_fraction > 0.7 { MarketRegime::OrderImbalance }
-    else if market.momentum_1h.abs() > 0.01 { MarketRegime::Trending }
-    else if market.volatility_realized < 0.003 { MarketRegime::LowVolatility }
-    else { MarketRegime::MeanReverting }
+    if market.is_high_vol() {
+        MarketRegime::HighVolatility
+    } else if flow_fraction > 0.7 {
+        MarketRegime::OrderImbalance
+    } else if market.momentum_1h.abs() > 0.01 {
+        MarketRegime::Trending
+    } else if market.volatility_realized < 0.003 {
+        MarketRegime::LowVolatility
+    } else {
+        MarketRegime::MeanReverting
+    }
 }

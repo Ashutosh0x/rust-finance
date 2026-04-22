@@ -2,6 +2,12 @@
 name = "ml"
 version = "0.1.0"
 edition = "2024"
+description = "Machine learning model integration for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 common = { version = "0.1.0", path = "../common" }

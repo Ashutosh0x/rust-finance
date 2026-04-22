@@ -28,8 +28,7 @@ use tracing::{debug, error, info, warn};
 const BINANCE_STREAM_URL: &str = "wss://stream.binance.com:9443/stream";
 
 /// Testnet endpoint for development.
-const BINANCE_TESTNET_URL: &str =
-    "wss://stream.testnet.binance.vision/stream";
+const BINANCE_TESTNET_URL: &str = "wss://stream.testnet.binance.vision/stream";
 
 pub struct BinanceSource {
     seq_gen: Arc<SequenceGenerator>,
@@ -60,10 +59,7 @@ impl BinanceSource {
         for symbol in &subscription.symbols {
             // Binance requires lowercase symbols with no separator
             // e.g. "BTC/USDT" -> "btcusdt", "ETHUSDT" -> "ethusdt"
-            let normalized = symbol
-                .replace('/', "")
-                .replace('-', "")
-                .to_lowercase();
+            let normalized = symbol.replace('/', "").replace('-', "").to_lowercase();
 
             for dt in &subscription.data_types {
                 match dt {
@@ -236,9 +232,7 @@ fn parse_binance_combined(
         // Note: bookTicker on spot doesn't have "e" field on the raw
         // stream, but the combined stream wraps it.
         // We also handle the futures-style with "e":"bookTicker".
-        "bookTicker" => {
-            parse_book_ticker(data, ts_init, seq_gen)
-        }
+        "bookTicker" => parse_book_ticker(data, ts_init, seq_gen),
 
         // ─── Kline Stream (Bar Data) ────────────────────────────────
         // {"e":"kline","E":1672515782136,"s":"BNBBTC","k":{...}}
@@ -279,11 +273,7 @@ fn parse_binance_combined(
             let bids = parse_depth_levels(data.get("b")?)?;
             let asks = parse_depth_levels(data.get("a")?)?;
 
-            let event = MarketEvent::BookUpdate(BookUpdateEvent {
-                symbol,
-                bids,
-                asks,
-            });
+            let event = MarketEvent::BookUpdate(BookUpdateEvent { symbol, bids, asks });
 
             Some(Ok(Envelope {
                 ts_event: UnixNanos::from_millis(event_time_ms),
@@ -388,10 +378,7 @@ mod tests {
             _ => panic!("Expected Trade event"),
         }
 
-        assert_eq!(
-            envelope.ts_event,
-            UnixNanos::from_millis(1672515782136)
-        );
+        assert_eq!(envelope.ts_event, UnixNanos::from_millis(1672515782136));
     }
 
     #[test]
@@ -563,9 +550,7 @@ mod tests {
         let seq_gen = Arc::new(SequenceGenerator::new());
         let source = BinanceSource::new(seq_gen);
 
-        let symbols: Vec<String> = (0..520)
-            .map(|i| format!("SYM{i}USDT"))
-            .collect();
+        let symbols: Vec<String> = (0..520).map(|i| format!("SYM{i}USDT")).collect();
 
         let sub = Subscription {
             symbols,

@@ -1,7 +1,7 @@
+use anyhow::{bail, Result};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
-use anyhow::{Result, bail};
-use std::sync::Arc;
 
 pub struct TokenBucketLimiter {
     capacity: usize,
@@ -23,17 +23,17 @@ impl TokenBucketLimiter {
     pub async fn acquire(&self, amount: usize) -> Result<()> {
         let mut tokens_guard = self.tokens.lock().await;
         let mut time_guard = self.last_refill.lock().await;
-        
+
         // Calculate refill based on elapsed time elapsed * rate
         let now = Instant::now();
         let elapsed_secs = now.duration_since(*time_guard).as_secs_f64();
         let add_tokens = (elapsed_secs * self.refill_rate_per_sec) as usize;
-        
+
         if add_tokens > 0 {
             *tokens_guard = std::cmp::min(self.capacity, *tokens_guard + add_tokens);
-            // Only bump the clock forward by the *full fractional tokens* we actually credited, 
+            // Only bump the clock forward by the *full fractional tokens* we actually credited,
             // but for a trading bot approximation, snapping to now is fine.
-            *time_guard = now; 
+            *time_guard = now;
         }
 
         if *tokens_guard >= amount {
@@ -41,7 +41,11 @@ impl TokenBucketLimiter {
             Ok(())
         } else {
             // Need to wait. Real implementation might sleep or just reject immediately.
-            tracing::warn!("Rate limit exceeded. Required: {}, Available: {}", amount, *tokens_guard);
+            tracing::warn!(
+                "Rate limit exceeded. Required: {}, Available: {}",
+                amount,
+                *tokens_guard
+            );
             bail!("Anthropic API rate limit exceeded");
         }
     }

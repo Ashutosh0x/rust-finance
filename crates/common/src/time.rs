@@ -329,8 +329,11 @@ mod tests {
         let clock = RealtimeClock;
         let ts = clock.now();
         assert!(!ts.is_zero(), "RealtimeClock should never return zero");
-        assert!(ts.as_u64() > 1_000_000_000_000_000_000,
-            "RealtimeClock timestamp looks too small: {}", ts.as_u64());
+        assert!(
+            ts.as_u64() > 1_000_000_000_000_000_000,
+            "RealtimeClock timestamp looks too small: {}",
+            ts.as_u64()
+        );
     }
 
     /// SequenceGenerator reset() should restart from 1.
@@ -344,7 +347,11 @@ mod tests {
 
         gen.reset();
         let after_reset = gen.next_id();
-        assert_eq!(after_reset.as_u64(), 1, "After reset, should restart from 1");
+        assert_eq!(
+            after_reset.as_u64(),
+            1,
+            "After reset, should restart from 1"
+        );
     }
 
     /// Both clock types must satisfy the trait contract.
@@ -391,16 +398,22 @@ mod tests {
     fn test_envelope_ordering() {
         use crate::events::*;
         let e1 = Envelope::new(
-            UnixNanos::from_secs(1), UnixNanos::from_secs(1),
-            SequenceId::new(1), "first",
+            UnixNanos::from_secs(1),
+            UnixNanos::from_secs(1),
+            SequenceId::new(1),
+            "first",
         );
         let e2 = Envelope::new(
-            UnixNanos::from_secs(1), UnixNanos::from_secs(1),
-            SequenceId::new(2), "second",
+            UnixNanos::from_secs(1),
+            UnixNanos::from_secs(1),
+            SequenceId::new(2),
+            "second",
         );
         let e3 = Envelope::new(
-            UnixNanos::from_secs(2), UnixNanos::from_secs(2),
-            SequenceId::new(1), "third",
+            UnixNanos::from_secs(2),
+            UnixNanos::from_secs(2),
+            SequenceId::new(1),
+            "third",
         );
         assert!(e1 < e2, "Same timestamp → sort by sequence_id");
         assert!(e2 < e3, "Different timestamp → sort by timestamp");

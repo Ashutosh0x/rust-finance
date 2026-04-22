@@ -1,7 +1,6 @@
 /// RecordingExecutor — captures submitted orders for post-test assertion.
 /// Used exclusively in integration tests to verify the full pipeline
 /// (signal → risk interceptor → OMS → executor) composes correctly.
-
 use crate::gateway::{ExecutionGateway, OpenRequest};
 use async_trait::async_trait;
 use common::events::{OrderEvent, OrderFilled};

@@ -42,7 +42,7 @@ impl MarketEnvironment {
 
         self.current_step += 1;
         let done = self.current_step >= self.max_steps;
-        
+
         // Final reward based on PNL mark-to-market if done
         let final_reward = if done {
             (self.balance + (self.inventory * current_price)) - 10000.0 // Assuming 10k start
@@ -55,6 +55,11 @@ impl MarketEnvironment {
 
     fn get_state(&self) -> Vec<f64> {
         // [Price (mocked), Spread (mocked), Inventory, Step Ratio]
-        vec![100.0, 0.1, self.inventory, self.current_step as f64 / self.max_steps as f64]
+        vec![
+            100.0,
+            0.1,
+            self.inventory,
+            self.current_step as f64 / self.max_steps as f64,
+        ]
     }
 }

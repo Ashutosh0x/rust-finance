@@ -2,9 +2,9 @@
 // Dynamic stop that follows price at a fixed $ or % distance.
 // On each price tick, the stop moves up (for longs) but NEVER back down.
 
+use common::models::order::{Order, OrderId, OrderSide, OrderStatus, OrderType};
 use std::collections::HashMap;
 use tokio::sync::mpsc::Sender;
-use common::models::order::{Order, OrderId, OrderSide, OrderType, OrderStatus};
 
 #[derive(Debug, Clone)]
 pub struct TrailingStop {
@@ -43,7 +43,7 @@ impl TrailSpec {
     pub fn distance_at(&self, price: f64) -> f64 {
         match self {
             TrailSpec::Fixed { distance } => *distance,
-            TrailSpec::Percent { pct }    => price * pct / 100.0,
+            TrailSpec::Percent { pct } => price * pct / 100.0,
             TrailSpec::Atr { multiplier, atr } => multiplier * atr,
         }
     }
@@ -56,7 +56,10 @@ pub struct TrailingStopEngine {
 
 impl TrailingStopEngine {
     pub fn new(order_tx: Sender<Order>) -> Self {
-        Self { stops: HashMap::new(), order_tx }
+        Self {
+            stops: HashMap::new(),
+            order_tx,
+        }
     }
 
     /// Register a new trailing stop. entry_price is the fill price of the position.
@@ -64,7 +67,7 @@ impl TrailingStopEngine {
         let dist = stop.trail.distance_at(entry_price);
         stop.best_price = entry_price;
         stop.current_stop_price = match stop.side {
-            TrailingStopSide::Long  => entry_price - dist,
+            TrailingStopSide::Long => entry_price - dist,
             TrailingStopSide::Short => entry_price + dist,
         };
         tracing::info!(
@@ -81,7 +84,9 @@ impl TrailingStopEngine {
         let mut triggered = Vec::new();
 
         for stop in self.stops.values_mut() {
-            if stop.symbol != symbol || stop.triggered { continue; }
+            if stop.symbol != symbol || stop.triggered {
+                continue;
+            }
 
             match stop.side {
                 TrailingStopSide::Long => {
@@ -131,7 +136,7 @@ impl TrailingStopEngine {
         for stop_id in &triggered {
             if let Some(stop) = self.stops.get(stop_id) {
                 let close_side = match stop.side {
-                    TrailingStopSide::Long  => OrderSide::Sell,
+                    TrailingStopSide::Long => OrderSide::Sell,
                     TrailingStopSide::Short => OrderSide::Buy,
                 };
                 let order = Order {

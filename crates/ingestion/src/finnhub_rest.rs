@@ -323,8 +323,7 @@ pub struct FinnhubClient {
 impl FinnhubClient {
     /// Create from `FINNHUB_API_KEY` environment variable.
     pub fn from_env() -> Result<Self> {
-        let api_key = std::env::var("FINNHUB_API_KEY")
-            .context("FINNHUB_API_KEY not set")?;
+        let api_key = std::env::var("FINNHUB_API_KEY").context("FINNHUB_API_KEY not set")?;
         Ok(Self::new(api_key))
     }
 
@@ -382,7 +381,9 @@ impl FinnhubClient {
             anyhow::bail!("Finnhub HTTP {} for {}: {}", status, url, body);
         }
 
-        resp.json::<T>().await.context("Failed to parse Finnhub response")
+        resp.json::<T>()
+            .await
+            .context("Failed to parse Finnhub response")
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -668,16 +669,17 @@ impl FinnhubClient {
         from: i64,
         to: i64,
     ) -> Result<StockCandles> {
-        let candles: StockCandles = self.get(
-            "/stock/candle",
-            &[
-                ("symbol", symbol.to_string()),
-                ("resolution", resolution.to_string()),
-                ("from", from.to_string()),
-                ("to", to.to_string()),
-            ],
-        )
-        .await?;
+        let candles: StockCandles = self
+            .get(
+                "/stock/candle",
+                &[
+                    ("symbol", symbol.to_string()),
+                    ("resolution", resolution.to_string()),
+                    ("from", from.to_string()),
+                    ("to", to.to_string()),
+                ],
+            )
+            .await?;
 
         // Finnhub returns s:"no_data" with HTTP 200 when symbol or date range is invalid
         if candles.status.as_deref() == Some("no_data") {

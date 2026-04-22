@@ -7,14 +7,14 @@ use std::collections::VecDeque;
 /// from behaving identically to mega-cap equities.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AssetClass {
-    MegaCap,     // AAPL, MSFT, NVDA, AMZN
-    LargeCap,    // TSLA
-    LargeEtf,    // SPY, QQQ
-    MidEtf,      // IWM
-    SectorEtf,   // XLK, XLF, XLE
-    IntlEtf,     // EEM, FXI
-    Bond,        // TLT
-    Commodity,   // GLD
+    MegaCap,   // AAPL, MSFT, NVDA, AMZN
+    LargeCap,  // TSLA
+    LargeEtf,  // SPY, QQQ
+    MidEtf,    // IWM
+    SectorEtf, // XLK, XLF, XLE
+    IntlEtf,   // EEM, FXI
+    Bond,      // TLT
+    Commodity, // GLD
 }
 
 impl AssetClass {
@@ -23,14 +23,14 @@ impl AssetClass {
     /// is 0.18% impact, but same flow against $30M FXI = 3%.
     pub fn liquidity_usd(&self) -> f64 {
         match self {
-            AssetClass::MegaCap   => 500_000_000.0,
-            AssetClass::LargeCap  => 200_000_000.0,
-            AssetClass::LargeEtf  => 300_000_000.0,
-            AssetClass::MidEtf    => 100_000_000.0,
-            AssetClass::SectorEtf =>  50_000_000.0,
-            AssetClass::IntlEtf   =>  30_000_000.0,
-            AssetClass::Bond      => 200_000_000.0,
-            AssetClass::Commodity =>  80_000_000.0,
+            AssetClass::MegaCap => 500_000_000.0,
+            AssetClass::LargeCap => 200_000_000.0,
+            AssetClass::LargeEtf => 300_000_000.0,
+            AssetClass::MidEtf => 100_000_000.0,
+            AssetClass::SectorEtf => 50_000_000.0,
+            AssetClass::IntlEtf => 30_000_000.0,
+            AssetClass::Bond => 200_000_000.0,
+            AssetClass::Commodity => 80_000_000.0,
         }
     }
 
@@ -175,12 +175,19 @@ impl MarketState {
 
         // ── Realized volatility ──
         if self.price_history.len() >= 2 {
-            let returns: Vec<f64> = self.price_history.iter().rev().take(20)
-                .collect::<Vec<_>>().windows(2)
-                .map(|w| (w[0] / w[1]).ln()).collect();
+            let returns: Vec<f64> = self
+                .price_history
+                .iter()
+                .rev()
+                .take(20)
+                .collect::<Vec<_>>()
+                .windows(2)
+                .map(|w| (w[0] / w[1]).ln())
+                .collect();
             if !returns.is_empty() {
                 let mean = returns.iter().sum::<f64>() / returns.len() as f64;
-                let variance = returns.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / returns.len() as f64;
+                let variance =
+                    returns.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / returns.len() as f64;
                 self.volatility_realized = variance.sqrt();
             }
         }
@@ -211,25 +218,39 @@ impl MarketState {
         self.timestamp_ms = chrono::Utc::now().timestamp_millis();
 
         self.price_history.push_back(self.mid_price);
-        if self.price_history.len() > 500 { self.price_history.pop_front(); }
+        if self.price_history.len() > 500 {
+            self.price_history.pop_front();
+        }
         self.volume_history.push_back(round_vol_usd);
-        if self.volume_history.len() > 500 { self.volume_history.pop_front(); }
+        if self.volume_history.len() > 500 {
+            self.volume_history.pop_front();
+        }
         self.flow_history.push_back(net_flow);
-        if self.flow_history.len() > 200 { self.flow_history.pop_front(); }
+        if self.flow_history.len() > 200 {
+            self.flow_history.pop_front();
+        }
     }
 
     pub fn rsi_14(&self) -> f64 {
-        if self.price_history.len() < 15 { return 50.0; }
+        if self.price_history.len() < 15 {
+            return 50.0;
+        }
         let prices: Vec<f64> = self.price_history.iter().rev().take(15).cloned().collect();
         let mut gains = 0.0_f64;
         let mut losses = 0.0_f64;
 
         for i in 0..14 {
             let change = prices[i] - prices[i + 1];
-            if change > 0.0 { gains += change; } else { losses += change.abs(); }
+            if change > 0.0 {
+                gains += change;
+            } else {
+                losses += change.abs();
+            }
         }
 
-        if losses == 0.0 { return 100.0; }
+        if losses == 0.0 {
+            return 100.0;
+        }
         let rs = (gains / 14.0) / (losses / 14.0);
         100.0 - (100.0 / (1.0 + rs))
     }
@@ -242,16 +263,24 @@ impl MarketState {
     /// Positive slope = flow still accelerating (bad). Negative = mean-reverting (good).
     pub fn flow_slope(&self, window: usize) -> f64 {
         let w = self.flow_history.len().min(window);
-        if w < 3 { return 0.0; }
+        if w < 3 {
+            return 0.0;
+        }
         let slice: Vec<f64> = self.flow_history.iter().rev().take(w).cloned().collect();
         let n = slice.len() as f64;
         let mean_x = (n - 1.0) / 2.0;
         let mean_y: f64 = slice.iter().sum::<f64>() / n;
-        let num: f64 = slice.iter().enumerate()
-            .map(|(i, &y)| (i as f64 - mean_x) * (y - mean_y)).sum();
-        let den: f64 = (0..w)
-            .map(|i| (i as f64 - mean_x).powi(2)).sum();
-        if den == 0.0 { 0.0 } else { num / den }
+        let num: f64 = slice
+            .iter()
+            .enumerate()
+            .map(|(i, &y)| (i as f64 - mean_x) * (y - mean_y))
+            .sum();
+        let den: f64 = (0..w).map(|i| (i as f64 - mean_x).powi(2)).sum();
+        if den == 0.0 {
+            0.0
+        } else {
+            num / den
+        }
     }
 }
 
@@ -284,7 +313,9 @@ impl OrderBook {
         let bid_vol: f64 = self.bids.iter().take(depth).map(|l| l.size).sum();
         let ask_vol: f64 = self.asks.iter().take(depth).map(|l| l.size).sum();
         let total = bid_vol + ask_vol;
-        if total == 0.0 { return 0.0; }
+        if total == 0.0 {
+            return 0.0;
+        }
         (bid_vol - ask_vol) / total
     }
 
@@ -292,7 +323,9 @@ impl OrderBook {
         let mut remaining = notional;
         let mut total_cost = 0.0;
         for level in &self.asks {
-            if remaining <= 0.0 { break; }
+            if remaining <= 0.0 {
+                break;
+            }
             let fill = remaining.min(level.size);
             total_cost += fill * level.price;
             remaining -= fill;
@@ -304,13 +337,19 @@ impl OrderBook {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::SeedableRng;
     use rand::rngs::SmallRng;
+    use rand::SeedableRng;
 
     #[test]
     fn test_liquidity_by_asset_class() {
-        assert!(AssetClass::from_symbol("SPY").liquidity_usd() > AssetClass::from_symbol("FXI").liquidity_usd());
-        assert!(AssetClass::from_symbol("AAPL").liquidity_usd() > AssetClass::from_symbol("XLE").liquidity_usd());
+        assert!(
+            AssetClass::from_symbol("SPY").liquidity_usd()
+                > AssetClass::from_symbol("FXI").liquidity_usd()
+        );
+        assert!(
+            AssetClass::from_symbol("AAPL").liquidity_usd()
+                > AssetClass::from_symbol("XLE").liquidity_usd()
+        );
     }
 
     #[test]
@@ -324,7 +363,11 @@ mod tests {
         }
 
         // Price should be capped at +20% of initial
-        assert!(market.mid_price <= 120.5, "Price {} should be capped at ~120", market.mid_price);
+        assert!(
+            market.mid_price <= 120.5,
+            "Price {} should be capped at ~120",
+            market.mid_price
+        );
         assert!(market.cumulative_drift_pct <= 20.1);
     }
 
@@ -332,12 +375,26 @@ mod tests {
     fn test_spread_friction_reduces_flow() {
         // 5bps spread + 0.1% slippage on $1M flow = 0.15% total friction
         let friction_buy = apply_spread_friction(1_000_000.0, 100.0, 5.0);
-        assert!(friction_buy < 1_000_000.0, "Buy should be reduced by friction");
-        assert!(friction_buy > 997_000.0, "Friction should be small: got {}", friction_buy);
+        assert!(
+            friction_buy < 1_000_000.0,
+            "Buy should be reduced by friction"
+        );
+        assert!(
+            friction_buy > 997_000.0,
+            "Friction should be small: got {}",
+            friction_buy
+        );
 
         let friction_sell = apply_spread_friction(-1_000_000.0, 100.0, 5.0);
-        assert!(friction_sell > -1_000_000.0, "Sell magnitude should be reduced");
-        assert!(friction_sell < -997_000.0, "Friction should be small: got {}", friction_sell);
+        assert!(
+            friction_sell > -1_000_000.0,
+            "Sell magnitude should be reduced"
+        );
+        assert!(
+            friction_sell < -997_000.0,
+            "Friction should be small: got {}",
+            friction_sell
+        );
     }
 
     #[test]
@@ -351,6 +408,11 @@ mod tests {
 
         // VWAP should be close to current price with zero flow
         let vwap_diff = (market.vwap - market.mid_price).abs() / market.mid_price;
-        assert!(vwap_diff < 0.05, "VWAP {} should track price {} closely", market.vwap, market.mid_price);
+        assert!(
+            vwap_diff < 0.05,
+            "VWAP {} should track price {} closely",
+            market.vwap,
+            market.mid_price
+        );
     }
 }

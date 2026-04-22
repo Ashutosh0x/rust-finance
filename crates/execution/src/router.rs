@@ -1,4 +1,4 @@
-use crate::dry_run::{simulate_fill, Order, Fill};
+use crate::dry_run::{simulate_fill, Fill, Order};
 use std::sync::OnceLock;
 use tracing::info;
 
@@ -16,16 +16,23 @@ pub async fn execute(order: Order) -> Result<Fill, String> {
     match mode {
         "dry_run" | "paper_trade" => {
             let fill = simulate_fill(&order);
-            info!("[DRY RUN] Simulated fill for {}: price = {:.4}, qty = {}", order.symbol, fill.fill_price, order.qty);
+            info!(
+                "[DRY RUN] Simulated fill for {}: price = {:.4}, qty = {}",
+                order.symbol, fill.fill_price, order.qty
+            );
             Ok(fill)
         }
         "live" => {
             // TODO: Wire real exchange/RPC submission here
-            info!("[LIVE] Sending real order for {}: price = {}, qty = {}", order.symbol, order.price, order.qty);
+            info!(
+                "[LIVE] Sending real order for {}: price = {}, qty = {}",
+                order.symbol, order.price, order.qty
+            );
             Err("Live execution not yet implemented — refusing to send real order".into())
         }
-        _ => {
-            Err(format!("[SECURITY SAFEGUARD] Unknown EXECUTION_MODE '{}'. Order blocked.", mode))
-        }
+        _ => Err(format!(
+            "[SECURITY SAFEGUARD] Unknown EXECUTION_MODE '{}'. Order blocked.",
+            mode
+        )),
     }
 }

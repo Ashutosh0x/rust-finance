@@ -9,7 +9,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct OptionsContract {
     pub symbol: String,
-    pub expiry: String,           // "2026-03-21"
+    pub expiry: String, // "2026-03-21"
     pub strike: f64,
     pub contract_type: ContractType,
     /// Gamma per contract (from options chain data)
@@ -21,7 +21,10 @@ pub struct OptionsContract {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ContractType { Call, Put }
+pub enum ContractType {
+    Call,
+    Put,
+}
 
 /// GEX at a specific strike price
 #[derive(Debug, Clone)]
@@ -73,7 +76,9 @@ impl GexCalculator {
         let mut by_strike: HashMap<u64, (f64, f64)> = HashMap::new(); // strike_cents → (call_gex, put_gex)
 
         for contract in contracts {
-            if contract.symbol != symbol { continue; }
+            if contract.symbol != symbol {
+                continue;
+            }
 
             // GEX = gamma × open_interest × multiplier × spot² × 0.01
             // The spot² × 0.01 converts gamma (per 1% move) to dollar gamma
@@ -88,22 +93,25 @@ impl GexCalculator {
             let entry = by_strike.entry(strike_key).or_insert((0.0, 0.0));
 
             match contract.contract_type {
-                ContractType::Call => entry.0 += gex,          // calls: dealers long gamma (positive)
-                ContractType::Put  => entry.1 -= gex,          // puts: dealers short gamma (negative by convention)
+                ContractType::Call => entry.0 += gex, // calls: dealers long gamma (positive)
+                ContractType::Put => entry.1 -= gex, // puts: dealers short gamma (negative by convention)
             }
         }
 
-        let mut strikes: Vec<StrikeGex> = by_strike.iter().map(|(k, (call_gex, put_gex))| {
-            let strike = *k as f64 / 100.0;
-            let net = call_gex + put_gex;
-            StrikeGex {
-                strike,
-                net_gex_usd: net,
-                call_gex_usd: *call_gex,
-                put_gex_usd: *put_gex,
-                magnitude: net.abs(),
-            }
-        }).collect();
+        let mut strikes: Vec<StrikeGex> = by_strike
+            .iter()
+            .map(|(k, (call_gex, put_gex))| {
+                let strike = *k as f64 / 100.0;
+                let net = call_gex + put_gex;
+                StrikeGex {
+                    strike,
+                    net_gex_usd: net,
+                    call_gex_usd: *call_gex,
+                    put_gex_usd: *put_gex,
+                    magnitude: net.abs(),
+                }
+            })
+            .collect();
 
         strikes.sort_by(|a, b| a.strike.partial_cmp(&b.strike).unwrap());
 
@@ -113,12 +121,14 @@ impl GexCalculator {
         let flip_point = Self::find_flip_point(&strikes, spot_price);
 
         // Price magnets: largest positive and negative GEX strikes
-        let max_positive_strike = strikes.iter()
+        let max_positive_strike = strikes
+            .iter()
             .filter(|s| s.net_gex_usd > 0.0)
             .max_by(|a, b| a.net_gex_usd.partial_cmp(&b.net_gex_usd).unwrap())
             .map(|s| s.strike);
 
-        let max_negative_strike = strikes.iter()
+        let max_negative_strike = strikes
+            .iter()
             .filter(|s| s.net_gex_usd < 0.0)
             .min_by(|a, b| a.net_gex_usd.partial_cmp(&b.net_gex_usd).unwrap())
             .map(|s| s.strike);

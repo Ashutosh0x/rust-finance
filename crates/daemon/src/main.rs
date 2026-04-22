@@ -10,8 +10,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .with_target(false)
         .init();
@@ -31,14 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let strategy = Box::new(SimpleMomentum::new(20));
 
     // Build and run engine
-    let engine = Engine::new(
-        market_stream,
-        strategy,
-        risk_chain,
-        executor,
-        state,
-        tui_tx,
-    );
+    let engine = Engine::new(market_stream, strategy, risk_chain, executor, state, tui_tx);
 
     engine.run().await;
 

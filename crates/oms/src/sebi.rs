@@ -9,8 +9,8 @@
 // - Daily traded value caps per client
 // - Price band checks (circuit filters)
 
+use chrono::{DateTime, Timelike, Utc};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc, Timelike};
 
 /// SEBI-mandated compliance configuration.
 /// Values based on SEBI Circular SEBI/HO/MRD/DP/CIR/P/2019/116.
@@ -41,8 +41,8 @@ impl Default for SebiConfig {
             squareoff_time_hour: 15,
             squareoff_time_minute: 15,
             max_daily_qty_per_scrip: 1_000_000.0,
-            max_daily_turnover: 500_000_000.0,     // ₹50 Cr
-            price_band_pct: 0.20,                  // ±20% circuit filter
+            max_daily_turnover: 500_000_000.0, // ₹50 Cr
+            price_band_pct: 0.20,              // ±20% circuit filter
         }
     }
 }
@@ -71,13 +71,21 @@ pub enum SebiViolation {
     PastSquareoffTime { hour: u32, minute: u32 },
 
     #[error("Daily qty for {symbol} ({qty:.0}) exceeds limit {limit:.0}")]
-    DailyQtyExceeded { symbol: String, qty: f64, limit: f64 },
+    DailyQtyExceeded {
+        symbol: String,
+        qty: f64,
+        limit: f64,
+    },
 
     #[error("Daily turnover ₹{turnover:.0} exceeds cap ₹{cap:.0}")]
     DailyTurnoverExceeded { turnover: f64, cap: f64 },
 
     #[error("Price {price:.2} outside ±{band:.0}% band (ref: {reference:.2})")]
-    PriceBandViolation { price: f64, reference: f64, band: f64 },
+    PriceBandViolation {
+        price: f64,
+        reference: f64,
+        band: f64,
+    },
 
     #[error("Bracket order target {target_pct:.1}% must be greater than stoploss {sl_pct:.1}%")]
     InvalidBracketOrder { target_pct: f64, sl_pct: f64 },
@@ -115,9 +123,12 @@ impl SebiCompliance {
 
     /// Update the price tape — call on every market tick.
     pub fn on_price_tick(&mut self, symbol: &str, price: f64) {
-        let entry = self.price_tape.entry(symbol.to_string()).or_insert((price, price));
+        let entry = self
+            .price_tape
+            .entry(symbol.to_string())
+            .or_insert((price, price));
         entry.0 = entry.1; // prev = last
-        entry.1 = price;   // last = new
+        entry.1 = price; // last = new
     }
 
     /// Set the reference price (previous close) for circuit filter checks.
@@ -157,16 +168,18 @@ impl SebiCompliance {
         let ist_now = now.with_timezone(&ist_offset);
         let ist_hour = ist_now.hour();
         let ist_minute = ist_now.minute();
-        if matches!(variety, OrderVariety::Mis | OrderVariety::Bo { .. } | OrderVariety::Co { .. })
-            && (ist_hour > self.cfg.squareoff_time_hour
-                || (ist_hour == self.cfg.squareoff_time_hour
-                    && ist_minute >= self.cfg.squareoff_time_minute))
-            {
-                return Err(SebiViolation::PastSquareoffTime {
-                    hour: self.cfg.squareoff_time_hour,
-                    minute: self.cfg.squareoff_time_minute,
-                });
-            }
+        if matches!(
+            variety,
+            OrderVariety::Mis | OrderVariety::Bo { .. } | OrderVariety::Co { .. }
+        ) && (ist_hour > self.cfg.squareoff_time_hour
+            || (ist_hour == self.cfg.squareoff_time_hour
+                && ist_minute >= self.cfg.squareoff_time_minute))
+        {
+            return Err(SebiViolation::PastSquareoffTime {
+                hour: self.cfg.squareoff_time_hour,
+                minute: self.cfg.squareoff_time_minute,
+            });
+        }
 
         // ── 3. Short sell uptick rule ───────────────────────────────────────
         if is_sell {
@@ -218,7 +231,11 @@ impl SebiCompliance {
         }
 
         // ── 7. Bracket order validation ─────────────────────────────────────
-        if let OrderVariety::Bo { target_pct, stoploss_pct } = variety {
+        if let OrderVariety::Bo {
+            target_pct,
+            stoploss_pct,
+        } = variety
+        {
             if target_pct <= stoploss_pct {
                 return Err(SebiViolation::InvalidBracketOrder {
                     target_pct: *target_pct,
@@ -242,7 +259,11 @@ impl SebiCompliance {
     /// Record an accepted order's contribution to daily limits.
     pub fn record_order(&mut self, symbol: &str, quantity: f64, price: f64) {
         self.client_state.daily_turnover += quantity * price;
-        *self.client_state.daily_qty.entry(symbol.to_string()).or_insert(0.0) += quantity;
+        *self
+            .client_state
+            .daily_qty
+            .entry(symbol.to_string())
+            .or_insert(0.0) += quantity;
     }
 }
 
@@ -271,10 +292,17 @@ mod tests {
             ..Default::default()
         });
         let result = compliance.check(
-            "RELIANCE", false, 100.0, 20.0,
-            &OrderVariety::Cnc, utc_time(10, 0),
+            "RELIANCE",
+            false,
+            100.0,
+            20.0,
+            &OrderVariety::Cnc,
+            utc_time(10, 0),
         );
-        assert!(matches!(result, Err(SebiViolation::OrderValueExceeded { .. })));
+        assert!(matches!(
+            result,
+            Err(SebiViolation::OrderValueExceeded { .. })
+        ));
     }
 
     #[test]
@@ -282,10 +310,17 @@ mod tests {
         let compliance = SebiCompliance::new(SebiConfig::default());
         // 15:20 IST — past 15:15 cutoff
         let result = compliance.check(
-            "INFY", false, 10.0, 1500.0,
-            &OrderVariety::Mis, utc_time(15, 20),
+            "INFY",
+            false,
+            10.0,
+            1500.0,
+            &OrderVariety::Mis,
+            utc_time(15, 20),
         );
-        assert!(matches!(result, Err(SebiViolation::PastSquareoffTime { .. })));
+        assert!(matches!(
+            result,
+            Err(SebiViolation::PastSquareoffTime { .. })
+        ));
     }
 
     #[test]
@@ -297,18 +332,29 @@ mod tests {
         compliance.set_reference_price("TATAMOTORS", 500.0);
         // Price 560 is +12% → outside ±10% band
         let result = compliance.check(
-            "TATAMOTORS", false, 10.0, 560.0,
-            &OrderVariety::Cnc, utc_time(10, 0),
+            "TATAMOTORS",
+            false,
+            10.0,
+            560.0,
+            &OrderVariety::Cnc,
+            utc_time(10, 0),
         );
-        assert!(matches!(result, Err(SebiViolation::PriceBandViolation { .. })));
+        assert!(matches!(
+            result,
+            Err(SebiViolation::PriceBandViolation { .. })
+        ));
     }
 
     #[test]
     fn test_valid_order_passes() {
         let compliance = SebiCompliance::new(SebiConfig::default());
         let result = compliance.check(
-            "SBIN", false, 100.0, 700.0,
-            &OrderVariety::Cnc, utc_time(10, 30),
+            "SBIN",
+            false,
+            100.0,
+            700.0,
+            &OrderVariety::Cnc,
+            utc_time(10, 30),
         );
         assert!(result.is_ok());
     }

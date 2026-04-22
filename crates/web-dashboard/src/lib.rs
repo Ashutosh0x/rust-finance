@@ -1,20 +1,23 @@
 #![forbid(unsafe_code)]
 use axum::{
-    extract::ws::{WebSocket, WebSocketUpgrade, Message}, 
-    response::{Html, Response}, 
-    routing::get, 
-    Router
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    response::{Html, Response},
+    routing::get,
+    Router,
 };
 use std::net::SocketAddr;
 use tokio::sync::broadcast;
 
 pub async fn serve(tx: broadcast::Sender<String>) {
-    let app = Router::new()
-        .route("/", get(index))
-        .route("/ws", get(move |ws: WebSocketUpgrade| handle_ws(ws, tx.clone())));
+    let app = Router::new().route("/", get(index)).route(
+        "/ws",
+        get(move |ws: WebSocketUpgrade| handle_ws(ws, tx.clone())),
+    );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("Failed to bind web dashboard to port 8080");
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("Failed to bind web dashboard to port 8080");
     tracing::info!("web-dashboard listening on {}", addr);
     if let Err(e) = axum::serve(listener, app).await {
         tracing::error!("Web dashboard server crashed: {:?}", e);

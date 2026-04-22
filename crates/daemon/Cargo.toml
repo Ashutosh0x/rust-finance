@@ -2,6 +2,12 @@
 name = "daemon"
 version = "0.1.0"
 edition = "2021"
+description = "Background daemon process for RustForge trading operations"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 # v2 core crates

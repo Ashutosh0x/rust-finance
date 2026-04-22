@@ -2,6 +2,12 @@
 name = "ai"
 version = "0.1.0"
 edition = "2021"
+description = "AI-powered trading signals, LLM integration, and market analysis for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 common = { path = "../common" }

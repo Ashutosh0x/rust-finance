@@ -1,9 +1,6 @@
 // crates/polymarket/src/signing.rs
 
-use ethers_core::types::{
-    transaction::eip712::EIP712Domain,
-    Address, U256, H256,
-};
+use ethers_core::types::{transaction::eip712::EIP712Domain, Address, H256, U256};
 use ethers_signers::{LocalWallet, Signer};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -101,9 +98,7 @@ fn encode_order(order: &Order) -> Vec<u8> {
         Token::Uint(U256::from_dec_str(&order.nonce).unwrap_or_default()),
         Token::Uint(U256::from_dec_str(&order.fee_rate_bps).unwrap_or_default()),
         Token::Uint(U256::from(order.side.parse::<u8>().unwrap_or(0))),
-        Token::Uint(U256::from(
-            order.signature_type.parse::<u8>().unwrap_or(0),
-        )),
+        Token::Uint(U256::from(order.signature_type.parse::<u8>().unwrap_or(0))),
     ];
 
     encode(&tokens)

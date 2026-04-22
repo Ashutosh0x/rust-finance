@@ -48,7 +48,7 @@ pub enum AlertSeverity {
     Critical,
 }
 
-use common::models::exchange::{ExchangeInfo, ExchangeStatus, ExchangeName};
+use common::models::exchange::{ExchangeInfo, ExchangeName, ExchangeStatus};
 
 // ── Order types for dialogs ───────────────────────────────────────────────────
 
@@ -64,18 +64,18 @@ impl DialogOrderType {
     pub fn label(&self) -> &'static str {
         match self {
             DialogOrderType::Market => "MKT",
-            DialogOrderType::Limit  => "LMT",
-            DialogOrderType::Stop   => "STP",
-            DialogOrderType::Ioc    => "IOC",
+            DialogOrderType::Limit => "LMT",
+            DialogOrderType::Stop => "STP",
+            DialogOrderType::Ioc => "IOC",
         }
     }
 
     pub fn next(&self) -> Self {
         match self {
             DialogOrderType::Market => DialogOrderType::Limit,
-            DialogOrderType::Limit  => DialogOrderType::Stop,
-            DialogOrderType::Stop   => DialogOrderType::Ioc,
-            DialogOrderType::Ioc    => DialogOrderType::Market,
+            DialogOrderType::Limit => DialogOrderType::Stop,
+            DialogOrderType::Stop => DialogOrderType::Ioc,
+            DialogOrderType::Ioc => DialogOrderType::Market,
         }
     }
 }
@@ -115,7 +115,7 @@ pub struct App {
     pub active_panel: u8,
 
     pub active_symbol: String,
-    
+
     // ── Dialogs ───────────────────────────────────────────────────────────
     pub show_buy_dialog: bool,
     pub show_sell_dialog: bool,
@@ -199,7 +199,7 @@ impl App {
             paper_mode: true, // Default to paper mode for safety
             active_panel: 0,
             active_symbol: "AAPL".to_string(),
-            
+
             show_buy_dialog: false,
             show_sell_dialog: false,
             order_qty_input: String::new(),
@@ -346,7 +346,11 @@ impl App {
     }
 
     pub fn prev_panel(&mut self) {
-        self.active_panel = if self.active_panel == 0 { 5 } else { self.active_panel - 1 };
+        self.active_panel = if self.active_panel == 0 {
+            5
+        } else {
+            self.active_panel - 1
+        };
     }
 
     // ── Kill Switch ───────────────────────────────────────────────────────────
@@ -358,19 +362,32 @@ impl App {
         self.kill_switch_orders_cancelled = self.orders_sent;
         self.kill_switch_positions_closed = self.positions.len() as u32;
         self.sequence_id += 1;
-        self.push_alert_severity("!!! KILL SWITCH ACTIVATED -- ALL TRADING HALTED", AlertSeverity::Critical);
+        self.push_alert_severity(
+            "!!! KILL SWITCH ACTIVATED -- ALL TRADING HALTED",
+            AlertSeverity::Critical,
+        );
     }
 
     // ── Trading ───────────────────────────────────────────────────────────────
 
     pub fn push_alert(&mut self, text: &str) {
-        self.alerts.push_front(AlertItem { text: text.to_string(), severity: AlertSeverity::Info });
-        if self.alerts.len() > 20 { self.alerts.pop_back(); }
+        self.alerts.push_front(AlertItem {
+            text: text.to_string(),
+            severity: AlertSeverity::Info,
+        });
+        if self.alerts.len() > 20 {
+            self.alerts.pop_back();
+        }
     }
 
     pub fn push_alert_severity(&mut self, text: &str, severity: AlertSeverity) {
-        self.alerts.push_front(AlertItem { text: text.to_string(), severity });
-        if self.alerts.len() > 20 { self.alerts.pop_back(); }
+        self.alerts.push_front(AlertItem {
+            text: text.to_string(),
+            severity,
+        });
+        if self.alerts.len() > 20 {
+            self.alerts.pop_back();
+        }
     }
 
     pub fn open_buy_dialog(&mut self) {
@@ -400,7 +417,10 @@ impl App {
     }
 
     pub fn cancel_all(&mut self) {
-        self.push_alert_severity("WARNING: All pending orders cancelled.", AlertSeverity::Warning);
+        self.push_alert_severity(
+            "WARNING: All pending orders cancelled.",
+            AlertSeverity::Warning,
+        );
     }
 
     #[allow(dead_code)]
@@ -415,15 +435,25 @@ impl App {
     pub fn confirm_order(&mut self) {
         self.sequence_id += 1;
         if self.show_buy_dialog {
-             self.orders_sent += 1;
-             self.push_alert(&format!("BUY {} submitted: {} qty @ {} [seq:{}]", 
-                 self.active_symbol, self.order_qty_input, self.dialog_order_type.label(), self.sequence_id));
+            self.orders_sent += 1;
+            self.push_alert(&format!(
+                "BUY {} submitted: {} qty @ {} [seq:{}]",
+                self.active_symbol,
+                self.order_qty_input,
+                self.dialog_order_type.label(),
+                self.sequence_id
+            ));
         } else if self.show_sell_dialog {
-             self.orders_sent += 1;
-             self.push_alert(&format!("SELL {} submitted: {} qty @ {} [seq:{}]", 
-                 self.active_symbol, self.order_qty_input, self.dialog_order_type.label(), self.sequence_id));
+            self.orders_sent += 1;
+            self.push_alert(&format!(
+                "SELL {} submitted: {} qty @ {} [seq:{}]",
+                self.active_symbol,
+                self.order_qty_input,
+                self.dialog_order_type.label(),
+                self.sequence_id
+            ));
         } else {
-             self.push_alert("Order submitted to execution engine.");
+            self.push_alert("Order submitted to execution engine.");
         }
         self.show_buy_dialog = false;
         self.show_sell_dialog = false;
@@ -441,8 +471,11 @@ impl App {
         self.dexter_loading = true;
         self.dexter_output = vec!["Analyzing market conditions...".to_string()];
         self.dexter_recommendation = None;
-        self.push_alert(&format!("Dexter Analysis #{} requested for {}...", self.dexter_call_count, self.active_symbol));
-        
+        self.push_alert(&format!(
+            "Dexter Analysis #{} requested for {}...",
+            self.dexter_call_count, self.active_symbol
+        ));
+
         // Simulate completion after a brief moment (in real app, async task would update)
         self.dexter_loading = false;
         self.dexter_output = vec![
@@ -463,7 +496,10 @@ impl App {
     }
 
     pub fn trigger_mirofish(&mut self) {
-        self.push_alert(&format!("Mirofish {}-agent simulation started.", self.mirofish_agent_count));
+        self.push_alert(&format!(
+            "Mirofish {}-agent simulation started.",
+            self.mirofish_agent_count
+        ));
         self.mirofish_running = true;
         // Simulate realistic scenario probabilities summing to 100%
         self.mirofish_rally_pct = 70.0;
@@ -487,7 +523,10 @@ impl App {
     }
 
     pub fn toggle_auto_trade(&mut self) {
-        self.push_alert_severity("Auto-trade mode TOGGLED. [!] Confirm with Ctrl+A again.", AlertSeverity::Warning);
+        self.push_alert_severity(
+            "Auto-trade mode TOGGLED. [!] Confirm with Ctrl+A again.",
+            AlertSeverity::Warning,
+        );
     }
 
     // ── Data ──────────────────────────────────────────────────────────────────
@@ -531,21 +570,27 @@ impl App {
     pub fn update_from_event(&mut self, event: common::events::BotEvent) {
         use common::events::BotEvent;
         self.sequence_id += 1;
-        
+
         match event {
-            BotEvent::MarketEvent { symbol, price, volume, event_type, .. } => {
+            BotEvent::MarketEvent {
+                symbol,
+                price,
+                volume,
+                event_type,
+                ..
+            } => {
                 if let Some(item) = self.watchlist.iter_mut().find(|w| w.symbol == symbol) {
                     item.price = price;
                     item.change_pct = (price - 100.0) / 100.0;
                 }
-                
+
                 if symbol == self.active_symbol && event_type == "trade" {
                     let next_x = self.chart_data.last().map(|(x, _)| *x + 1.0).unwrap_or(0.0);
                     self.chart_data.push((next_x, price));
                     if self.chart_data.len() > 2000 {
                         self.chart_data.remove(0);
                     }
-                    
+
                     if let Some(vol) = volume {
                         self.volume_data.push((next_x, vol));
                         if self.volume_data.len() > 2000 {
@@ -553,7 +598,7 @@ impl App {
                         }
                         self.chart_stats.volume += vol;
                     }
-                    
+
                     self.chart_stats.last_price = price;
                     if price > self.chart_stats.high_price || self.chart_stats.high_price == 0.0 {
                         self.chart_stats.high_price = price;
@@ -561,7 +606,7 @@ impl App {
                     if price < self.chart_stats.low_price || self.chart_stats.low_price == 0.0 {
                         self.chart_stats.low_price = price;
                     }
-                    
+
                     let sum: f64 = self.chart_data.iter().map(|(_, p)| p).sum();
                     self.chart_stats.average = sum / self.chart_data.len() as f64;
                 }
@@ -580,66 +625,118 @@ impl App {
             BotEvent::WalletUpdate { sol_balance, .. } => {
                 self.available_power = sol_balance;
             }
-            BotEvent::AISignal { symbol, action, confidence, reason } => {
+            BotEvent::AISignal {
+                symbol,
+                action,
+                confidence,
+                reason,
+            } => {
                 self.alerts.push_front(AlertItem {
-                    text: format!("AI {} {} at {}% ({})", action, symbol, (confidence * 100.0) as u32, reason),
+                    text: format!(
+                        "AI {} {} at {}% ({})",
+                        action,
+                        symbol,
+                        (confidence * 100.0) as u32,
+                        reason
+                    ),
                     severity: AlertSeverity::Warning,
                 });
                 if self.alerts.len() > 20 {
                     self.alerts.pop_back();
                 }
             }
-            BotEvent::QuoteEvent { symbol, bid_price, bid_size, ask_price, ask_size, .. } => {
+            BotEvent::QuoteEvent {
+                symbol,
+                bid_price,
+                bid_size,
+                ask_price,
+                ask_size,
+                ..
+            } => {
                 if symbol == self.active_symbol {
                     if ask_size > 0 {
                         if !self.order_book.iter().any(|r| r.ask_price == ask_price) {
                             self.order_book.push(OrderBookRow {
-                                ask_price, ask_size, ask_total: 0.0,
-                                bid_price: 0.0, bid_size: 0, bid_total: 0.0,
+                                ask_price,
+                                ask_size,
+                                ask_total: 0.0,
+                                bid_price: 0.0,
+                                bid_size: 0,
+                                bid_total: 0.0,
                             });
-                        } else if let Some(row) = self.order_book.iter_mut().find(|r| r.ask_price == ask_price) {
+                        } else if let Some(row) = self
+                            .order_book
+                            .iter_mut()
+                            .find(|r| r.ask_price == ask_price)
+                        {
                             row.ask_size = ask_size;
                         }
                     }
-                    
+
                     if bid_size > 0 {
                         if !self.order_book.iter().any(|r| r.bid_price == bid_price) {
-                             self.order_book.push(OrderBookRow {
-                                ask_price: 0.0, ask_size: 0, ask_total: 0.0,
-                                bid_price, bid_size, bid_total: 0.0,
+                            self.order_book.push(OrderBookRow {
+                                ask_price: 0.0,
+                                ask_size: 0,
+                                ask_total: 0.0,
+                                bid_price,
+                                bid_size,
+                                bid_total: 0.0,
                             });
-                        } else if let Some(row) = self.order_book.iter_mut().find(|r| r.bid_price == bid_price) {
+                        } else if let Some(row) = self
+                            .order_book
+                            .iter_mut()
+                            .find(|r| r.bid_price == bid_price)
+                        {
                             row.bid_size = bid_size;
                         }
                     }
-                    
-                    let mut asks: Vec<_> = self.order_book.iter().filter(|r| r.ask_price > 0.0).map(|r| (r.ask_price, r.ask_size)).collect();
+
+                    let mut asks: Vec<_> = self
+                        .order_book
+                        .iter()
+                        .filter(|r| r.ask_price > 0.0)
+                        .map(|r| (r.ask_price, r.ask_size))
+                        .collect();
                     asks.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-                    
-                    let mut bids: Vec<_> = self.order_book.iter().filter(|r| r.bid_price > 0.0).map(|r| (r.bid_price, r.bid_size)).collect();
+
+                    let mut bids: Vec<_> = self
+                        .order_book
+                        .iter()
+                        .filter(|r| r.bid_price > 0.0)
+                        .map(|r| (r.bid_price, r.bid_size))
+                        .collect();
                     bids.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
-                    
+
                     self.order_book.clear();
                     let rows = std::cmp::max(asks.len(), bids.len()).min(15);
-                    
+
                     let mut ask_cumulative = 0.0;
                     let mut bid_cumulative = 0.0;
-                    
+
                     for i in 0..rows {
                         let (ap, asz) = asks.get(i).copied().unwrap_or((0.0, 0));
                         let (bp, bsz) = bids.get(i).copied().unwrap_or((0.0, 0));
-                        
+
                         ask_cumulative += (asz as f64 * ap) / 1000.0;
                         bid_cumulative += (bsz as f64 * bp) / 1000.0;
-                        
+
                         self.order_book.push(OrderBookRow {
-                            ask_price: ap, ask_size: asz, ask_total: ask_cumulative,
-                            bid_price: bp, bid_size: bsz, bid_total: bid_cumulative,
+                            ask_price: ap,
+                            ask_size: asz,
+                            ask_total: ask_cumulative,
+                            bid_price: bp,
+                            bid_size: bsz,
+                            bid_total: bid_cumulative,
                         });
                     }
                 }
             }
-            BotEvent::ExchangeHeartbeat { exchange, status, latency_ms } => {
+            BotEvent::ExchangeHeartbeat {
+                exchange,
+                status,
+                latency_ms,
+            } => {
                 let parsed_name = match exchange.as_str() {
                     "NYSE" => ExchangeName::NYSE,
                     "NASDAQ" => ExchangeName::NASDAQ,
@@ -662,7 +759,12 @@ impl App {
                 if let Some(ex) = self.exchanges.iter_mut().find(|e| e.name == parsed_name) {
                     ex.status = parsed_status;
                     ex.latency_ms = latency_ms;
-                    ex.last_heartbeat = Some(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64);
+                    ex.last_heartbeat = Some(
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_millis() as i64,
+                    );
                 }
             }
             _ => {}
@@ -674,41 +776,175 @@ impl App {
 
 fn default_watchlist() -> Vec<WatchlistItem> {
     vec![
-        WatchlistItem { symbol: "AAPL".into(), name: "Apple Inc.".into(), price: 322.50, change_pct: 1.58 },
-        WatchlistItem { symbol: "NVDA".into(), name: "NVIDIA Corp.".into(), price: 297.75, change_pct: 0.32 },
-        WatchlistItem { symbol: "TSLA".into(), name: "Tesla Inc.".into(), price: 103.35, change_pct: -0.31 },
-        WatchlistItem { symbol: "AMZN".into(), name: "Amazon.com Inc.".into(), price: 83.50, change_pct: -0.17 },
-        WatchlistItem { symbol: "MSFT".into(), name: "Microsoft Corp.".into(), price: 119.50, change_pct: -1.27 },
-        WatchlistItem { symbol: "GOOG".into(), name: "Alphabet Inc.".into(), price: 223.90, change_pct: -0.79 },
-        WatchlistItem { symbol: "META".into(), name: "Meta Platforms".into(), price: 52.55, change_pct: -0.33 },
-        WatchlistItem { symbol: "NFLX".into(), name: "Netflix Inc.".into(), price: 308.83, change_pct: -0.32 },
-        WatchlistItem { symbol: "AMD".into(), name: "AMD Inc.".into(), price: 111.93, change_pct: 1.22 },
-        WatchlistItem { symbol: "INTC".into(), name: "Intel Corp.".into(), price: 52.27, change_pct: 0.12 },
-        WatchlistItem { symbol: "CRM".into(), name: "Salesforce Inc.".into(), price: 275.19, change_pct: 0.12 },
-        WatchlistItem { symbol: "ORCL".into(), name: "Oracle Corp.".into(), price: 38.20, change_pct: -0.30 },
-        WatchlistItem { symbol: "UBER".into(), name: "Uber Tech.".into(), price: 135.15, change_pct: -0.38 },
+        WatchlistItem {
+            symbol: "AAPL".into(),
+            name: "Apple Inc.".into(),
+            price: 322.50,
+            change_pct: 1.58,
+        },
+        WatchlistItem {
+            symbol: "NVDA".into(),
+            name: "NVIDIA Corp.".into(),
+            price: 297.75,
+            change_pct: 0.32,
+        },
+        WatchlistItem {
+            symbol: "TSLA".into(),
+            name: "Tesla Inc.".into(),
+            price: 103.35,
+            change_pct: -0.31,
+        },
+        WatchlistItem {
+            symbol: "AMZN".into(),
+            name: "Amazon.com Inc.".into(),
+            price: 83.50,
+            change_pct: -0.17,
+        },
+        WatchlistItem {
+            symbol: "MSFT".into(),
+            name: "Microsoft Corp.".into(),
+            price: 119.50,
+            change_pct: -1.27,
+        },
+        WatchlistItem {
+            symbol: "GOOG".into(),
+            name: "Alphabet Inc.".into(),
+            price: 223.90,
+            change_pct: -0.79,
+        },
+        WatchlistItem {
+            symbol: "META".into(),
+            name: "Meta Platforms".into(),
+            price: 52.55,
+            change_pct: -0.33,
+        },
+        WatchlistItem {
+            symbol: "NFLX".into(),
+            name: "Netflix Inc.".into(),
+            price: 308.83,
+            change_pct: -0.32,
+        },
+        WatchlistItem {
+            symbol: "AMD".into(),
+            name: "AMD Inc.".into(),
+            price: 111.93,
+            change_pct: 1.22,
+        },
+        WatchlistItem {
+            symbol: "INTC".into(),
+            name: "Intel Corp.".into(),
+            price: 52.27,
+            change_pct: 0.12,
+        },
+        WatchlistItem {
+            symbol: "CRM".into(),
+            name: "Salesforce Inc.".into(),
+            price: 275.19,
+            change_pct: 0.12,
+        },
+        WatchlistItem {
+            symbol: "ORCL".into(),
+            name: "Oracle Corp.".into(),
+            price: 38.20,
+            change_pct: -0.30,
+        },
+        WatchlistItem {
+            symbol: "UBER".into(),
+            name: "Uber Tech.".into(),
+            price: 135.15,
+            change_pct: -0.38,
+        },
     ]
 }
 
 fn default_positions() -> Vec<PositionEntry> {
     vec![
-        PositionEntry { symbol: "AAPL".into(), holding: 222.50, pnl_pct: 1.72 },
-        PositionEntry { symbol: "NVDA".into(), holding: 100.00, pnl_pct: 1.53 },
-        PositionEntry { symbol: "NVDA".into(), holding: 50.00, pnl_pct: 1.15 },
-        PositionEntry { symbol: "TSLA".into(), holding: 0.00, pnl_pct: -0.23 },
-        PositionEntry { symbol: "AMZN".into(), holding: -10.00, pnl_pct: -0.27 },
+        PositionEntry {
+            symbol: "AAPL".into(),
+            holding: 222.50,
+            pnl_pct: 1.72,
+        },
+        PositionEntry {
+            symbol: "NVDA".into(),
+            holding: 100.00,
+            pnl_pct: 1.53,
+        },
+        PositionEntry {
+            symbol: "NVDA".into(),
+            holding: 50.00,
+            pnl_pct: 1.15,
+        },
+        PositionEntry {
+            symbol: "TSLA".into(),
+            holding: 0.00,
+            pnl_pct: -0.23,
+        },
+        PositionEntry {
+            symbol: "AMZN".into(),
+            holding: -10.00,
+            pnl_pct: -0.27,
+        },
     ]
 }
 
 fn default_order_book() -> Vec<OrderBookRow> {
     vec![
-        OrderBookRow { ask_price: 7871.71, ask_size: 100, ask_total: 2382.0, bid_price: 7871.70, bid_size: 300, bid_total: 10033.0 },
-        OrderBookRow { ask_price: 7871.70, ask_size: 100, ask_total: 2543.0, bid_price: 7871.69, bid_size: 200, bid_total: 9893.0 },
-        OrderBookRow { ask_price: 7871.70, ask_size: 120, ask_total: 1592.0, bid_price: 7871.68, bid_size: 300, bid_total: 4083.0 },
-        OrderBookRow { ask_price: 7871.70, ask_size: 100, ask_total: 1193.0, bid_price: 7871.68, bid_size: 200, bid_total: 3283.0 },
-        OrderBookRow { ask_price: 7871.80, ask_size: 100, ask_total: 1213.0, bid_price: 7871.67, bid_size: 1000, bid_total: 3132.0 },
-        OrderBookRow { ask_price: 7871.80, ask_size: 360, ask_total: 2133.0, bid_price: 7871.66, bid_size: 1000, bid_total: 4282.0 },
-        OrderBookRow { ask_price: 7871.90, ask_size: 80, ask_total: 593.0, bid_price: 7871.65, bid_size: 400, bid_total: 3282.0 },
+        OrderBookRow {
+            ask_price: 7871.71,
+            ask_size: 100,
+            ask_total: 2382.0,
+            bid_price: 7871.70,
+            bid_size: 300,
+            bid_total: 10033.0,
+        },
+        OrderBookRow {
+            ask_price: 7871.70,
+            ask_size: 100,
+            ask_total: 2543.0,
+            bid_price: 7871.69,
+            bid_size: 200,
+            bid_total: 9893.0,
+        },
+        OrderBookRow {
+            ask_price: 7871.70,
+            ask_size: 120,
+            ask_total: 1592.0,
+            bid_price: 7871.68,
+            bid_size: 300,
+            bid_total: 4083.0,
+        },
+        OrderBookRow {
+            ask_price: 7871.70,
+            ask_size: 100,
+            ask_total: 1193.0,
+            bid_price: 7871.68,
+            bid_size: 200,
+            bid_total: 3283.0,
+        },
+        OrderBookRow {
+            ask_price: 7871.80,
+            ask_size: 100,
+            ask_total: 1213.0,
+            bid_price: 7871.67,
+            bid_size: 1000,
+            bid_total: 3132.0,
+        },
+        OrderBookRow {
+            ask_price: 7871.80,
+            ask_size: 360,
+            ask_total: 2133.0,
+            bid_price: 7871.66,
+            bid_size: 1000,
+            bid_total: 4282.0,
+        },
+        OrderBookRow {
+            ask_price: 7871.90,
+            ask_size: 80,
+            ask_total: 593.0,
+            bid_price: 7871.65,
+            bid_size: 400,
+            bid_total: 3282.0,
+        },
     ]
 }
 
@@ -730,26 +966,80 @@ fn default_news() -> VecDeque<NewsItem> {
 
 fn default_alerts() -> VecDeque<AlertItem> {
     let items = vec![
-        AlertItem { text: "EV subsidy catalyst detected — TSLA".into(), severity: AlertSeverity::Info },
-        AlertItem { text: "Earnings beat expected — AAPL Q4 +12%".into(), severity: AlertSeverity::Info },
-        AlertItem { text: "Unusual options activity — NVDA $350C".into(), severity: AlertSeverity::Warning },
-        AlertItem { text: "Overbought RSI 78.4 — NVDA".into(), severity: AlertSeverity::Warning },
-        AlertItem { text: "Volume spike 3.2x avg — AMD".into(), severity: AlertSeverity::Info },
-        AlertItem { text: "Support level test — META $50.00".into(), severity: AlertSeverity::Critical },
-        AlertItem { text: "Bullish MACD crossover — GOOG".into(), severity: AlertSeverity::Info },
-        AlertItem { text: "Institutional accumulation — MSFT".into(), severity: AlertSeverity::Info },
+        AlertItem {
+            text: "EV subsidy catalyst detected — TSLA".into(),
+            severity: AlertSeverity::Info,
+        },
+        AlertItem {
+            text: "Earnings beat expected — AAPL Q4 +12%".into(),
+            severity: AlertSeverity::Info,
+        },
+        AlertItem {
+            text: "Unusual options activity — NVDA $350C".into(),
+            severity: AlertSeverity::Warning,
+        },
+        AlertItem {
+            text: "Overbought RSI 78.4 — NVDA".into(),
+            severity: AlertSeverity::Warning,
+        },
+        AlertItem {
+            text: "Volume spike 3.2x avg — AMD".into(),
+            severity: AlertSeverity::Info,
+        },
+        AlertItem {
+            text: "Support level test — META $50.00".into(),
+            severity: AlertSeverity::Critical,
+        },
+        AlertItem {
+            text: "Bullish MACD crossover — GOOG".into(),
+            severity: AlertSeverity::Info,
+        },
+        AlertItem {
+            text: "Institutional accumulation — MSFT".into(),
+            severity: AlertSeverity::Info,
+        },
     ];
     VecDeque::from(items)
 }
 
 fn default_exchanges() -> Vec<ExchangeInfo> {
     vec![
-        ExchangeInfo { name: ExchangeName::NYSE, status: ExchangeStatus::Connected, latency_ms: 12.5, last_heartbeat: None },
-        ExchangeInfo { name: ExchangeName::NASDAQ, status: ExchangeStatus::Connected, latency_ms: 15.2, last_heartbeat: None },
-        ExchangeInfo { name: ExchangeName::CME, status: ExchangeStatus::Connected, latency_ms: 8.4, last_heartbeat: None },
-        ExchangeInfo { name: ExchangeName::CBOE, status: ExchangeStatus::Connected, latency_ms: 8.1, last_heartbeat: None },
-        ExchangeInfo { name: ExchangeName::LSE, status: ExchangeStatus::Connected, latency_ms: 22.3, last_heartbeat: None },
-        ExchangeInfo { name: ExchangeName::CRYPTO, status: ExchangeStatus::Connected, latency_ms: 45.1, last_heartbeat: None },
+        ExchangeInfo {
+            name: ExchangeName::NYSE,
+            status: ExchangeStatus::Connected,
+            latency_ms: 12.5,
+            last_heartbeat: None,
+        },
+        ExchangeInfo {
+            name: ExchangeName::NASDAQ,
+            status: ExchangeStatus::Connected,
+            latency_ms: 15.2,
+            last_heartbeat: None,
+        },
+        ExchangeInfo {
+            name: ExchangeName::CME,
+            status: ExchangeStatus::Connected,
+            latency_ms: 8.4,
+            last_heartbeat: None,
+        },
+        ExchangeInfo {
+            name: ExchangeName::CBOE,
+            status: ExchangeStatus::Connected,
+            latency_ms: 8.1,
+            last_heartbeat: None,
+        },
+        ExchangeInfo {
+            name: ExchangeName::LSE,
+            status: ExchangeStatus::Connected,
+            latency_ms: 22.3,
+            last_heartbeat: None,
+        },
+        ExchangeInfo {
+            name: ExchangeName::CRYPTO,
+            status: ExchangeStatus::Connected,
+            latency_ms: 45.1,
+            last_heartbeat: None,
+        },
     ]
 }
 
@@ -764,7 +1054,9 @@ fn generate_mock_prices() -> Vec<(f64, f64)> {
         let noise = ((seed >> 33) as f64 / 2147483648.0 - 0.5) * 8.0;
         data.push((i as f64, base + wave + noise));
     }
-    if let Some(last) = data.last_mut() { last.1 = 1461.98; }
+    if let Some(last) = data.last_mut() {
+        last.1 = 1461.98;
+    }
     data
 }
 

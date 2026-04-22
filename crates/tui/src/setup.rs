@@ -59,7 +59,9 @@ impl SetupState {
     }
 
     pub fn required_satisfied(&self) -> bool {
-        self.fields.iter().all(|f| !f.required || !f.value.trim().is_empty())
+        self.fields
+            .iter()
+            .all(|f| !f.required || !f.value.trim().is_empty())
     }
 }
 
@@ -82,11 +84,9 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
         .margin(1)
         .constraints(
             std::iter::once(Constraint::Length(3)) // header
-                .chain(
-                    state.fields.iter().map(|_| Constraint::Length(3))
-                )
+                .chain(state.fields.iter().map(|_| Constraint::Length(3)))
                 .chain(std::iter::once(Constraint::Length(3))) // error/status
-                .chain(std::iter::once(Constraint::Min(0)))    // footer
+                .chain(std::iter::once(Constraint::Min(0))) // footer
                 .collect::<Vec<_>>(),
         )
         .split(inner);
@@ -121,10 +121,7 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
             // Show last 4 chars while typing
             let v = &field.value;
             if v.len() > 4 {
-                format!("{}{}",
-                    "*".repeat(v.len() - 4),
-                    &v[v.len()-4..]
-                )
+                format!("{}{}", "*".repeat(v.len() - 4), &v[v.len() - 4..])
             } else {
                 v.clone()
             }
@@ -135,7 +132,9 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
         };
 
         let style = if is_active {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else if !field.required && field.value.is_empty() {
             Style::default().fg(Color::DarkGray)
         } else if field.required && field.value.is_empty() {
@@ -145,7 +144,9 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
         };
 
         let value_style = if field.value.is_empty() {
-            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC)
         } else {
             style
         };
@@ -161,7 +162,11 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
         ]);
 
         let input_block = Block::default()
-            .borders(if is_active { Borders::ALL } else { Borders::BOTTOM })
+            .borders(if is_active {
+                Borders::ALL
+            } else {
+                Borders::BOTTOM
+            })
             .border_style(if is_active {
                 Style::default().fg(Color::Cyan)
             } else {
@@ -206,8 +211,8 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub enum SetupAction {
-    Continue,           // Stay on setup screen
-    Submit,             // Keys ready, transition to dashboard
+    Continue, // Stay on setup screen
+    Submit,   // Keys ready, transition to dashboard
     Quit,
 }
 
@@ -235,7 +240,7 @@ pub fn handle_setup_key(key: KeyEvent, state: &mut SetupState) -> SetupAction {
                 state.fields[state.active_field].value.push(c);
                 state.error_msg = None;
             } else if c == 'u' || c == 'w' {
-                 state.fields[state.active_field].value.clear();
+                state.fields[state.active_field].value.clear();
             }
             SetupAction::Continue
         }
@@ -251,7 +256,9 @@ pub fn handle_setup_key(key: KeyEvent, state: &mut SetupState) -> SetupAction {
             if state.required_satisfied() {
                 SetupAction::Submit
             } else {
-                let missing: Vec<&str> = state.fields.iter()
+                let missing: Vec<&str> = state
+                    .fields
+                    .iter()
                     .filter(|f| f.required && f.value.trim().is_empty())
                     .map(|f| f.label)
                     .collect();

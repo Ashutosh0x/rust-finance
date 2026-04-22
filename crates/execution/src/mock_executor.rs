@@ -5,13 +5,17 @@ use common::events::{OrderEvent, OrderFilled};
 pub struct MockExecutor;
 
 impl MockExecutor {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 }
 
 #[async_trait]
 impl ExecutionGateway for MockExecutor {
-    fn name(&self) -> &str { "MockExecutor" }
-    
+    fn name(&self) -> &str {
+        "MockExecutor"
+    }
+
     async fn submit_order(&self, req: OpenRequest) -> Result<OrderEvent, anyhow::Error> {
         Ok(OrderEvent::Filled(OrderFilled {
             client_order_id: req.client_order_id,

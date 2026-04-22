@@ -2,6 +2,12 @@
 name = "common"
 version = "0.1.0"
 edition = "2021"
+description = "Shared types, configuration, and utilities for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 default = ["serde"]

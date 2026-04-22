@@ -1,7 +1,7 @@
+use anyhow::{bail, Result};
+use jsonschema::JSONSchema;
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, bail};
-use jsonschema::JSONSchema;
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 pub struct DexterResponse {
@@ -20,7 +20,8 @@ impl SchemaValidator {
     pub fn new() -> Result<Self> {
         let schema = schema_for!(DexterResponse);
         let schema_value = serde_json::to_value(&schema)?;
-        let compiled = JSONSchema::compile(&schema_value).map_err(|e| anyhow::anyhow!("Schema compilation failed: {}", e))?;
+        let compiled = JSONSchema::compile(&schema_value)
+            .map_err(|e| anyhow::anyhow!("Schema compilation failed: {}", e))?;
         Ok(Self {
             compiled_schema: compiled,
         })
@@ -28,7 +29,7 @@ impl SchemaValidator {
 
     pub fn validate_and_parse(&self, llm_json_str: &str) -> Result<DexterResponse> {
         let value: serde_json::Value = serde_json::from_str(llm_json_str)?;
-        
+
         if let Err(errors) = self.compiled_schema.validate(&value) {
             let error_msgs: Vec<String> = errors.map(|e| e.to_string()).collect();
             tracing::error!("Claude returned invalid JSON schema: {:?}", error_msgs);

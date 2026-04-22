@@ -1,14 +1,14 @@
 // crates/polymarket/src/clob.rs
 
-use crate::auth::{L1Auth, L2Auth, ApiCredentials};
-use crate::signing::{Order, create_wallet, sign_order};
+use crate::auth::{ApiCredentials, L1Auth, L2Auth};
 use crate::config::PolymarketConfig;
+use crate::signing::{create_wallet, sign_order, Order};
 use ethers_signers::Signer;
 use reqwest::Client;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error, instrument};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -177,10 +177,7 @@ impl ClobClient {
 
     /// GET /book — fetch orderbook for a token
     #[instrument(skip(self))]
-    pub async fn get_orderbook(
-        &self,
-        token_id: &str,
-    ) -> Result<OrderBookResponse, reqwest::Error> {
+    pub async fn get_orderbook(&self, token_id: &str) -> Result<OrderBookResponse, reqwest::Error> {
         self.http
             .get(format!("{}/book", self.host))
             .query(&[("token_id", token_id)])
@@ -195,10 +192,12 @@ impl ClobClient {
         &self,
         token_ids: &[&str],
     ) -> Result<Vec<OrderBookResponse>, Box<dyn std::error::Error>> {
-        let body: Vec<serde_json::Value> = token_ids.iter()
+        let body: Vec<serde_json::Value> = token_ids
+            .iter()
             .map(|id| serde_json::json!({"token_id": id}))
             .collect();
-        let resp = self.http
+        let resp = self
+            .http
             .post(format!("{}/books", self.host))
             .json(&body)
             .send()
@@ -213,7 +212,8 @@ impl ClobClient {
         &self,
         token_id: &str,
     ) -> Result<Option<Decimal>, Box<dyn std::error::Error>> {
-        let resp: MidpointResponse = self.http
+        let resp: MidpointResponse = self
+            .http
             .get(format!("{}/midpoint", self.host))
             .query(&[("token_id", token_id)])
             .send()
@@ -230,7 +230,8 @@ impl ClobClient {
         token_id: &str,
         side: Side,
     ) -> Result<Option<Decimal>, Box<dyn std::error::Error>> {
-        let resp: PriceResponse = self.http
+        let resp: PriceResponse = self
+            .http
             .get(format!("{}/price", self.host))
             .query(&[("token_id", token_id), ("side", side.as_str())])
             .send()
@@ -246,14 +247,16 @@ impl ClobClient {
         &self,
         token_id: &str,
     ) -> Result<Option<Decimal>, Box<dyn std::error::Error>> {
-        let resp: serde_json::Value = self.http
+        let resp: serde_json::Value = self
+            .http
             .get(format!("{}/spread", self.host))
             .query(&[("token_id", token_id)])
             .send()
             .await?
             .json()
             .await?;
-        Ok(resp.get("spread")
+        Ok(resp
+            .get("spread")
             .and_then(|s| s.as_str())
             .and_then(|s| s.parse::<Decimal>().ok()))
     }
@@ -263,14 +266,16 @@ impl ClobClient {
         &self,
         token_id: &str,
     ) -> Result<Option<Decimal>, Box<dyn std::error::Error>> {
-        let resp: serde_json::Value = self.http
+        let resp: serde_json::Value = self
+            .http
             .get(format!("{}/last-trade-price", self.host))
             .query(&[("token_id", token_id)])
             .send()
             .await?
             .json()
             .await?;
-        Ok(resp.get("price")
+        Ok(resp
+            .get("price")
             .and_then(|p| p.as_str())
             .and_then(|p| p.parse::<Decimal>().ok()))
     }
@@ -280,14 +285,16 @@ impl ClobClient {
         &self,
         token_id: &str,
     ) -> Result<Option<String>, Box<dyn std::error::Error>> {
-        let resp: serde_json::Value = self.http
+        let resp: serde_json::Value = self
+            .http
             .get(format!("{}/tick-size", self.host))
             .query(&[("token_id", token_id)])
             .send()
             .await?
             .json()
             .await?;
-        Ok(resp.get("minimum_tick_size")
+        Ok(resp
+            .get("minimum_tick_size")
             .and_then(|t| t.as_str())
             .map(|s| s.to_string()))
     }
@@ -297,7 +304,8 @@ impl ClobClient {
         &self,
         token_id: &str,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/fee-rate", self.host))
             .query(&[("token_id", token_id)])
             .send()
@@ -319,12 +327,21 @@ impl ClobClient {
         end_ts: Option<f64>,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let mut params: Vec<(&str, String)> = vec![("market", token_id.to_string())];
-        if let Some(i) = interval { params.push(("interval", i.to_string())); }
-        if let Some(f) = fidelity { params.push(("fidelity", f.to_string())); }
-        if let Some(s) = start_ts { params.push(("startTs", s.to_string())); }
-        if let Some(e) = end_ts { params.push(("endTs", e.to_string())); }
+        if let Some(i) = interval {
+            params.push(("interval", i.to_string()));
+        }
+        if let Some(f) = fidelity {
+            params.push(("fidelity", f.to_string()));
+        }
+        if let Some(s) = start_ts {
+            params.push(("startTs", s.to_string()));
+        }
+        if let Some(e) = end_ts {
+            params.push(("endTs", e.to_string()));
+        }
 
-        let resp = self.http
+        let resp = self
+            .http
             .get(format!("{}/prices-history", self.host))
             .query(&params)
             .send()
@@ -335,9 +352,7 @@ impl ClobClient {
     }
 
     /// GET /markets — list all markets
-    pub async fn get_markets(
-        &self,
-    ) -> Result<Vec<serde_json::Value>, reqwest::Error> {
+    pub async fn get_markets(&self) -> Result<Vec<serde_json::Value>, reqwest::Error> {
         self.http
             .get(format!("{}/markets", self.host))
             .send()
@@ -375,7 +390,11 @@ impl ClobClient {
         if self.dry_run {
             info!(
                 "DRY RUN: {:?} {} @ {} ({}) token={}",
-                side, size, price, order_type.as_str(), token_id
+                side,
+                size,
+                price,
+                order_type.as_str(),
+                token_id
             );
             return Ok(PostOrderResponse {
                 success: Some(true),
@@ -442,7 +461,8 @@ impl ClobClient {
         // Build L2 auth headers
         let headers = self.l2_auth.build_headers("POST", path, &body_json)?;
 
-        let resp = self.http
+        let resp = self
+            .http
             .post(format!("{}{}", self.host, path))
             .headers(headers)
             .body(body_json)
@@ -467,10 +487,7 @@ impl ClobClient {
     }
 
     /// DELETE /order/{orderId} — cancel a specific order
-    pub async fn cancel_order(
-        &self,
-        order_id: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn cancel_order(&self, order_id: &str) -> Result<(), Box<dyn std::error::Error>> {
         if self.dry_run {
             info!("DRY RUN: cancel order {}", order_id);
             return Ok(());
@@ -479,7 +496,8 @@ impl ClobClient {
         let path = format!("/order/{}", order_id);
         let headers = self.l2_auth.build_headers("DELETE", &path, "")?;
 
-        let resp = self.http
+        let resp = self
+            .http
             .delete(format!("{}{}", self.host, path))
             .headers(headers)
             .send()
@@ -513,13 +531,12 @@ impl ClobClient {
     }
 
     /// GET /orders — list open orders
-    pub async fn get_open_orders(
-        &self,
-    ) -> Result<Vec<OpenOrder>, Box<dyn std::error::Error>> {
+    pub async fn get_open_orders(&self) -> Result<Vec<OpenOrder>, Box<dyn std::error::Error>> {
         let path = "/orders";
         let headers = self.l2_auth.build_headers("GET", path, "")?;
 
-        let orders: Vec<OpenOrder> = self.http
+        let orders: Vec<OpenOrder> = self
+            .http
             .get(format!("{}{}", self.host, path))
             .headers(headers)
             .send()
@@ -531,13 +548,12 @@ impl ClobClient {
     }
 
     /// GET /balance-allowance — check USDC balance
-    pub async fn get_balance(
-        &self,
-    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    pub async fn get_balance(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let path = "/balance-allowance";
         let headers = self.l2_auth.build_headers("GET", path, "")?;
 
-        let balance: serde_json::Value = self.http
+        let balance: serde_json::Value = self
+            .http
             .get(format!("{}{}", self.host, path))
             .headers(headers)
             .send()

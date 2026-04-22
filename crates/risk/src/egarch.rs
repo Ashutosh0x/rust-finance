@@ -13,10 +13,10 @@
 
 #[derive(Debug, Clone)]
 pub struct EGarchParams {
-    pub omega: f64,  // constant term
-    pub alpha: f64,  // magnitude effect (|z| - E|z|)
-    pub gamma: f64,  // sign/leverage effect
-    pub beta: f64,   // persistence (log-variance autoregressive term)
+    pub omega: f64, // constant term
+    pub alpha: f64, // magnitude effect (|z| - E|z|)
+    pub gamma: f64, // sign/leverage effect
+    pub beta: f64,  // persistence (log-variance autoregressive term)
 }
 
 impl EGarchParams {
@@ -25,7 +25,7 @@ impl EGarchParams {
         Self {
             omega: -0.10,
             alpha: 0.15,
-            gamma: -0.08,  // negative = leverage effect (vol rises after negative returns)
+            gamma: -0.08, // negative = leverage effect (vol rises after negative returns)
             beta: 0.98,
         }
     }
@@ -39,7 +39,7 @@ impl EGarchParams {
 #[derive(Debug, Clone)]
 pub struct EGarchState {
     pub params: EGarchParams,
-    pub log_sigma2: f64,       // log(σ²) — operates in log space
+    pub log_sigma2: f64, // log(σ²) — operates in log space
     pub last_return: f64,
     pub last_sigma: f64,
     pub variance_history: Vec<f64>,
@@ -107,8 +107,11 @@ mod tests {
         // Feed extreme returns — variance should never go negative
         for &r in &[0.05, -0.08, 0.10, -0.15, 0.01, -0.01, 0.0] {
             state.update(r);
-            assert!(state.sigma2() > 0.0,
-                "EGARCH variance must always be positive, got {}", state.sigma2());
+            assert!(
+                state.sigma2() > 0.0,
+                "EGARCH variance must always be positive, got {}",
+                state.sigma2()
+            );
         }
     }
 
@@ -123,9 +126,12 @@ mod tests {
         state_neg.update(-0.02); // negative return (same magnitude)
 
         // With γ < 0, negative returns should increase vol more
-        assert!(state_neg.sigma2() > state_pos.sigma2(),
+        assert!(
+            state_neg.sigma2() > state_pos.sigma2(),
             "EGARCH leverage: neg_var={:.8} should > pos_var={:.8}",
-            state_neg.sigma2(), state_pos.sigma2());
+            state_neg.sigma2(),
+            state_pos.sigma2()
+        );
     }
 
     #[test]
@@ -133,7 +139,10 @@ mod tests {
         let params = EGarchParams::equity_default();
         let state = EGarchState::new(params, 0.0001);
         let vol = state.current_vol_annualized();
-        assert!(vol > 0.05 && vol < 1.0,
-            "Annualized vol should be 5-100%, got {:.2}%", vol * 100.0);
+        assert!(
+            vol > 0.05 && vol < 1.0,
+            "Annualized vol should be 5-100%, got {:.2}%",
+            vol * 100.0
+        );
     }
 }

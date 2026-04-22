@@ -1,9 +1,9 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use tracing::{info, warn, error};
-use std::time::Duration;
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Serialize)]
 struct MarketSubscription {
@@ -53,8 +53,14 @@ pub struct PriceChange {
 pub enum PolymarketEvent {
     BookSnapshot(BookEvent),
     PriceUpdate(PriceChangeEvent),
-    LastTradePrice { asset_id: String, price: String },
-    TickSizeChange { asset_id: String, tick_size: String },
+    LastTradePrice {
+        asset_id: String,
+        price: String,
+    },
+    TickSizeChange {
+        asset_id: String,
+        tick_size: String,
+    },
     MarketResolved {
         market: String,
         winning_asset_id: String,
@@ -69,10 +75,7 @@ pub struct PolymarketWs {
 }
 
 impl PolymarketWs {
-    pub fn new(
-        ws_url: &str,
-        event_tx: broadcast::Sender<PolymarketEvent>,
-    ) -> Self {
+    pub fn new(ws_url: &str, event_tx: broadcast::Sender<PolymarketEvent>) -> Self {
         Self {
             ws_url: ws_url.to_string(),
             event_tx,
@@ -80,10 +83,7 @@ impl PolymarketWs {
     }
 
     /// Connect and subscribe to market data for given asset IDs
-    pub async fn connect_market_channel(
-        &self,
-        asset_ids: Vec<String>,
-    ) -> anyhow::Result<()> {
+    pub async fn connect_market_channel(&self, asset_ids: Vec<String>) -> anyhow::Result<()> {
         let url = format!("{}", self.ws_url);
 
         loop {
@@ -106,7 +106,7 @@ impl PolymarketWs {
                     // Note: tungstenite handles ping/pong automatically if correctly configured,
                     // but we can also manually send ping frames.
                     let _ping_msg = Message::Ping(vec![]);
-                    
+
                     // Simple manual heartbeat (since tungstenite requires passing a channel or clone, etc.)
                     // Usually you'd spawn a task with a clone of the sink, or interleave the stream/sink.
                     // For simplicity, we just rely on tokio-tungstenite's built-in ping and regular activity.
@@ -162,10 +162,9 @@ impl PolymarketWs {
                 Some("last_trade_price") => {
                     let asset_id = val["asset_id"].as_str().unwrap_or("").to_string();
                     let price = val["price"].as_str().unwrap_or("0").to_string();
-                    let _ = self.event_tx.send(PolymarketEvent::LastTradePrice {
-                        asset_id,
-                        price,
-                    });
+                    let _ = self
+                        .event_tx
+                        .send(PolymarketEvent::LastTradePrice { asset_id, price });
                 }
                 Some("tick_size_change") => {
                     let asset_id = val["asset_id"].as_str().unwrap_or("").to_string();
@@ -177,10 +176,9 @@ impl PolymarketWs {
                 }
                 Some("market_resolved") => {
                     let market = val["market"].as_str().unwrap_or("").to_string();
-                    let winning_asset_id = val["winning_asset_id"]
-                        .as_str().unwrap_or("").to_string();
-                    let winning_outcome = val["winning_outcome"]
-                        .as_str().unwrap_or("").to_string();
+                    let winning_asset_id =
+                        val["winning_asset_id"].as_str().unwrap_or("").to_string();
+                    let winning_outcome = val["winning_outcome"].as_str().unwrap_or("").to_string();
                     let _ = self.event_tx.send(PolymarketEvent::MarketResolved {
                         market,
                         winning_asset_id,

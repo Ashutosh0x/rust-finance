@@ -2,6 +2,12 @@
 name = "persistence"
 version = "0.1.0"
 edition = "2021"
+description = "Database persistence and caching layer for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 serde = { version = ">=1.0.228", features = ["derive"] }

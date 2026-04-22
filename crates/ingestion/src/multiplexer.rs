@@ -46,10 +46,7 @@ impl Multiplexer {
                 .collect();
 
             if filtered_types.is_empty() {
-                info!(
-                    source = source.name(),
-                    "Skipped — no matching data types"
-                );
+                info!(source = source.name(), "Skipped — no matching data types");
                 continue;
             }
 
@@ -126,10 +123,7 @@ impl<S: MarketDataSource + Clone + 'static> ReconnectingSource<S> {
 
     /// Connect with automatic reconnection.
     /// Returns a stream that internally reconnects on errors.
-    pub async fn connect_resilient(
-        &self,
-        subscription: Subscription,
-    ) -> MarketStream {
+    pub async fn connect_resilient(&self, subscription: Subscription) -> MarketStream {
         let inner = self.inner.clone();
         let max_retries = self.max_retries;
         let base_delay_ms = self.base_delay_ms;

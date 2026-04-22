@@ -3,11 +3,11 @@
 // Order blotter — live registry of all orders with pre-trade compliance checks.
 // Acts as the single source of truth for order state.
 
-use std::collections::HashMap;
-use tokio::sync::RwLock;
-use std::sync::Arc;
-use uuid::Uuid;
 use crate::order::{Order, OrderEvent, OrderType, Side, TimeInForce};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
 /// Pre-trade compliance limits.
 #[derive(Debug, Clone)]
@@ -116,7 +116,9 @@ impl OrderBlotter {
 
         // Dedup check
         if state.client_id_index.contains_key(&client_order_id) {
-            return Err(ComplianceError::DuplicateOrderId { id: client_order_id });
+            return Err(ComplianceError::DuplicateOrderId {
+                id: client_order_id,
+            });
         }
 
         // Quantity check
@@ -183,7 +185,11 @@ impl OrderBlotter {
     }
 
     /// Apply an event to an existing order.
-    pub async fn apply_event(&self, order_id: Uuid, event: OrderEvent) -> Result<(), ComplianceError> {
+    pub async fn apply_event(
+        &self,
+        order_id: Uuid,
+        event: OrderEvent,
+    ) -> Result<(), ComplianceError> {
         let mut state = self.state.write().await;
 
         // Update daily turnover on fills
@@ -196,7 +202,9 @@ impl OrderBlotter {
             .get_mut(&order_id)
             .ok_or(ComplianceError::OrderNotFound { id: order_id })?;
 
-        order.apply(event).map_err(|_e| ComplianceError::OrderNotFound { id: order_id })
+        order
+            .apply(event)
+            .map_err(|_e| ComplianceError::OrderNotFound { id: order_id })
     }
 
     pub async fn get_order(&self, id: Uuid) -> Option<Order> {
@@ -234,7 +242,14 @@ mod tests {
     async fn test_order_submit_and_retrieve() {
         let blotter = OrderBlotter::new(ComplianceLimits::default());
         let id = blotter
-            .submit("C001", "AAPL", Side::Buy, OrderType::Limit { price: 150.0 }, 100.0, TimeInForce::Day)
+            .submit(
+                "C001",
+                "AAPL",
+                Side::Buy,
+                OrderType::Limit { price: 150.0 },
+                100.0,
+                TimeInForce::Day,
+            )
             .await
             .unwrap();
 
@@ -246,18 +261,53 @@ mod tests {
     #[tokio::test]
     async fn test_duplicate_order_rejected() {
         let blotter = OrderBlotter::new(ComplianceLimits::default());
-        blotter.submit("C001", "AAPL", Side::Buy, OrderType::Limit { price: 150.0 }, 100.0, TimeInForce::Day).await.unwrap();
-        let result = blotter.submit("C001", "AAPL", Side::Buy, OrderType::Limit { price: 150.0 }, 100.0, TimeInForce::Day).await;
-        assert!(matches!(result, Err(ComplianceError::DuplicateOrderId { .. })));
+        blotter
+            .submit(
+                "C001",
+                "AAPL",
+                Side::Buy,
+                OrderType::Limit { price: 150.0 },
+                100.0,
+                TimeInForce::Day,
+            )
+            .await
+            .unwrap();
+        let result = blotter
+            .submit(
+                "C001",
+                "AAPL",
+                Side::Buy,
+                OrderType::Limit { price: 150.0 },
+                100.0,
+                TimeInForce::Day,
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(ComplianceError::DuplicateOrderId { .. })
+        ));
     }
 
     #[tokio::test]
     async fn test_quantity_limit_enforced() {
-        let limits = ComplianceLimits { max_order_qty: 50.0, ..Default::default() };
+        let limits = ComplianceLimits {
+            max_order_qty: 50.0,
+            ..Default::default()
+        };
         let blotter = OrderBlotter::new(limits);
         let result = blotter
-            .submit("C001", "AAPL", Side::Buy, OrderType::Market, 100.0, TimeInForce::Day)
+            .submit(
+                "C001",
+                "AAPL",
+                Side::Buy,
+                OrderType::Market,
+                100.0,
+                TimeInForce::Day,
+            )
             .await;
-        assert!(matches!(result, Err(ComplianceError::QuantityExceeded { .. })));
+        assert!(matches!(
+            result,
+            Err(ComplianceError::QuantityExceeded { .. })
+        ));
     }
 }

@@ -1,5 +1,5 @@
-use rand::Rng;
 use chrono::Utc;
+use rand::Rng;
 
 pub struct Order {
     pub symbol: String,

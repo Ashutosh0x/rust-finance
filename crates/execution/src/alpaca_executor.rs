@@ -1,9 +1,9 @@
 use crate::gateway::{ExecutionGateway, OpenRequest, TimeInForce};
 use async_trait::async_trait;
-use common::events::{OrderEvent, OrderAccepted, OrderSide, OrderType};
+use common::events::{OrderAccepted, OrderEvent, OrderSide, OrderType};
 use compact_str::CompactString;
-use ingestion::alpaca::{AlpacaRestClient, AlpacaConfig, OrderRequest as AlpacaOrderRequest};
-use tracing::{info, error};
+use ingestion::alpaca::{AlpacaConfig, AlpacaRestClient, OrderRequest as AlpacaOrderRequest};
+use tracing::{error, info};
 
 pub struct AlpacaExecutor {
     client: AlpacaRestClient,
@@ -49,7 +49,11 @@ impl AlpacaExecutor {
 #[async_trait]
 impl ExecutionGateway for AlpacaExecutor {
     fn name(&self) -> &str {
-        if self.paper { "AlpacaExecutor(paper)" } else { "AlpacaExecutor(live)" }
+        if self.paper {
+            "AlpacaExecutor(paper)"
+        } else {
+            "AlpacaExecutor(live)"
+        }
     }
 
     async fn submit_order(&self, req: OpenRequest) -> Result<OrderEvent, anyhow::Error> {
@@ -90,13 +94,22 @@ impl ExecutionGateway for AlpacaExecutor {
 
         info!(
             "[{}] Submitting {} {} {} @ {:?} (tif={})",
-            self.name(), side, req.quantity, req.symbol,
-            req.limit_price, time_in_force,
+            self.name(),
+            side,
+            req.quantity,
+            req.symbol,
+            req.limit_price,
+            time_in_force,
         );
 
         match self.client.place_order(&alpaca_req).await {
             Ok(order) => {
-                info!("[{}] Order accepted: id={} status={}", self.name(), order.id, order.status);
+                info!(
+                    "[{}] Order accepted: id={} status={}",
+                    self.name(),
+                    order.id,
+                    order.status
+                );
 
                 // Emit Submitted + Accepted events
                 Ok(OrderEvent::Accepted(OrderAccepted {

@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use petgraph::graph::{DiGraph, NodeIndex};
-use petgraph::Direction;
 use petgraph::visit::EdgeRef;
+use petgraph::Direction;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tracing::info;
 
 pub type EntityId = String;
@@ -26,15 +26,15 @@ pub struct EntityNode {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EntityType {
     Company,
-    Person,      // CEO, analyst, policymaker
+    Person, // CEO, analyst, policymaker
     Sector,
     Country,
     Currency,
     Commodity,
     Index,
-    MacroIndicator,  // GDP, CPI, Fed Funds Rate
+    MacroIndicator, // GDP, CPI, Fed Funds Rate
     Regulation,
-    Event,           // Earnings, merger, crisis
+    Event, // Earnings, merger, crisis
 }
 
 /// A directed relationship between two entities.
@@ -46,22 +46,22 @@ pub struct Relationship {
     /// For AFFECTS: the correlation coefficient
     pub correlation: Option<f64>,
     pub description: String,
-    pub source: String,  // "doc_ingest" | "manual" | "swarm_sim"
+    pub source: String, // "doc_ingest" | "manual" | "swarm_sim"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RelationshipKind {
-    Supplies,         // TSMC -> NVIDIA
-    Competes,         // NVIDIA <-> AMD
-    Owns,             // Berkshire -> AAPL
-    RegulatedBy,      // Meta -> FTC
-    Affects,          // Fed Rate -> NASDAQ (macro)
-    LeadBy,           // Apple -> Tim Cook
-    PartOf,           // AAPL -> Technology sector
-    DependsOn,        // Airlines -> Oil price
-    Correlates,       // BTC -> NASDAQ
-    Acquires,         // MSFT -> Activision
-    SuppliedBy,       // NVIDIA -> TSMC (reverse of Supplies)
+    Supplies,    // TSMC -> NVIDIA
+    Competes,    // NVIDIA <-> AMD
+    Owns,        // Berkshire -> AAPL
+    RegulatedBy, // Meta -> FTC
+    Affects,     // Fed Rate -> NASDAQ (macro)
+    LeadBy,      // Apple -> Tim Cook
+    PartOf,      // AAPL -> Technology sector
+    DependsOn,   // Airlines -> Oil price
+    Correlates,  // BTC -> NASDAQ
+    Acquires,    // MSFT -> Activision
+    SuppliedBy,  // NVIDIA -> TSMC (reverse of Supplies)
     Custom(String),
 }
 
@@ -88,11 +88,11 @@ impl RelationshipKind {
     /// Used by ImpactEngine to score contagion direction.
     pub fn propagation_sign(&self) -> f64 {
         match self {
-            Self::Supplies | Self::SuppliedBy => -0.6,  // supply disruption = negative
+            Self::Supplies | Self::SuppliedBy => -0.6, // supply disruption = negative
             Self::Affects => -1.0,
             Self::DependsOn => -0.8,
             Self::Correlates => 0.7,
-            Self::Competes => 0.3,  // competitor pain = your gain
+            Self::Competes => 0.3, // competitor pain = your gain
             _ => 0.0,
         }
     }
@@ -128,12 +128,7 @@ impl FinancialGraph {
 
     /// Add a directed relationship between two entities by ID.
     /// Creates entities with minimal data if they don't exist yet.
-    pub fn add_relationship(
-        &mut self,
-        from_id: &str,
-        to_id: &str,
-        rel: Relationship,
-    ) {
+    pub fn add_relationship(&mut self, from_id: &str, to_id: &str, rel: Relationship) {
         let from = self.ensure_entity(from_id);
         let to = self.ensure_entity(to_id);
 
@@ -319,109 +314,252 @@ pub fn seed_graph() -> FinancialGraph {
     };
 
     // ── Supply chain ─────────────────────────────────────────────────
-    g.add_relationship("TSMC", "NVIDIA", rel(RelationshipKind::Supplies, 0.95,
-        "TSMC manufactures NVIDIA GPUs on its advanced nodes (3nm, 5nm)"));
-    g.add_relationship("TSMC", "APPLE", rel(RelationshipKind::Supplies, 0.95,
-        "TSMC manufactures Apple A-series and M-series chips exclusively"));
-    g.add_relationship("TSMC", "AMD", rel(RelationshipKind::Supplies, 0.90,
-        "TSMC manufactures AMD Zen CPUs and RDNA GPUs"));
-    g.add_relationship("SAMSUNG", "QUALCOMM", rel(RelationshipKind::Supplies, 0.70,
-        "Samsung Foundry manufactures some Snapdragon chips"));
+    g.add_relationship(
+        "TSMC",
+        "NVIDIA",
+        rel(
+            RelationshipKind::Supplies,
+            0.95,
+            "TSMC manufactures NVIDIA GPUs on its advanced nodes (3nm, 5nm)",
+        ),
+    );
+    g.add_relationship(
+        "TSMC",
+        "APPLE",
+        rel(
+            RelationshipKind::Supplies,
+            0.95,
+            "TSMC manufactures Apple A-series and M-series chips exclusively",
+        ),
+    );
+    g.add_relationship(
+        "TSMC",
+        "AMD",
+        rel(
+            RelationshipKind::Supplies,
+            0.90,
+            "TSMC manufactures AMD Zen CPUs and RDNA GPUs",
+        ),
+    );
+    g.add_relationship(
+        "SAMSUNG",
+        "QUALCOMM",
+        rel(
+            RelationshipKind::Supplies,
+            0.70,
+            "Samsung Foundry manufactures some Snapdragon chips",
+        ),
+    );
 
     // ── Competition ───────────────────────────────────────────────────
-    g.add_relationship("NVIDIA", "AMD", rel(RelationshipKind::Competes, 0.85,
-        "Direct GPU competition across data center and gaming"));
-    g.add_relationship("NVIDIA", "INTEL", rel(RelationshipKind::Competes, 0.60,
-        "Competing in AI accelerator and data center markets"));
-    g.add_relationship("APPLE", "GOOGLE", rel(RelationshipKind::Competes, 0.80,
-        "Mobile OS and consumer device competition"));
-    g.add_relationship("APPLE", "MICROSOFT", rel(RelationshipKind::Competes, 0.65,
-        "Enterprise and productivity software competition"));
+    g.add_relationship(
+        "NVIDIA",
+        "AMD",
+        rel(
+            RelationshipKind::Competes,
+            0.85,
+            "Direct GPU competition across data center and gaming",
+        ),
+    );
+    g.add_relationship(
+        "NVIDIA",
+        "INTEL",
+        rel(
+            RelationshipKind::Competes,
+            0.60,
+            "Competing in AI accelerator and data center markets",
+        ),
+    );
+    g.add_relationship(
+        "APPLE",
+        "GOOGLE",
+        rel(
+            RelationshipKind::Competes,
+            0.80,
+            "Mobile OS and consumer device competition",
+        ),
+    );
+    g.add_relationship(
+        "APPLE",
+        "MICROSOFT",
+        rel(
+            RelationshipKind::Competes,
+            0.65,
+            "Enterprise and productivity software competition",
+        ),
+    );
 
     // ── Macro → Market impacts ────────────────────────────────────────
-    g.add_relationship("FED_FUNDS_RATE", "NASDAQ", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.90,
-        correlation: Some(-0.75),
-        description: "Rising rates increase discount rate on growth stocks, compressing multiples".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("FED_FUNDS_RATE", "TREASURY_10Y", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.95,
-        correlation: Some(0.85),
-        description: "Fed rate directly drives short end; long end influenced by inflation expectations".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("TREASURY_10Y", "SP500", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.80,
-        correlation: Some(-0.65),
-        description: "10Y yield is the risk-free rate; higher yields compress equity valuations".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("OIL_WTI", "AIRLINES", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.88,
-        correlation: Some(-0.80),
-        description: "Jet fuel is ~25% of airline operating costs; oil price directly hits margins".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("OIL_WTI", "ENERGY_SECTOR", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.92,
-        correlation: Some(0.88),
-        description: "Oil price is the primary revenue driver for upstream energy companies".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("DXY", "GOLD", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.85,
-        correlation: Some(-0.72),
-        description: "Dollar strength makes gold more expensive for non-USD buyers".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("DXY", "EMERGING_MARKETS", Relationship {
-        kind: RelationshipKind::Affects,
-        weight: 0.80,
-        correlation: Some(-0.70),
-        description: "Strong dollar pressures EM currencies, tightens USD-denominated debt conditions".to_string(),
-        source: "seed".to_string(),
-    });
+    g.add_relationship(
+        "FED_FUNDS_RATE",
+        "NASDAQ",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.90,
+            correlation: Some(-0.75),
+            description:
+                "Rising rates increase discount rate on growth stocks, compressing multiples"
+                    .to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "FED_FUNDS_RATE",
+        "TREASURY_10Y",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.95,
+            correlation: Some(0.85),
+            description:
+                "Fed rate directly drives short end; long end influenced by inflation expectations"
+                    .to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "TREASURY_10Y",
+        "SP500",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.80,
+            correlation: Some(-0.65),
+            description:
+                "10Y yield is the risk-free rate; higher yields compress equity valuations"
+                    .to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "OIL_WTI",
+        "AIRLINES",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.88,
+            correlation: Some(-0.80),
+            description:
+                "Jet fuel is ~25% of airline operating costs; oil price directly hits margins"
+                    .to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "OIL_WTI",
+        "ENERGY_SECTOR",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.92,
+            correlation: Some(0.88),
+            description: "Oil price is the primary revenue driver for upstream energy companies"
+                .to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "DXY",
+        "GOLD",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.85,
+            correlation: Some(-0.72),
+            description: "Dollar strength makes gold more expensive for non-USD buyers".to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "DXY",
+        "EMERGING_MARKETS",
+        Relationship {
+            kind: RelationshipKind::Affects,
+            weight: 0.80,
+            correlation: Some(-0.70),
+            description:
+                "Strong dollar pressures EM currencies, tightens USD-denominated debt conditions"
+                    .to_string(),
+            source: "seed".to_string(),
+        },
+    );
 
     // ── Sector membership ─────────────────────────────────────────────
-    for ticker in &["NVIDIA", "AMD", "INTEL", "TSMC", "APPLE", "MICROSOFT", "GOOGLE", "META"] {
-        g.add_relationship(ticker, "TECHNOLOGY_SECTOR", rel(RelationshipKind::PartOf, 1.0,
-            "Technology sector constituent"));
+    for ticker in &[
+        "NVIDIA",
+        "AMD",
+        "INTEL",
+        "TSMC",
+        "APPLE",
+        "MICROSOFT",
+        "GOOGLE",
+        "META",
+    ] {
+        g.add_relationship(
+            ticker,
+            "TECHNOLOGY_SECTOR",
+            rel(
+                RelationshipKind::PartOf,
+                1.0,
+                "Technology sector constituent",
+            ),
+        );
     }
     for ticker in &["JPMORGAN", "GOLDMAN_SACHS", "MORGAN_STANLEY", "WELLS_FARGO"] {
-        g.add_relationship(ticker, "FINANCIALS_SECTOR", rel(RelationshipKind::PartOf, 1.0,
-            "Financials sector constituent"));
+        g.add_relationship(
+            ticker,
+            "FINANCIALS_SECTOR",
+            rel(
+                RelationshipKind::PartOf,
+                1.0,
+                "Financials sector constituent",
+            ),
+        );
     }
 
     // ── Regulatory ────────────────────────────────────────────────────
     g.add_relationship("META", "FTC", rel(RelationshipKind::RegulatedBy, 0.90,
         "FTC has brought antitrust cases against Meta; Instagram/WhatsApp acquisitions under scrutiny"));
-    g.add_relationship("GOOGLE", "EU_COMPETITION", rel(RelationshipKind::RegulatedBy, 0.90,
-        "EU has fined Google multiple times for search and Android antitrust violations"));
-    g.add_relationship("NVIDIA", "BIS_EXPORT", rel(RelationshipKind::RegulatedBy, 0.85,
-        "BIS export controls restrict sale of H100/H200 chips to China"));
+    g.add_relationship(
+        "GOOGLE",
+        "EU_COMPETITION",
+        rel(
+            RelationshipKind::RegulatedBy,
+            0.90,
+            "EU has fined Google multiple times for search and Android antitrust violations",
+        ),
+    );
+    g.add_relationship(
+        "NVIDIA",
+        "BIS_EXPORT",
+        rel(
+            RelationshipKind::RegulatedBy,
+            0.85,
+            "BIS export controls restrict sale of H100/H200 chips to China",
+        ),
+    );
 
     // ── Crypto / digital assets ───────────────────────────────────────
-    g.add_relationship("BTC", "NASDAQ", Relationship {
-        kind: RelationshipKind::Correlates,
-        weight: 0.65,
-        correlation: Some(0.55),
-        description: "Bitcoin has shown positive correlation with risk-on tech assets since 2020".to_string(),
-        source: "seed".to_string(),
-    });
-    g.add_relationship("BTC", "GOLD", Relationship {
-        kind: RelationshipKind::Correlates,
-        weight: 0.40,
-        correlation: Some(0.30),
-        description: "Both positioned as inflation hedges; correlation is inconsistent".to_string(),
-        source: "seed".to_string(),
-    });
+    g.add_relationship(
+        "BTC",
+        "NASDAQ",
+        Relationship {
+            kind: RelationshipKind::Correlates,
+            weight: 0.65,
+            correlation: Some(0.55),
+            description:
+                "Bitcoin has shown positive correlation with risk-on tech assets since 2020"
+                    .to_string(),
+            source: "seed".to_string(),
+        },
+    );
+    g.add_relationship(
+        "BTC",
+        "GOLD",
+        Relationship {
+            kind: RelationshipKind::Correlates,
+            weight: 0.40,
+            correlation: Some(0.30),
+            description: "Both positioned as inflation hedges; correlation is inconsistent"
+                .to_string(),
+            source: "seed".to_string(),
+        },
+    );
 
     // Update entity types where we can infer them
     macro_rules! set_type {
@@ -433,22 +571,57 @@ pub fn seed_graph() -> FinancialGraph {
         };
     }
 
-    set_type!(g, "FED_FUNDS_RATE", EntityType::MacroIndicator, "Fed Funds Rate");
-    set_type!(g, "TREASURY_10Y", EntityType::MacroIndicator, "10Y Treasury Yield");
+    set_type!(
+        g,
+        "FED_FUNDS_RATE",
+        EntityType::MacroIndicator,
+        "Fed Funds Rate"
+    );
+    set_type!(
+        g,
+        "TREASURY_10Y",
+        EntityType::MacroIndicator,
+        "10Y Treasury Yield"
+    );
     set_type!(g, "DXY", EntityType::Index, "US Dollar Index");
     set_type!(g, "SP500", EntityType::Index, "S&P 500");
     set_type!(g, "NASDAQ", EntityType::Index, "NASDAQ Composite");
     set_type!(g, "OIL_WTI", EntityType::Commodity, "WTI Crude Oil");
     set_type!(g, "GOLD", EntityType::Commodity, "Gold");
     set_type!(g, "BTC", EntityType::Currency, "Bitcoin");
-    set_type!(g, "TECHNOLOGY_SECTOR", EntityType::Sector, "Technology Sector");
-    set_type!(g, "FINANCIALS_SECTOR", EntityType::Sector, "Financials Sector");
+    set_type!(
+        g,
+        "TECHNOLOGY_SECTOR",
+        EntityType::Sector,
+        "Technology Sector"
+    );
+    set_type!(
+        g,
+        "FINANCIALS_SECTOR",
+        EntityType::Sector,
+        "Financials Sector"
+    );
     set_type!(g, "ENERGY_SECTOR", EntityType::Sector, "Energy Sector");
     set_type!(g, "AIRLINES", EntityType::Sector, "Airlines Sector");
-    set_type!(g, "EMERGING_MARKETS", EntityType::Sector, "Emerging Markets");
+    set_type!(
+        g,
+        "EMERGING_MARKETS",
+        EntityType::Sector,
+        "Emerging Markets"
+    );
     set_type!(g, "FTC", EntityType::Regulation, "Federal Trade Commission");
-    set_type!(g, "EU_COMPETITION", EntityType::Regulation, "EU Competition Authority");
-    set_type!(g, "BIS_EXPORT", EntityType::Regulation, "BIS Export Controls");
+    set_type!(
+        g,
+        "EU_COMPETITION",
+        EntityType::Regulation,
+        "EU Competition Authority"
+    );
+    set_type!(
+        g,
+        "BIS_EXPORT",
+        EntityType::Regulation,
+        "BIS Export Controls"
+    );
 
     info!(
         "Seeded knowledge graph: {} entities, {} relationships",

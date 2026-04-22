@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 /// Volatility regime classification based on annualized vol.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum VolRegime {
-    Low,       // < 15% annualized — calm, momentum strategies work well
-    Normal,    // 15-30% — typical equity market conditions
-    High,      // 30-50% — elevated risk, reduce exposure
-    Crisis,    // > 50% — extreme stress, minimal exposure
+    Low,    // < 15% annualized — calm, momentum strategies work well
+    Normal, // 15-30% — typical equity market conditions
+    High,   // 30-50% — elevated risk, reduce exposure
+    Crisis, // > 50% — extreme stress, minimal exposure
 }
 
 impl VolRegime {
@@ -32,7 +32,7 @@ impl VolRegime {
     /// Scales position sizes inversely with volatility.
     pub fn position_scale(&self) -> f64 {
         match self {
-            Self::Low => 1.5,    // lever up in calm
+            Self::Low => 1.5, // lever up in calm
             Self::Normal => 1.0,
             Self::High => 0.5,   // reduce exposure
             Self::Crisis => 0.2, // minimal exposure
@@ -43,7 +43,7 @@ impl VolRegime {
     /// Momentum strategies work best in low-vol, trending markets.
     pub fn momentum_weight(&self) -> f64 {
         match self {
-            Self::Low => 0.50,    // momentum works in calm markets
+            Self::Low => 0.50, // momentum works in calm markets
             Self::Normal => 0.40,
             Self::High => 0.20,   // mean reversion dominates
             Self::Crisis => 0.10, // pure risk management
@@ -105,10 +105,19 @@ mod tests {
 
     #[test]
     fn test_position_scale_monotonically_decreasing() {
-        let regimes = [VolRegime::Low, VolRegime::Normal, VolRegime::High, VolRegime::Crisis];
+        let regimes = [
+            VolRegime::Low,
+            VolRegime::Normal,
+            VolRegime::High,
+            VolRegime::Crisis,
+        ];
         for i in 0..regimes.len() - 1 {
-            assert!(regimes[i].position_scale() >= regimes[i + 1].position_scale(),
-                "{:?} scale should >= {:?} scale", regimes[i], regimes[i + 1]);
+            assert!(
+                regimes[i].position_scale() >= regimes[i + 1].position_scale(),
+                "{:?} scale should >= {:?} scale",
+                regimes[i],
+                regimes[i + 1]
+            );
         }
     }
 

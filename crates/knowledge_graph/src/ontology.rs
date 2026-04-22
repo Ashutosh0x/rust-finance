@@ -1,5 +1,5 @@
+use crate::graph::{EntityNode, EntityType, FinancialGraph, Relationship, RelationshipKind};
 use serde::{Deserialize, Serialize};
-use crate::graph::{EntityType, RelationshipKind, EntityNode, Relationship, FinancialGraph};
 use std::collections::HashMap;
 
 /// The structured output Claude returns after analysing a document.
@@ -92,14 +92,10 @@ impl Ontology {
 
         for edge in &self.edges {
             if !entity_ids.contains(edge.from_id.as_str()) {
-                warnings.push(format!(
-                    "Edge source '{}' not in entity list", edge.from_id
-                ));
+                warnings.push(format!("Edge source '{}' not in entity list", edge.from_id));
             }
             if !entity_ids.contains(edge.to_id.as_str()) {
-                warnings.push(format!(
-                    "Edge target '{}' not in entity list", edge.to_id
-                ));
+                warnings.push(format!("Edge target '{}' not in entity list", edge.to_id));
             }
         }
         warnings

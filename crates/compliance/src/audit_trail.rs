@@ -2,12 +2,12 @@
 // Tamper-proof, append-only order audit log — SEBI algo registration requirement 2026
 // Every entry is SHA-256 chained to the previous entry (blockchain-style)
 
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AuditEntry {
@@ -26,17 +26,60 @@ pub struct AuditEntry {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum AuditEvent {
-    OrderSubmitted  { order_id: String, symbol: String, side: String, qty: u64, price: Option<f64>, order_type: String, strategy: String },
-    OrderCancelled  { order_id: String, reason: String },
-    OrderFilled     { order_id: String, fill_price: f64, fill_qty: u64, venue: String },
-    OrderRejected   { order_id: String, rejection_reason: String },
-    OrderModified   { order_id: String, new_qty: Option<u64>, new_price: Option<f64> },
-    PreTradeBlocked { symbol: String, reason: String, attempted_qty: u64, attempted_price: f64 },
-    KillSwitchFired { triggered_by: String, orders_cancelled: u32 },
-    StrategyStarted { strategy_id: String, params: String },
-    StrategyStopped { strategy_id: String, reason: String },
-    SessionStart    { version: String, mode: String },
-    SessionEnd      { total_orders: u64, total_notional: f64 },
+    OrderSubmitted {
+        order_id: String,
+        symbol: String,
+        side: String,
+        qty: u64,
+        price: Option<f64>,
+        order_type: String,
+        strategy: String,
+    },
+    OrderCancelled {
+        order_id: String,
+        reason: String,
+    },
+    OrderFilled {
+        order_id: String,
+        fill_price: f64,
+        fill_qty: u64,
+        venue: String,
+    },
+    OrderRejected {
+        order_id: String,
+        rejection_reason: String,
+    },
+    OrderModified {
+        order_id: String,
+        new_qty: Option<u64>,
+        new_price: Option<f64>,
+    },
+    PreTradeBlocked {
+        symbol: String,
+        reason: String,
+        attempted_qty: u64,
+        attempted_price: f64,
+    },
+    KillSwitchFired {
+        triggered_by: String,
+        orders_cancelled: u32,
+    },
+    StrategyStarted {
+        strategy_id: String,
+        params: String,
+    },
+    StrategyStopped {
+        strategy_id: String,
+        reason: String,
+    },
+    SessionStart {
+        version: String,
+        mode: String,
+    },
+    SessionEnd {
+        total_orders: u64,
+        total_notional: f64,
+    },
 }
 
 pub struct AuditTrail {
@@ -55,10 +98,7 @@ impl AuditTrail {
             Self::verify_chain(&path).ok(); // log warning but don't block startup
         }
 
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)?;
+        let file = OpenOptions::new().create(true).append(true).open(&path)?;
 
         // Find last hash and seq by scanning existing entries
         let (seq, prev_hash) = Self::read_tail(&path);
@@ -110,13 +150,18 @@ impl AuditTrail {
         let mut prev_hash = "0".repeat(64);
 
         for line in content.lines() {
-            if line.trim().is_empty() { continue; }
-            let entry: AuditEntry = serde_json::from_str(line)
-                .map_err(|e| format!("Parse error: {}", e))?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            let entry: AuditEntry =
+                serde_json::from_str(line).map_err(|e| format!("Parse error: {}", e))?;
 
             // Recompute expected hash
             let event_json = serde_json::to_string(&entry.event).unwrap_or_default();
-            let hash_input = format!("{}{}{}{}", entry.prev_hash, entry.seq, entry.ts_us, event_json);
+            let hash_input = format!(
+                "{}{}{}{}",
+                entry.prev_hash, entry.seq, entry.ts_us, event_json
+            );
             let expected = Self::sha256_hex(&hash_input);
 
             if entry.hash != expected || entry.prev_hash != prev_hash {
@@ -125,7 +170,11 @@ impl AuditTrail {
             prev_hash = entry.hash.clone();
         }
 
-        if tampered.is_empty() { Ok(vec![]) } else { Err(format!("Tampered entries: {:?}", tampered)) }
+        if tampered.is_empty() {
+            Ok(vec![])
+        } else {
+            Err(format!("Tampered entries: {:?}", tampered))
+        }
     }
 
     fn sha256_hex(input: &str) -> String {
@@ -136,15 +185,25 @@ impl AuditTrail {
 
     fn read_tail(path: &PathBuf) -> (u64, String) {
         use std::fs::read_to_string;
-        let content = match read_to_string(path) { Ok(c) => c, Err(_) => return (0, "0".repeat(64)) };
+        let content = match read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => return (0, "0".repeat(64)),
+        };
         let last_line = content.lines().filter(|l| !l.trim().is_empty()).next_back();
         match last_line {
             Some(line) => {
-                let entry: AuditEntry = serde_json::from_str(line).unwrap_or_else(|_| {
-                    AuditEntry { seq: 0, ts_us: 0, event: AuditEvent::SessionStart { version: "".into(), mode: "".into() }, hash: "0".repeat(64), prev_hash: "0".repeat(64) }
+                let entry: AuditEntry = serde_json::from_str(line).unwrap_or_else(|_| AuditEntry {
+                    seq: 0,
+                    ts_us: 0,
+                    event: AuditEvent::SessionStart {
+                        version: "".into(),
+                        mode: "".into(),
+                    },
+                    hash: "0".repeat(64),
+                    prev_hash: "0".repeat(64),
                 });
                 (entry.seq, entry.hash)
-            },
+            }
             None => (0, "0".repeat(64)),
         }
     }
@@ -155,7 +214,10 @@ impl AuditTrail {
 macro_rules! audit {
     ($trail:expr, $event:expr) => {
         if let Err(e) = $trail.log($event) {
-            tracing::error!("AUDIT TRAIL WRITE FAILED: {} — THIS IS A COMPLIANCE VIOLATION", e);
+            tracing::error!(
+                "AUDIT TRAIL WRITE FAILED: {} — THIS IS A COMPLIANCE VIOLATION",
+                e
+            );
         }
     };
 }

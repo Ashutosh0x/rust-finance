@@ -3,23 +3,22 @@
 //
 // Root module for backtesting logic.
 
-pub mod engine;
-pub mod strategy;
 pub mod benchmark;
+pub mod engine;
 pub mod robustness;
+pub mod strategy;
 
-pub use engine::{BacktestEngine, BacktestConfig, BacktestMetrics, Bar};
-pub use strategy::{Strategy, StrategySignal, SimpleMovingAverageCrossover, ZScoreMeanReversion};
 pub use benchmark::{
-    InstitutionalMetrics, BenchmarkThresholds, BenchmarkReport, BenchmarkGrade,
-    compute_institutional_metrics, validate_against_institutions, print_benchmark_report,
-    walk_forward_backtest, validate_swarm_stylized_facts, SwarmValidationResult,
+    compute_institutional_metrics, print_benchmark_report, validate_against_institutions,
+    validate_swarm_stylized_facts, walk_forward_backtest, BenchmarkGrade, BenchmarkReport,
+    BenchmarkThresholds, InstitutionalMetrics, SwarmValidationResult,
 };
+pub use engine::{BacktestConfig, BacktestEngine, BacktestMetrics, Bar};
 pub use robustness::{
-    CostSensitivityReport, CapacityReport, ReproducibilityProof, OverfitReport,
-    FullAuditReport, EngineConsistencyResult,
-    cost_sensitivity_matrix, capacity_degradation, verify_reproducibility,
-    probability_of_backtest_overfitting, engine_consistency_check, run_full_audit,
-    print_cost_sensitivity, print_capacity_report, print_reproducibility_proof,
-    print_overfit_report,
+    capacity_degradation, cost_sensitivity_matrix, engine_consistency_check, print_capacity_report,
+    print_cost_sensitivity, print_overfit_report, print_reproducibility_proof,
+    probability_of_backtest_overfitting, run_full_audit, verify_reproducibility, CapacityReport,
+    CostSensitivityReport, EngineConsistencyResult, FullAuditReport, OverfitReport,
+    ReproducibilityProof,
 };
+pub use strategy::{SimpleMovingAverageCrossover, Strategy, StrategySignal, ZScoreMeanReversion};

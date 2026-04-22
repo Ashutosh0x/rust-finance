@@ -61,7 +61,10 @@ pub struct BracketEngine {
 }
 
 #[derive(Debug, Clone)]
-enum LegType { TakeProfit, StopLoss }
+enum LegType {
+    TakeProfit,
+    StopLoss,
+}
 
 impl BracketEngine {
     pub fn new(order_tx: Sender<Order>, cancel_tx: Sender<OrderId>) -> Self {
@@ -77,7 +80,9 @@ impl BracketEngine {
     pub async fn submit(&mut self, mut bracket: BracketOrder) -> Result<BracketId, String> {
         let id = bracket.id.clone();
         // Submit entry order first
-        self.order_tx.send(bracket.entry.clone()).await
+        self.order_tx
+            .send(bracket.entry.clone())
+            .await
             .map_err(|e| format!("Failed to submit entry: {}", e))?;
 
         bracket.state = BracketState::PendingEntry;
@@ -114,7 +119,10 @@ impl BracketEngine {
         let tp_order = Order {
             id: tp_id.clone(),
             symbol: bracket.symbol.clone(),
-            side: match bracket.entry.side { OrderSide::Buy => OrderSide::Sell, OrderSide::Sell => OrderSide::Buy },
+            side: match bracket.entry.side {
+                OrderSide::Buy => OrderSide::Sell,
+                OrderSide::Sell => OrderSide::Buy,
+            },
             order_type: OrderType::Limit,
             quantity: bracket.take_profit.quantity,
             limit_price: Some(bracket.take_profit.price),
@@ -127,7 +135,10 @@ impl BracketEngine {
         let sl_order = Order {
             id: sl_id.clone(),
             symbol: bracket.symbol.clone(),
-            side: match bracket.entry.side { OrderSide::Buy => OrderSide::Sell, OrderSide::Sell => OrderSide::Buy },
+            side: match bracket.entry.side {
+                OrderSide::Buy => OrderSide::Sell,
+                OrderSide::Sell => OrderSide::Buy,
+            },
             order_type: OrderType::StopMarket,
             quantity: bracket.stop_loss.quantity,
             limit_price: None,
@@ -141,8 +152,10 @@ impl BracketEngine {
         bracket.stop_loss.status = LegStatus::Submitted;
 
         let bid = bracket_id.clone();
-        self.order_to_bracket.insert(tp_id.clone(), (bid.clone(), LegType::TakeProfit));
-        self.order_to_bracket.insert(sl_id.clone(), (bid, LegType::StopLoss));
+        self.order_to_bracket
+            .insert(tp_id.clone(), (bid.clone(), LegType::TakeProfit));
+        self.order_to_bracket
+            .insert(sl_id.clone(), (bid, LegType::StopLoss));
 
         let _ = self.order_tx.send(tp_order).await;
         let _ = self.order_tx.send(sl_order).await;
@@ -151,7 +164,12 @@ impl BracketEngine {
     }
 
     /// One leg filled — cancel the other (OCO logic)
-    async fn on_leg_filled(&mut self, bracket_id: &BracketId, filled_leg: LegType, fill_price: f64) {
+    async fn on_leg_filled(
+        &mut self,
+        bracket_id: &BracketId,
+        filled_leg: LegType,
+        fill_price: f64,
+    ) {
         let bracket = match self.brackets.get_mut(bracket_id) {
             Some(b) => b,
             None => return,
@@ -182,7 +200,8 @@ impl BracketEngine {
     }
 
     fn find_bracket_by_entry(&self, order_id: &OrderId) -> Option<BracketId> {
-        self.brackets.iter()
+        self.brackets
+            .iter()
             .find(|(_, b)| &b.entry.id == order_id && b.state == BracketState::PendingEntry)
             .map(|(id, _)| id.clone())
     }
@@ -197,7 +216,12 @@ mod tests {
     use super::*;
     use tokio::sync::mpsc;
 
-    fn make_bracket(side: OrderSide, entry_price: f64, tp_price: f64, sl_price: f64) -> BracketOrder {
+    fn make_bracket(
+        side: OrderSide,
+        entry_price: f64,
+        tp_price: f64,
+        sl_price: f64,
+    ) -> BracketOrder {
         BracketOrder {
             id: "bracket-001".to_string(),
             symbol: "NVDA".to_string(),
@@ -310,8 +334,16 @@ mod tests {
 
         let tp_order = order_rx.recv().await.unwrap();
         let sl_order = order_rx.recv().await.unwrap();
-        assert_eq!(tp_order.side, OrderSide::Sell, "TP of Buy entry should be Sell");
-        assert_eq!(sl_order.side, OrderSide::Sell, "SL of Buy entry should be Sell");
+        assert_eq!(
+            tp_order.side,
+            OrderSide::Sell,
+            "TP of Buy entry should be Sell"
+        );
+        assert_eq!(
+            sl_order.side,
+            OrderSide::Sell,
+            "SL of Buy entry should be Sell"
+        );
     }
 
     /// For a LONG bracket: stop-loss must be below entry, take-profit above.
@@ -322,22 +354,38 @@ mod tests {
         let tp_price = 970.0;
         let sl_price = 865.0;
         let bracket = make_bracket(OrderSide::Buy, entry_price, tp_price, sl_price);
-        assert!(bracket.stop_loss.price < entry_price,
-            "LONG bracket: SL ({}) must be BELOW entry ({})", bracket.stop_loss.price, entry_price);
-        assert!(bracket.take_profit.price > entry_price,
-            "LONG bracket: TP ({}) must be ABOVE entry ({})", bracket.take_profit.price, entry_price);
+        assert!(
+            bracket.stop_loss.price < entry_price,
+            "LONG bracket: SL ({}) must be BELOW entry ({})",
+            bracket.stop_loss.price,
+            entry_price
+        );
+        assert!(
+            bracket.take_profit.price > entry_price,
+            "LONG bracket: TP ({}) must be ABOVE entry ({})",
+            bracket.take_profit.price,
+            entry_price
+        );
     }
 
     /// For a SHORT bracket: stop-loss must be above entry, take-profit below.
     #[test]
     fn test_bracket_short_invariant_sl_above_entry_tp_below() {
         let entry_price = 900.0;
-        let tp_price = 830.0;  // profit target when shorting
-        let sl_price = 935.0;  // stop-loss above entry for short protection
+        let tp_price = 830.0; // profit target when shorting
+        let sl_price = 935.0; // stop-loss above entry for short protection
         let bracket = make_bracket(OrderSide::Sell, entry_price, tp_price, sl_price);
-        assert!(bracket.stop_loss.price > entry_price,
-            "SHORT bracket: SL ({}) must be ABOVE entry ({})", bracket.stop_loss.price, entry_price);
-        assert!(bracket.take_profit.price < entry_price,
-            "SHORT bracket: TP ({}) must be BELOW entry ({})", bracket.take_profit.price, entry_price);
+        assert!(
+            bracket.stop_loss.price > entry_price,
+            "SHORT bracket: SL ({}) must be ABOVE entry ({})",
+            bracket.stop_loss.price,
+            entry_price
+        );
+        assert!(
+            bracket.take_profit.price < entry_price,
+            "SHORT bracket: TP ({}) must be BELOW entry ({})",
+            bracket.take_profit.price,
+            entry_price
+        );
     }
 }

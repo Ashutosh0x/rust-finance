@@ -1,2 +1,2 @@
-pub mod ppo_agent;
 pub mod environment;
+pub mod ppo_agent;

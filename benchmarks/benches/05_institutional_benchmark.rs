@@ -10,7 +10,7 @@
 //   - Citadel GQS: sub-μs order routing
 //   - HFTPerformance: nanosecond tick pipeline
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -33,8 +33,12 @@ struct GarchState {
 impl GarchState {
     fn new() -> Self {
         Self {
-            omega: 0.000001, alpha: 0.10, beta: 0.85,
-            current_variance: 0.0001, last_return: 0.0, annualised_vol: 0.0,
+            omega: 0.000001,
+            alpha: 0.10,
+            beta: 0.85,
+            current_variance: 0.0001,
+            last_return: 0.0,
+            annualised_vol: 0.0,
             _pad: [0; 16],
         }
     }
@@ -42,7 +46,8 @@ impl GarchState {
     #[inline(always)]
     fn update(&mut self, new_return: f64) -> f64 {
         let eps_sq = self.last_return * self.last_return;
-        self.current_variance = self.omega + self.alpha * eps_sq + self.beta * self.current_variance;
+        self.current_variance =
+            self.omega + self.alpha * eps_sq + self.beta * self.current_variance;
         self.last_return = new_return;
         self.annualised_vol = (self.current_variance * 252.0).sqrt();
         self.annualised_vol
@@ -75,7 +80,12 @@ struct SwarmAgent {
 
 impl SwarmAgent {
     fn new() -> Self {
-        Self { position_usd: 0.0, cash: 5000.0, bias: 0.0, threshold: 0.5 }
+        Self {
+            position_usd: 0.0,
+            cash: 5000.0,
+            bias: 0.0,
+            threshold: 0.5,
+        }
     }
 
     #[inline(always)]
@@ -136,16 +146,26 @@ fn bench_safety_gate_branchless(c: &mut Criterion) {
 
     // Normal conditions → PASS
     group.bench_function("safety_gate_pass", |b| {
-        b.iter(|| black_box(branchless_safety_gate(
-            black_box(0.60), black_box(0.02), black_box(1.2), black_box(0.10),
-        )));
+        b.iter(|| {
+            black_box(branchless_safety_gate(
+                black_box(0.60),
+                black_box(0.02),
+                black_box(1.2),
+                black_box(0.10),
+            ))
+        });
     });
 
     // Bias conditions → BLOCK
     group.bench_function("safety_gate_block", |b| {
-        b.iter(|| black_box(branchless_safety_gate(
-            black_box(0.90), black_box(0.02), black_box(1.2), black_box(0.10),
-        )));
+        b.iter(|| {
+            black_box(branchless_safety_gate(
+                black_box(0.90),
+                black_box(0.02),
+                black_box(1.2),
+                black_box(0.10),
+            ))
+        });
     });
 
     group.finish();
@@ -158,9 +178,15 @@ fn bench_full_pipeline(c: &mut Criterion) {
 
     let mut garch = GarchState::new();
     group.bench_function("full_pipeline_tick_to_gate", |b| {
-        b.iter(|| black_box(full_institutional_pipeline(
-            &mut garch, black_box(0.001), black_box(0.60), black_box(0.02), black_box(0.10),
-        )));
+        b.iter(|| {
+            black_box(full_institutional_pipeline(
+                &mut garch,
+                black_box(0.001),
+                black_box(0.60),
+                black_box(0.02),
+                black_box(0.10),
+            ))
+        });
     });
 
     group.finish();

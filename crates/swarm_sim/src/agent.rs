@@ -24,11 +24,33 @@ pub enum TraderType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentAction {
-    Buy { agent_id: AgentId, notional_usd: f64, limit_price: Option<f64>, reason: ActionReason },
-    Sell { agent_id: AgentId, notional_usd: f64, limit_price: Option<f64>, reason: ActionReason },
-    Hold { agent_id: AgentId },
-    ProvideLiquidity { agent_id: AgentId, bid_size: f64, ask_size: f64, spread: f64 },
-    CrossSpread { agent_id: AgentId, notional_usd: f64, venue_a_price: f64, venue_b_price: f64 },
+    Buy {
+        agent_id: AgentId,
+        notional_usd: f64,
+        limit_price: Option<f64>,
+        reason: ActionReason,
+    },
+    Sell {
+        agent_id: AgentId,
+        notional_usd: f64,
+        limit_price: Option<f64>,
+        reason: ActionReason,
+    },
+    Hold {
+        agent_id: AgentId,
+    },
+    ProvideLiquidity {
+        agent_id: AgentId,
+        bid_size: f64,
+        ask_size: f64,
+        spread: f64,
+    },
+    CrossSpread {
+        agent_id: AgentId,
+        notional_usd: f64,
+        venue_a_price: f64,
+        venue_b_price: f64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,7 +90,13 @@ pub struct AgentState {
 }
 
 impl AgentState {
-    pub fn new(agent_id: AgentId, trader_type: TraderType, initial_price: f64, cash: f64, seed: u64) -> Self {
+    pub fn new(
+        agent_id: AgentId,
+        trader_type: TraderType,
+        initial_price: f64,
+        cash: f64,
+        seed: u64,
+    ) -> Self {
         let memory_size = match trader_type {
             TraderType::Retail => 5,
             TraderType::HedgeFund => 100,
@@ -120,7 +148,8 @@ impl AgentState {
         if is_buy {
             let new_total = self.position_usd + notional;
             if self.position_usd >= 0.0 && new_total != 0.0 {
-                self.avg_entry_price = (self.avg_entry_price * self.position_usd + price * notional) / new_total;
+                self.avg_entry_price =
+                    (self.avg_entry_price * self.position_usd + price * notional) / new_total;
             }
             self.position_usd = new_total;
             self.cash -= notional;
@@ -166,20 +195,32 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(id: AgentId, trader_type: TraderType, initial_price: f64, cash: f64, max_position_usd: f64, seed: u64) -> Self {
+    pub fn new(
+        id: AgentId,
+        trader_type: TraderType,
+        initial_price: f64,
+        cash: f64,
+        max_position_usd: f64,
+        seed: u64,
+    ) -> Self {
         Self {
             state: AgentState::new(id, trader_type, initial_price, cash, seed),
             max_position_usd,
-            max_deploy_per_round: 500.0,        // default, overridden by config
-            inventory_decay_rate: 0.005,         // default 0.5%/round
+            max_deploy_per_round: 500.0, // default, overridden by config
+            inventory_decay_rate: 0.005, // default 0.5%/round
         }
     }
 
     /// Create with explicit v2.1 calibration parameters.
     pub fn new_calibrated(
-        id: AgentId, trader_type: TraderType, initial_price: f64,
-        cash: f64, max_position_usd: f64, seed: u64,
-        max_deploy_per_round: f64, inventory_decay_rate: f64,
+        id: AgentId,
+        trader_type: TraderType,
+        initial_price: f64,
+        cash: f64,
+        max_position_usd: f64,
+        seed: u64,
+        max_deploy_per_round: f64,
+        inventory_decay_rate: f64,
     ) -> Self {
         Self {
             state: AgentState::new(id, trader_type, initial_price, cash, seed),
@@ -206,9 +247,25 @@ impl Agent {
             let notional = self.state.position_usd.abs() * 0.5;
             let is_buy = self.state.position_usd < 0.0;
             return if is_buy {
-                AgentAction::Buy { agent_id: self.state.agent_id, notional_usd: notional, limit_price: None, reason: ActionReason::RiskLimitHit { position_usd: self.state.position_usd, limit_usd: self.max_position_usd } }
+                AgentAction::Buy {
+                    agent_id: self.state.agent_id,
+                    notional_usd: notional,
+                    limit_price: None,
+                    reason: ActionReason::RiskLimitHit {
+                        position_usd: self.state.position_usd,
+                        limit_usd: self.max_position_usd,
+                    },
+                }
             } else {
-                AgentAction::Sell { agent_id: self.state.agent_id, notional_usd: notional, limit_price: None, reason: ActionReason::RiskLimitHit { position_usd: self.state.position_usd, limit_usd: self.max_position_usd } }
+                AgentAction::Sell {
+                    agent_id: self.state.agent_id,
+                    notional_usd: notional,
+                    limit_price: None,
+                    reason: ActionReason::RiskLimitHit {
+                        position_usd: self.state.position_usd,
+                        limit_usd: self.max_position_usd,
+                    },
+                }
             };
         }
 
@@ -230,12 +287,28 @@ impl Agent {
     fn cap_notional(&self, action: AgentAction) -> AgentAction {
         let cap = self.max_deploy_per_round;
         match action {
-            AgentAction::Buy { agent_id, notional_usd, limit_price, reason } => {
-                AgentAction::Buy { agent_id, notional_usd: notional_usd.min(cap), limit_price, reason }
-            }
-            AgentAction::Sell { agent_id, notional_usd, limit_price, reason } => {
-                AgentAction::Sell { agent_id, notional_usd: notional_usd.min(cap), limit_price, reason }
-            }
+            AgentAction::Buy {
+                agent_id,
+                notional_usd,
+                limit_price,
+                reason,
+            } => AgentAction::Buy {
+                agent_id,
+                notional_usd: notional_usd.min(cap),
+                limit_price,
+                reason,
+            },
+            AgentAction::Sell {
+                agent_id,
+                notional_usd,
+                limit_price,
+                reason,
+            } => AgentAction::Sell {
+                agent_id,
+                notional_usd: notional_usd.min(cap),
+                limit_price,
+                reason,
+            },
             other => other,
         }
     }
@@ -254,15 +327,35 @@ impl Agent {
         };
 
         if self.state.loss_streak >= 3 && self.state.position_usd > 0.0 {
-            return AgentAction::Sell { agent_id: id, notional_usd: self.state.position_usd.abs(), limit_price: None, reason: ActionReason::PanicSell };
+            return AgentAction::Sell {
+                agent_id: id,
+                notional_usd: self.state.position_usd.abs(),
+                limit_price: None,
+                reason: ActionReason::PanicSell,
+            };
         }
 
         if is_fomo && rng.gen_bool(0.6) {
-            AgentAction::Buy { agent_id: id, notional_usd: base_size, limit_price: None, reason: ActionReason::FomoEntry }
+            AgentAction::Buy {
+                agent_id: id,
+                notional_usd: base_size,
+                limit_price: None,
+                reason: ActionReason::FomoEntry,
+            }
         } else if noisy_rsi < 35.0 {
-            AgentAction::Buy { agent_id: id, notional_usd: base_size, limit_price: Some(market.ask * 1.001), reason: ActionReason::RsiOversold { rsi } }
+            AgentAction::Buy {
+                agent_id: id,
+                notional_usd: base_size,
+                limit_price: Some(market.ask * 1.001),
+                reason: ActionReason::RsiOversold { rsi },
+            }
         } else if noisy_rsi > 65.0 && self.state.position_usd > 0.0 {
-            AgentAction::Sell { agent_id: id, notional_usd: (base_size).min(self.state.position_usd), limit_price: Some(market.bid * 0.999), reason: ActionReason::RsiOverbought { rsi } }
+            AgentAction::Sell {
+                agent_id: id,
+                notional_usd: (base_size).min(self.state.position_usd),
+                limit_price: Some(market.bid * 0.999),
+                reason: ActionReason::RsiOverbought { rsi },
+            }
         } else {
             AgentAction::Hold { agent_id: id }
         }
@@ -283,9 +376,25 @@ impl Agent {
         let size = self.max_position_usd * conviction * 2.0;
 
         if discount > 0.03 {
-            AgentAction::Buy { agent_id: id, notional_usd: size, limit_price: Some(current * 1.002), reason: ActionReason::MeanReversion { fair_value: fv, current } }
+            AgentAction::Buy {
+                agent_id: id,
+                notional_usd: size,
+                limit_price: Some(current * 1.002),
+                reason: ActionReason::MeanReversion {
+                    fair_value: fv,
+                    current,
+                },
+            }
         } else if discount < -0.03 && self.state.position_usd > 0.0 {
-            AgentAction::Sell { agent_id: id, notional_usd: size.min(self.state.position_usd), limit_price: Some(current * 0.998), reason: ActionReason::MeanReversion { fair_value: fv, current } }
+            AgentAction::Sell {
+                agent_id: id,
+                notional_usd: size.min(self.state.position_usd),
+                limit_price: Some(current * 0.998),
+                reason: ActionReason::MeanReversion {
+                    fair_value: fv,
+                    current,
+                },
+            }
         } else {
             AgentAction::Hold { agent_id: id }
         }
@@ -297,7 +406,12 @@ impl Agent {
         let half_spread = market.spread * 0.5 * vol_premium;
         let quote_size = (self.max_position_usd * 0.20) / vol_premium;
 
-        AgentAction::ProvideLiquidity { agent_id: id, bid_size: quote_size, ask_size: quote_size, spread: half_spread * 2.0 }
+        AgentAction::ProvideLiquidity {
+            agent_id: id,
+            bid_size: quote_size,
+            ask_size: quote_size,
+            spread: half_spread * 2.0,
+        }
     }
 
     fn decide_arb_bot(&mut self, market: &MarketState, rng: &mut impl Rng) -> AgentAction {
@@ -311,9 +425,19 @@ impl Agent {
             let is_buy = venue_b_price < market.bid;
 
             return if is_buy {
-                AgentAction::Buy { agent_id: id, notional_usd: notional, limit_price: Some(market.ask), reason: ActionReason::ArbitrageOpportunity { spread_bps } }
+                AgentAction::Buy {
+                    agent_id: id,
+                    notional_usd: notional,
+                    limit_price: Some(market.ask),
+                    reason: ActionReason::ArbitrageOpportunity { spread_bps },
+                }
             } else {
-                AgentAction::CrossSpread { agent_id: id, notional_usd: notional, venue_a_price: market.bid, venue_b_price }
+                AgentAction::CrossSpread {
+                    agent_id: id,
+                    notional_usd: notional,
+                    venue_a_price: market.bid,
+                    venue_b_price,
+                }
             };
         }
 
@@ -334,9 +458,19 @@ impl Agent {
         }
 
         if signal > 0.0 {
-            AgentAction::Buy { agent_id: id, notional_usd: size, limit_price: None, reason: ActionReason::MomentumSignal { strength: signal } }
+            AgentAction::Buy {
+                agent_id: id,
+                notional_usd: size,
+                limit_price: None,
+                reason: ActionReason::MomentumSignal { strength: signal },
+            }
         } else if signal < 0.0 {
-            AgentAction::Sell { agent_id: id, notional_usd: size.min(self.state.position_usd.abs().max(size)), limit_price: None, reason: ActionReason::MomentumSignal { strength: signal } }
+            AgentAction::Sell {
+                agent_id: id,
+                notional_usd: size.min(self.state.position_usd.abs().max(size)),
+                limit_price: None,
+                reason: ActionReason::MomentumSignal { strength: signal },
+            }
         } else {
             AgentAction::Hold { agent_id: id }
         }
@@ -346,14 +480,26 @@ impl Agent {
         let id = self.state.agent_id;
         let sentiment = self.state.current_sentiment;
 
-        if sentiment.abs() < 0.1 { return AgentAction::Hold { agent_id: id }; }
+        if sentiment.abs() < 0.1 {
+            return AgentAction::Hold { agent_id: id };
+        }
 
         let size = self.max_position_usd * sentiment.abs() * 0.50 * rng.gen_range(0.5..1.0);
 
         if sentiment > 0.0 {
-            AgentAction::Buy { agent_id: id, notional_usd: size, limit_price: Some(market.ask * 1.005), reason: ActionReason::NewsShock { sentiment } }
+            AgentAction::Buy {
+                agent_id: id,
+                notional_usd: size,
+                limit_price: Some(market.ask * 1.005),
+                reason: ActionReason::NewsShock { sentiment },
+            }
         } else {
-            AgentAction::Sell { agent_id: id, notional_usd: size.min(self.state.position_usd.abs().max(size)), limit_price: Some(market.bid * 0.995), reason: ActionReason::NewsShock { sentiment } }
+            AgentAction::Sell {
+                agent_id: id,
+                notional_usd: size.min(self.state.position_usd.abs().max(size)),
+                limit_price: Some(market.bid * 0.995),
+                reason: ActionReason::NewsShock { sentiment },
+            }
         }
     }
 
@@ -387,7 +533,10 @@ impl Agent {
                 agent_id: id,
                 notional_usd: boosted_size.min(self.state.position_usd.abs().max(boosted_size)),
                 limit_price: Some(market.bid * 0.999),
-                reason: ActionReason::MeanReversion { fair_value: self.state.fair_value_estimate, current: market.mid_price },
+                reason: ActionReason::MeanReversion {
+                    fair_value: self.state.fair_value_estimate,
+                    current: market.mid_price,
+                },
             }
         } else {
             // Market going down → contrarian buys
@@ -395,7 +544,10 @@ impl Agent {
                 agent_id: id,
                 notional_usd: boosted_size,
                 limit_price: Some(market.ask * 1.001),
-                reason: ActionReason::MeanReversion { fair_value: self.state.fair_value_estimate, current: market.mid_price },
+                reason: ActionReason::MeanReversion {
+                    fair_value: self.state.fair_value_estimate,
+                    current: market.mid_price,
+                },
             }
         }
     }

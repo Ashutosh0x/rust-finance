@@ -1,14 +1,14 @@
-use crate::source::{MarketDataSource, DataType, Subscription, IngestionError, MarketStream};
+use crate::source::{DataType, IngestionError, MarketDataSource, MarketStream, Subscription};
 use async_trait::async_trait;
 use common::events::{Envelope, MarketEvent, TradeEvent, TradeSide};
 use common::time::{SequenceGenerator, UnixNanos};
-use futures::{StreamExt, SinkExt};
+use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// Finnhub live data source — supports US, NSE (India), BSE (India), LSE, etc.
-/// 
+///
 /// Symbol format for international exchanges:
 /// - US stocks: "AAPL", "MSFT"
 /// - NSE (India): "NSE:RELIANCE", "NSE:TCS", "NSE:INFY"
@@ -37,7 +37,9 @@ impl FinnhubSource {
 
 #[async_trait]
 impl MarketDataSource for FinnhubSource {
-    fn name(&self) -> &str { "Finnhub" }
+    fn name(&self) -> &str {
+        "Finnhub"
+    }
 
     fn supported_data_types(&self) -> &[DataType] {
         &[DataType::Trades, DataType::Quotes]
@@ -45,9 +47,13 @@ impl MarketDataSource for FinnhubSource {
 
     async fn connect(&self, sub: &Subscription) -> Result<MarketStream, IngestionError> {
         let url = format!("wss://ws.finnhub.io?token={}", self.api_key);
-        info!("Connecting to Finnhub WebSocket for {} symbols...", sub.symbols.len());
+        info!(
+            "Connecting to Finnhub WebSocket for {} symbols...",
+            sub.symbols.len()
+        );
 
-        let (ws_stream, _) = connect_async(&url).await
+        let (ws_stream, _) = connect_async(&url)
+            .await
             .map_err(|e| IngestionError::ConnectionFailed(format!("Finnhub WS: {}", e)))?;
 
         info!("Finnhub WS connected.");
@@ -56,8 +62,9 @@ impl MarketDataSource for FinnhubSource {
         // Subscribe to all symbols (supports NSE:, BSE:, etc. prefixes)
         for symbol in &sub.symbols {
             let msg = format!(r#"{{"type":"subscribe","symbol":"{}"}}"#, symbol);
-            write.send(Message::Text(msg)).await
-                .map_err(|e| IngestionError::ConnectionFailed(format!("Subscribe failed: {}", e)))?;
+            write.send(Message::Text(msg)).await.map_err(|e| {
+                IngestionError::ConnectionFailed(format!("Subscribe failed: {}", e))
+            })?;
             info!("Finnhub subscribed: {}", symbol);
         }
 
@@ -68,9 +75,7 @@ impl MarketDataSource for FinnhubSource {
             let seq_gen = seq_gen.clone();
             async move {
                 match msg {
-                    Ok(Message::Text(text)) => {
-                        parse_finnhub_message(&text, &seq_gen)
-                    }
+                    Ok(Message::Text(text)) => parse_finnhub_message(&text, &seq_gen),
                     Ok(_) => None,
                     Err(e) => {
                         error!("Finnhub WS error: {:?}", e);
@@ -124,12 +129,7 @@ fn parse_finnhub_message(
             side: TradeSide::Unknown,
         });
 
-        let envelope = Envelope::new(
-            ts_event,
-            ts_init,
-            seq_gen.next_id(),
-            event,
-        );
+        let envelope = Envelope::new(ts_event, ts_init, seq_gen.next_id(), event);
 
         return Some(Ok(envelope));
     }

@@ -2,6 +2,12 @@
 name = "pricing"
 version = "0.1.0"
 edition = "2024"
+description = "Options pricing and Black-Scholes model for RustForge"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 common = { path = "../common" }

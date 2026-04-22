@@ -3,11 +3,27 @@ pub use reconnect::AlpacaReconnectClient;
 
 pub mod rest;
 pub use rest::{
-    AlpacaRestClient, AlpacaConfig,
     // Trading API types
-    Account, Position, Order, OrderRequest, Asset, Clock, Calendar,
-    PortfolioHistory, AccountActivity, TakeProfitParams, StopLossParams,
+    Account,
+    AccountActivity,
+    AlpacaConfig,
+    AlpacaRestClient,
+    Asset,
     // Market Data types
-    Bar, Trade, Quote, Snapshot, BarsResponse, MultiBarsResponse,
-    TradesResponse, QuotesResponse,
+    Bar,
+    BarsResponse,
+    Calendar,
+    Clock,
+    MultiBarsResponse,
+    Order,
+    OrderRequest,
+    PortfolioHistory,
+    Position,
+    Quote,
+    QuotesResponse,
+    Snapshot,
+    StopLossParams,
+    TakeProfitParams,
+    Trade,
+    TradesResponse,
 };

@@ -49,6 +49,13 @@ exclude = [
   "crates/curve25519-dalek-patch",
 ]
 
+[workspace.package]
+license = "MIT"
+repository = "https://github.com/Ashutosh0x/rust-finance"
+readme = "README.md"
+keywords = ["trading", "finance", "rust", "quantitative", "terminal"]
+categories = ["finance", "command-line-utilities"]
+
 [workspace.dependencies]
 tokio = { version = "1.37", features = ["full"] }
 serde = { version = ">=1.0.228", features = ["derive"] }

@@ -300,10 +300,7 @@ async fn fetch_alpaca_news(
 /// and broadcasts headlines as BotEvent::Feed.
 ///
 /// Deduplicates headlines by title to prevent duplicates across sources.
-pub async fn run_news_feed(
-    config: NewsFeedConfig,
-    event_tx: broadcast::Sender<BotEvent>,
-) {
+pub async fn run_news_feed(config: NewsFeedConfig, event_tx: broadcast::Sender<BotEvent>) {
     info!(
         interval = ?config.poll_interval,
         finnhub = config.finnhub_key.is_some(),
@@ -339,13 +336,8 @@ pub async fn run_news_feed(
             };
 
             for symbol in &config.watch_symbols {
-                let company = fetch_finnhub_company_news(
-                    &client,
-                    key,
-                    symbol,
-                    per_symbol_max.max(2),
-                )
-                .await;
+                let company =
+                    fetch_finnhub_company_news(&client, key, symbol, per_symbol_max.max(2)).await;
                 debug!(symbol = %symbol, count = company.len(), "Finnhub company news fetched");
                 headlines.extend(company);
             }

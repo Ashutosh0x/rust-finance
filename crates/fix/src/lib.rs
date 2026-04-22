@@ -15,25 +15,43 @@ pub enum FixError {
 // Stubs for parser interfaces since we only built the session layer in this phase
 pub mod serializer {
     #[derive(Debug, Clone, PartialEq)]
-    pub enum MsgType { Logon, Logout, Heartbeat, TestRequest, ResendRequest, SequenceReset, ExecutionReport, OrderCancelReject, Unknown }
-    
+    pub enum MsgType {
+        Logon,
+        Logout,
+        Heartbeat,
+        TestRequest,
+        ResendRequest,
+        SequenceReset,
+        ExecutionReport,
+        OrderCancelReject,
+        Unknown,
+    }
+
     pub struct FixMessage {
         msg_type: MsgType,
-        fields: std::collections::HashMap<u32, String>
+        fields: std::collections::HashMap<u32, String>,
     }
-    
+
     impl FixMessage {
-        pub fn new(msg_type: MsgType) -> Self { Self { msg_type, fields: std::collections::HashMap::new() } }
-        pub fn msg_type(&self) -> MsgType { self.msg_type.clone() }
-        pub fn set_field(&mut self, tag: u32, val: &str) { self.fields.insert(tag, val.to_string()); }
-        pub fn get_field(&self, tag: u32) -> Option<&String> { self.fields.get(&tag) }
+        pub fn new(msg_type: MsgType) -> Self {
+            Self {
+                msg_type,
+                fields: std::collections::HashMap::new(),
+            }
+        }
+        pub fn msg_type(&self) -> MsgType {
+            self.msg_type.clone()
+        }
+        pub fn set_field(&mut self, tag: u32, val: &str) {
+            self.fields.insert(tag, val.to_string());
+        }
+        pub fn get_field(&self, tag: u32) -> Option<&String> {
+            self.fields.get(&tag)
+        }
         pub fn encode(&self) -> Vec<u8> {
             // Collect fields from the internal map.
-            let mut fields: Vec<(u32, String)> = self
-                .fields
-                .iter()
-                .map(|(k, v)| (*k, v.clone()))
-                .collect();
+            let mut fields: Vec<(u32, String)> =
+                self.fields.iter().map(|(k, v)| (*k, v.clone())).collect();
 
             // Ensure MsgType (35) is present; derive it from self.msg_type if missing.
             if !fields.iter().any(|(tag, _)| *tag == 35) {
@@ -99,11 +117,11 @@ pub mod serializer {
             out.into_bytes()
         }
     }
-    
+
     pub struct FixParser {
-        buffer: Vec<u8>
+        buffer: Vec<u8>,
     }
-    
+
     impl Default for FixParser {
         fn default() -> Self {
             Self::new()
@@ -111,7 +129,9 @@ pub mod serializer {
     }
 
     impl FixParser {
-        pub fn new() -> Self { Self { buffer: Vec::new() } }
+        pub fn new() -> Self {
+            Self { buffer: Vec::new() }
+        }
         pub fn push_bytes(&mut self, bytes: &[u8]) {
             self.buffer.extend_from_slice(bytes);
         }
@@ -119,15 +139,15 @@ pub mod serializer {
             // Very simplified: look for trailing "10=xxx\x01" CheckSum field
             // Real FIX parsers read "9=length" to slice the message deterministically.
             let checksum_field = b"10=";
-            
+
             if let Some(pos) = self.buffer.windows(3).position(|w| w == checksum_field) {
                 // Find next SOH byte after "10="
                 if let Some(soh_pos) = self.buffer[pos..].iter().position(|&b| b == 1) {
                     let end_pos = pos + soh_pos + 1;
-                    
+
                     // Consume the message bytes
                     let _msg_bytes = self.buffer.drain(..end_pos).collect::<Vec<u8>>();
-                    
+
                     // We return a dummy heartbeat msg for now
                     let mut msg = FixMessage::new(MsgType::Heartbeat);
                     msg.set_field(35, "0");

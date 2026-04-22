@@ -32,8 +32,11 @@ pub fn record_ws_reconnect(source: &str) {
 }
 
 pub fn set_ws_connected(source: &str, connected: bool) {
-    gauge!("rustforge_ws_connected", "source" => source.to_owned())
-        .set(if connected { 1.0 } else { 0.0 });
+    gauge!("rustforge_ws_connected", "source" => source.to_owned()).set(if connected {
+        1.0
+    } else {
+        0.0
+    });
 }
 
 // ── Orders & Fills ────────────────────────────────────────────────────────────
@@ -43,7 +46,8 @@ pub fn record_order_submitted(symbol: &str, side: &str) {
         "rustforge_orders_submitted_total",
         "symbol" => symbol.to_owned(),
         "side" => side.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 pub fn record_order_filled(symbol: &str, side: &str) {
@@ -51,7 +55,8 @@ pub fn record_order_filled(symbol: &str, side: &str) {
         "rustforge_orders_filled_total",
         "symbol" => symbol.to_owned(),
         "side" => side.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 pub fn record_order_rejected(symbol: &str, reason: &str) {
@@ -59,7 +64,8 @@ pub fn record_order_rejected(symbol: &str, reason: &str) {
         "rustforge_orders_rejected_total",
         "symbol" => symbol.to_owned(),
         "reason" => reason.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 /// Record end-to-end order latency: signal received → order submitted (µs).
@@ -79,7 +85,8 @@ pub fn record_ai_signal(analyst: &str, action: &str, symbol: &str) {
         "analyst" => analyst.to_owned(),
         "action" => action.to_owned(),
         "symbol" => symbol.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 /// Time taken for one AI analyst call (ms).
@@ -87,7 +94,8 @@ pub fn record_ai_latency_ms(analyst: &str, ms: f64) {
     histogram!(
         "rustforge_ai_latency_ms",
         "analyst" => analyst.to_owned()
-    ).record(ms);
+    )
+    .record(ms);
 }
 
 pub fn record_compaction_event() {
@@ -98,7 +106,8 @@ pub fn set_ai_context_tokens(analyst: &str, tokens: f64) {
     gauge!(
         "rustforge_ai_context_tokens",
         "analyst" => analyst.to_owned()
-    ).set(tokens);
+    )
+    .set(tokens);
 }
 
 // ── RPC Relay ─────────────────────────────────────────────────────────────────
@@ -107,7 +116,8 @@ pub fn record_rpc_latency_us(node: &str, us: f64) {
     histogram!(
         "rustforge_rpc_latency_us",
         "node" => node.to_owned()
-    ).record(us);
+    )
+    .record(us);
 }
 
 pub fn record_rpc_failure(node: &str) {
@@ -115,8 +125,11 @@ pub fn record_rpc_failure(node: &str) {
 }
 
 pub fn set_rpc_node_healthy(node: &str, healthy: bool) {
-    gauge!("rustforge_rpc_node_healthy", "node" => node.to_owned())
-        .set(if healthy { 1.0 } else { 0.0 });
+    gauge!("rustforge_rpc_node_healthy", "node" => node.to_owned()).set(if healthy {
+        1.0
+    } else {
+        0.0
+    });
 }
 
 // ── Risk & Kill Switch ────────────────────────────────────────────────────────
@@ -125,7 +138,8 @@ pub fn record_risk_breach(breach_type: &str) {
     counter!(
         "rustforge_risk_breaches_total",
         "type" => breach_type.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 pub fn set_kill_switch_active(active: bool) {
@@ -154,7 +168,8 @@ pub fn record_circuit_breaker_open(service: &str) {
     counter!(
         "rustforge_circuit_breaker_opens_total",
         "service" => service.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 pub fn set_circuit_breaker_state(service: &str, state: &str) {
@@ -168,7 +183,8 @@ pub fn set_circuit_breaker_state(service: &str, state: &str) {
     gauge!(
         "rustforge_circuit_breaker_state",
         "service" => service.to_owned()
-    ).set(val);
+    )
+    .set(val);
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
@@ -181,7 +197,8 @@ pub fn record_db_write_latency_ms(table: &str, ms: f64) {
     histogram!(
         "rustforge_db_write_latency_ms",
         "table" => table.to_owned()
-    ).record(ms);
+    )
+    .record(ms);
 }
 
 pub fn set_db_queue_depth(depth: f64) {
@@ -194,7 +211,8 @@ pub fn record_event_bus_publish(event_type: &str) {
     counter!(
         "rustforge_event_bus_publishes_total",
         "type" => event_type.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 pub fn set_event_bus_lag(lag: f64) {
@@ -208,7 +226,8 @@ pub fn record_swarm_run(symbol: &str, dominant_action: &str) {
         "rustforge_swarm_runs_total",
         "symbol" => symbol.to_owned(),
         "action" => dominant_action.to_owned()
-    ).increment(1);
+    )
+    .increment(1);
 }
 
 pub fn record_swarm_latency_ms(ms: f64) {

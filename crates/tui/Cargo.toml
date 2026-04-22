@@ -2,6 +2,12 @@
 name = "tui"
 version = "0.1.0"
 edition = "2021"
+description = "Terminal user interface for the RustForge trading dashboard"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 ratatui = "0.29"

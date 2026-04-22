@@ -2,6 +2,12 @@
 name = "fix"
 version = "0.1.0"
 edition = "2021"
+description = "FIX protocol implementation for RustForge trading connectivity"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 tokio = { version = "1", features = ["net", "io-util", "sync", "time"] }

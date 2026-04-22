@@ -1,9 +1,11 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crate::app::App;
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 pub fn handle_key(app: &mut App, key: KeyEvent) {
     // Only handle key PRESS events — ignore Release/Repeat (critical on Windows)
-    if key.kind != KeyEventKind::Press { return; }
+    if key.kind != KeyEventKind::Press {
+        return;
+    }
 
     // ── Kill switch overlay active — only allow K (resume) or Q (quit) ────
     if app.kill_switch_active {
@@ -30,7 +32,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         }
         return;
     }
-    
+
     // ── Dialog hijack ────────────────────────────────────────────────────
     if app.show_buy_dialog || app.show_sell_dialog {
         match key.code {
@@ -57,7 +59,9 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 
     match (key.modifiers, key.code) {
         // ── Help ──────────────────────────────────────────────────────────
-        (KeyModifiers::NONE, KeyCode::Char('?')) | (KeyModifiers::NONE, KeyCode::Char('h')) => app.show_help = true,
+        (KeyModifiers::NONE, KeyCode::Char('?')) | (KeyModifiers::NONE, KeyCode::Char('h')) => {
+            app.show_help = true
+        }
 
         // ── Kill Switch (K) ───────────────────────────────────────────────
         (KeyModifiers::NONE, KeyCode::Char('k')) => {
@@ -76,7 +80,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 
         // ── Quit ──────────────────────────────────────────────────────────
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => app.should_quit = true,
-        (KeyModifiers::NONE, KeyCode::Char('q'))    => app.should_quit = true,
+        (KeyModifiers::NONE, KeyCode::Char('q')) => app.should_quit = true,
 
         // ── Panel focus 1-6 ───────────────────────────────────────────────
         (KeyModifiers::NONE, KeyCode::Char('1')) => app.active_panel = 0,
@@ -87,10 +91,10 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         (KeyModifiers::NONE, KeyCode::Char('6')) => app.active_panel = 5,
 
         // ── Scroll ────────────────────────────────────────────────────────
-        (KeyModifiers::NONE, KeyCode::Up)   => app.scroll_up(),
+        (KeyModifiers::NONE, KeyCode::Up) => app.scroll_up(),
         (KeyModifiers::NONE, KeyCode::Down) => app.scroll_down(),
-        (KeyModifiers::NONE, KeyCode::Tab)  => app.next_panel(),
-        (_, KeyCode::BackTab)               => app.prev_panel(),
+        (KeyModifiers::NONE, KeyCode::Tab) => app.next_panel(),
+        (_, KeyCode::BackTab) => app.prev_panel(),
 
         // ── Chart Controls ────────────────────────────────────────────────
         (KeyModifiers::NONE, KeyCode::Char('+')) | (KeyModifiers::NONE, KeyCode::Char('=')) => {
@@ -125,14 +129,14 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         }
 
         // ── AI Engine ─────────────────────────────────────────────────────
-        (KeyModifiers::NONE, KeyCode::Char('d')) => app.trigger_dexter(),      // D = Dexter
-        (KeyModifiers::NONE, KeyCode::Char('f')) => app.trigger_mirofish(),    // F = Mirofish
+        (KeyModifiers::NONE, KeyCode::Char('d')) => app.trigger_dexter(), // D = Dexter
+        (KeyModifiers::NONE, KeyCode::Char('f')) => app.trigger_mirofish(), // F = Mirofish
         (KeyModifiers::NONE, KeyCode::Char('c')) => app.cycle_confidence(),
         (KeyModifiers::CONTROL, KeyCode::Char('a')) => app.toggle_auto_trade(),
 
         // ── Data ──────────────────────────────────────────────────────────
         (KeyModifiers::NONE, KeyCode::Char('e')) => app.export_csv(),
-        (KeyModifiers::NONE, KeyCode::F(5))      => app.refresh_portfolio(),
+        (KeyModifiers::NONE, KeyCode::F(5)) => app.refresh_portfolio(),
         (KeyModifiers::CONTROL, KeyCode::Char('b')) => app.run_backtest(),
 
         // ── Vim-style scroll (j/k only when not triggering kill switch) ───
@@ -143,7 +147,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 }
 
 pub fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
-    use crossterm::event::{MouseEventKind, MouseButton};
+    use crossterm::event::{MouseButton, MouseEventKind};
 
     match mouse.kind {
         MouseEventKind::ScrollUp => {
