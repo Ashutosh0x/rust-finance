@@ -28,7 +28,7 @@
   <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux" />
   <br />
   <a href="https://scorecard.dev/viewer/?uri=github.com/Ashutosh0x/rust-finance"><img src="https://img.shields.io/ossf-scorecard/github.com/Ashutosh0x/rust-finance?style=for-the-badge&label=OpenSSF%20Scorecard" alt="OpenSSF Scorecard" /></a>
-  <a href="https://github.com/Ashutosh0x/rust-finance/actions/workflows/security.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ashutosh0x/rust-finance/security.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=Security" alt="Security Audit" /></a>
+  <a href="https://github.com/Ashutosh0x/rust-finance/actions/workflows/security.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ashutosh0x/rust-finance/security.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=Security%20%26%20Supply%20Chain" alt="Security & Supply Chain" /></a>
   <a href="https://github.com/Ashutosh0x/rust-finance/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ashutosh0x/rust-finance/test.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI%20Tests" alt="CI Tests" /></a>
   <a href="https://deps.rs/repo/github/Ashutosh0x/rust-finance"><img src="https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen?style=for-the-badge" alt="dependency status" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License: MIT" /></a>
@@ -76,7 +76,7 @@ RustForge is an institutional-grade AI trading terminal built in pure Rust. It c
 
 ## Architecture
 
-34 modular crates, 110+ source files, strict dependency boundaries.
+34 modular crates, 250+ source files, strict dependency boundaries.
 
 ```mermaid
 graph TD;
@@ -195,7 +195,7 @@ cargo run -p tui --release
 - Swappable clock — `RealtimeClock` for live trading, `DeterministicClock` for backtesting
 - Event-driven architecture with typed `Envelope<T>` wrapping every system event
 - Deterministic Safety Gate — zero-AI verification layer preventing agent confirmation bias
-- 30-crate workspace compiling in ~17s
+- 34-crate workspace compiling in ~17s
 
 ### Market Data
 - **Alpaca** — Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
@@ -229,19 +229,30 @@ cargo run -p tui --release
 ### Risk Management
 - **Deterministic Safety Gate** — zero-AI verification layer detecting agent confirmation bias (>85% agreement), concentration, drawdown, and correlation exposure
 - **Kill Switch** — emergency circuit breaker (hotkey `K` in TUI)
-- **GARCH(1,1) Volatility** — real-time volatility estimation
-- **Value at Risk (VaR)** — parametric + historical VaR calculation
+- **GARCH(1,1) + EGARCH** — real-time symmetric and asymmetric volatility estimation
+- **Value at Risk (VaR)** — Historical, Parametric (Delta-Normal), and Student-t fat-tail VaR at 95%/99% confidence with CVaR (Expected Shortfall)
+- **Component VaR** — per-position marginal contribution to portfolio risk
+- **10-Day Basel VaR** — √10 scaling for regulatory compliance
 - **PnL Attribution** — component-level profit/loss decomposition
 - **Risk Interceptor Chain** — composable pre-trade risk checks
-- **Kelly Criterion Sizing** — optimal position sizing
+- **Kelly Criterion Sizing** — quarter-Kelly position sizing with conviction scaling
+- **Cross-Asset Correlation** — rolling pairwise correlation and concentration penalty
+- **Regime Detection** — GARCH-based volatility regime classification
 - Max Drawdown and Daily Loss Limit trading guardrails
+- **SEBI Compliance** — order variety classification and regulatory compliance (India)
 
 ### Quantitative Models
-- **Black-Scholes-Merton** — options pricing with Greeks
-- **Heston Stochastic Volatility** — smile-calibrated pricing
-- **GARCH(1,1)** — volatility forecasting (`sigma_t^2 = omega + alpha * epsilon_{t-1}^2 + beta * sigma_{t-1}^2`)
+- **Black-Scholes-Merton** — options pricing with full Greeks (Delta, Gamma, Theta, Vega, Rho)
+- **Heston Stochastic Volatility** — smile-calibrated pricing via Monte Carlo
+- **SABR Model** — stochastic alpha-beta-rho for FX/rates vol surface
+- **Hull-White** — short-rate model for fixed income
+- **Bond Pricer** — yield-to-maturity, duration, convexity
+- **GARCH(1,1) + EGARCH** — volatility forecasting with leverage effects
+- **Fundamental Analysis** — DCF, Graham, and PEG valuation models
 - **Monte Carlo Engine** — path simulation for derivative pricing
-- **Walk-Forward Backtesting** — out-of-sample validation
+- **Walk-Forward Backtesting** — out-of-sample validation with Sharpe, Sortino, CAGR, profit factor
+- **Transaction Cost Analysis (TCA)** — Implementation Shortfall, VWAP/TWAP slippage, market impact, per-strategy breakdown
+- **Gamma Exposure (GEX)** — dealer gamma surface, flip points, pin risk zones, vol regime detection
 - **Latency Queue** — priority-queue latency simulation for realistic fills
 
 ### TUI Dashboard
@@ -258,7 +269,15 @@ cargo run -p tui --release
 ### Compliance and Audit
 - Full audit trail — every state transition logged with `AuditTick`
 - Pre-trade compliance — rule-based order validation
+- SEBI algorithmic trading compliance — order variety classification and regulatory checks
 - Deterministic replay — reproduce any historical trading session
+
+### Security & Supply Chain (CI/CD)
+- **8-job Security pipeline** — cargo-audit (CVE), cargo-deny (licenses/bans/advisories), cargo-vet (supply chain verification), Clippy (pedantic + cargo lints), rustfmt, SHA-pin enforcement, CodeQL SAST, OpenSSF Scorecard
+- All GitHub Actions SHA-pinned to full 40-character commit hashes
+- Cross-platform CI — tests on Ubuntu, macOS, and Windows
+- MSRV verification — Minimum Supported Rust Version enforced
+- Benchmark compilation checks — Criterion benchmarks verified on every push
 
 ### News Feed Sources
 - **Finnhub News API** — general market news, company-specific news, sector news
