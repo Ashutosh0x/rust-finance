@@ -271,7 +271,7 @@ pub mod serializer {
                 != Some(b"10=")
             {
                 // Malformed — skip this message start and try again
-                self.buffer.drain(..msg_start + 1);
+                self.buffer.drain(..=msg_start);
                 return None;
             }
 

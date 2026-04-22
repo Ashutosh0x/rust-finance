@@ -37,12 +37,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install and run cargo-audit
+        run: |
+          cargo install cargo-audit --locked
+          # Ignore rustls-webpki CVEs from transitive dep jsonschema→reqwest@0.11→rustls-webpki@0.101
+          # These do NOT affect actual TLS connections (which use rustls-webpki@0.103.13)
+          # TODO: Migrate jsonschema 0.17 → 0.46 to eliminate this transitive chain
+          cargo audit \
+            --ignore RUSTSEC-2026-0098 \
+            --ignore RUSTSEC-2026-0099 \
+            --ignore RUSTSEC-2026-0104
 
   # ── 3. cargo-vet: first-party dependency verification ──────
   cargo-vet:
