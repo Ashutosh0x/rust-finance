@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 // crates/polymarket/src/lib.rs
 
+pub mod arbitrage;
 pub mod auth;
 pub mod clob;
 pub mod config;

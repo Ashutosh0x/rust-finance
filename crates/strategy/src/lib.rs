@@ -1,9 +1,11 @@
 #![forbid(unsafe_code)]
 // crates/strategy/src/lib.rs
 // v2 Strategy trait + concrete implementations
+pub mod market_maker;
 
 use common::events::{BotEvent, Envelope, MarketEvent};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use tracing::info;
 
 // ─── v2 Strategy Trait ───────────────────────────────────────────
@@ -36,8 +38,10 @@ pub trait PluggableStrategy: Send + Sync {
 // ─── Momentum Strategy ───────────────────────────────────────────
 
 /// Simple momentum: if price is above SMA → BUY, below → SELL
+/// Uses VecDeque for O(1) push/pop rolling window (not Vec::remove(0) which is O(n)).
 pub struct MomentumStrategy {
-    window: Vec<f64>,
+    window: VecDeque<f64>,
+    running_sum: f64,
     period: usize,
     threshold: f64,
     last_ai_confidence: f64,
@@ -46,18 +50,20 @@ pub struct MomentumStrategy {
 impl MomentumStrategy {
     pub fn new(period: usize, threshold: f64) -> Self {
         Self {
-            window: Vec::with_capacity(period),
+            window: VecDeque::with_capacity(period + 1),
+            running_sum: 0.0,
             period,
             threshold,
             last_ai_confidence: 1.0,
         }
     }
 
+    #[inline]
     fn sma(&self) -> f64 {
         if self.window.is_empty() {
             return 0.0;
         }
-        self.window.iter().sum::<f64>() / self.window.len() as f64
+        self.running_sum / self.window.len() as f64
     }
 }
 
@@ -72,10 +78,13 @@ impl PluggableStrategy for MomentumStrategy {
             _ => return None,
         };
 
-        // Update rolling window
-        self.window.push(price);
+        // O(1) rolling window update
+        self.window.push_back(price);
+        self.running_sum += price;
         if self.window.len() > self.period {
-            self.window.remove(0);
+            if let Some(old) = self.window.pop_front() {
+                self.running_sum -= old;
+            }
         }
         if self.window.len() < self.period {
             return None; // Not enough data
@@ -126,15 +135,18 @@ impl PluggableStrategy for MomentumStrategy {
 
     fn reset(&mut self) {
         self.window.clear();
+        self.running_sum = 0.0;
         self.last_ai_confidence = 1.0;
     }
 }
 
 // ─── Mean Reversion Strategy ─────────────────────────────────────
 
-/// Mean reversion: if price deviates >N std from mean → fade the move
+/// Mean reversion: if price deviates >N std from mean → fade the move.
+/// Uses VecDeque for O(1) push/pop and running_sum for O(1) mean.
 pub struct MeanReversionStrategy {
-    window: Vec<f64>,
+    window: VecDeque<f64>,
+    running_sum: f64,
     period: usize,
     z_score_threshold: f64,
     last_ai_confidence: f64,
@@ -143,7 +155,8 @@ pub struct MeanReversionStrategy {
 impl MeanReversionStrategy {
     pub fn new(period: usize, z_score_threshold: f64) -> Self {
         Self {
-            window: Vec::with_capacity(period),
+            window: VecDeque::with_capacity(period + 1),
+            running_sum: 0.0,
             period,
             z_score_threshold,
             last_ai_confidence: 1.0,
@@ -155,7 +168,7 @@ impl MeanReversionStrategy {
             return (0.0, 0.0);
         }
         let n = self.window.len() as f64;
-        let mean = self.window.iter().sum::<f64>() / n;
+        let mean = self.running_sum / n;
         let variance = self.window.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n;
         (mean, variance.sqrt())
     }
@@ -172,9 +185,13 @@ impl PluggableStrategy for MeanReversionStrategy {
             _ => return None,
         };
 
-        self.window.push(price);
+        // O(1) rolling window update
+        self.window.push_back(price);
+        self.running_sum += price;
         if self.window.len() > self.period {
-            self.window.remove(0);
+            if let Some(old) = self.window.pop_front() {
+                self.running_sum -= old;
+            }
         }
         if self.window.len() < self.period {
             return None;
@@ -226,6 +243,7 @@ impl PluggableStrategy for MeanReversionStrategy {
 
     fn reset(&mut self) {
         self.window.clear();
+        self.running_sum = 0.0;
         self.last_ai_confidence = 1.0;
     }
 }
