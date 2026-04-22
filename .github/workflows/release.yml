@@ -22,7 +22,7 @@ jobs:
             artifact: rustforge-macos-intel
             tui_bin: tui
             daemon_bin: daemon
-          - os: macos-latest
+          - os: macos-13
             target: aarch64-apple-darwin
             artifact: rustforge-macos-arm64
             tui_bin: tui
