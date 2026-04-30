@@ -1,4 +1,5 @@
 use crate::widgets::chart_widget::{ChartState, ChartStats};
+use crate::widgets::candlestick_widget::{Candle, CandlestickState};
 use std::collections::VecDeque;
 
 // ── Data structures for live panels ───────────────────────────────────────────
@@ -129,6 +130,10 @@ pub struct App {
     pub chart_state: ChartState,
     pub chart_stats: ChartStats,
 
+    // ── Candlestick Chart ─────────────────────────────────────────────────
+    pub candles: Vec<Candle>,
+    pub candle_state: CandlestickState,
+
     // ── Live Data ─────────────────────────────────────────────────────────
     pub watchlist: Vec<WatchlistItem>,
     pub positions: Vec<PositionEntry>,
@@ -198,7 +203,7 @@ impl App {
             show_help: false,
             paper_mode: true, // Default to paper mode for safety
             active_panel: 0,
-            active_symbol: "AAPL".to_string(),
+            active_symbol: "BTCUSDT".to_string(),
 
             show_buy_dialog: false,
             show_sell_dialog: false,
@@ -206,29 +211,39 @@ impl App {
             order_price_input: String::new(),
             dialog_order_type: DialogOrderType::Market,
 
-            chart_data: generate_mock_prices(),
-            volume_data: generate_mock_volumes(),
+            chart_data: Vec::new(),
+            volume_data: Vec::new(),
             chart_state: ChartState::default(),
             chart_stats: ChartStats {
-                last_price: 1461.98,
-                high_price: 1461.98,
+                last_price: 0.0,
+                high_price: 0.0,
                 high_date: "".to_string(),
-                low_price: 1400.0,
+                low_price: 0.0,
                 low_date: "".to_string(),
-                average: 1430.0,
-                volume: 11502.2,
-                volume_smavg: 48.048,
-                market_cap: 74392.0,
-                price_change: 0.031,
-                price_change_pct: 2.92,
+                average: 0.0,
+                volume: 0.0,
+                volume_smavg: 0.0,
+                market_cap: 0.0,
+                price_change: 0.0,
+                price_change_pct: 0.0,
             },
 
-            watchlist: default_watchlist(),
-            positions: default_positions(),
-            order_book: default_order_book(),
-            news: default_news(),
-            alerts: default_alerts(),
-            exchanges: default_exchanges(),
+            candles: Vec::new(),
+            candle_state: CandlestickState::default(),
+
+            watchlist: vec![
+                WatchlistItem { symbol: "BTCUSDT".into(), name: "Bitcoin".into(), price: 0.0, change_pct: 0.0 },
+                WatchlistItem { symbol: "ETHUSDT".into(), name: "Ethereum".into(), price: 0.0, change_pct: 0.0 },
+                WatchlistItem { symbol: "SOLUSDT".into(), name: "Solana".into(), price: 0.0, change_pct: 0.0 },
+                WatchlistItem { symbol: "BNBUSDT".into(), name: "BNB".into(), price: 0.0, change_pct: 0.0 },
+            ],
+            positions: Vec::new(),
+            order_book: Vec::new(),
+            news: VecDeque::new(),
+            alerts: VecDeque::new(),
+            exchanges: vec![
+                ExchangeInfo { name: ExchangeName::CRYPTO, status: ExchangeStatus::Disconnected, latency_ms: 0.0, last_heartbeat: None },
+            ],
 
             // Kill switch
             kill_switch_active: false,
@@ -295,18 +310,22 @@ impl App {
 
     pub fn chart_zoom_in(&mut self) {
         self.chart_state.zoom_in();
+        self.candle_state.zoom_in();
     }
 
     pub fn chart_zoom_out(&mut self) {
         self.chart_state.zoom_out();
+        self.candle_state.zoom_out();
     }
 
     pub fn chart_scroll_left(&mut self) {
         self.chart_state.scroll_left();
+        self.candle_state.scroll_left();
     }
 
     pub fn chart_scroll_right(&mut self) {
         self.chart_state.scroll_right();
+        self.candle_state.scroll_right();
     }
 
     pub fn cycle_time_range(&mut self) {
@@ -548,6 +567,101 @@ impl App {
         self.push_alert("Refreshing portfolio via broker REST API...");
     }
 
+    // ── Live Data Ingestion ───────────────────────────────────────────────────
+
+    /// Ingest a live kline/bar event into the candlestick chart.
+    /// Called from the Binance WebSocket kline stream.
+    pub fn push_candle(&mut self, open: f64, high: f64, low: f64, close: f64, volume: f64) {
+        let time = self.candles.len() as f64;
+        let candle = Candle {
+            time,
+            open,
+            high,
+            low,
+            close,
+            volume,
+        };
+        self.candles.push(candle);
+        // Keep max 500 candles
+        if self.candles.len() > 500 {
+            self.candles.remove(0);
+            // Re-index time values
+            for (i, c) in self.candles.iter_mut().enumerate() {
+                c.time = i as f64;
+            }
+        }
+
+        // Also update chart stats
+        self.chart_stats.last_price = close;
+        if close > self.chart_stats.high_price || self.chart_stats.high_price == 0.0 {
+            self.chart_stats.high_price = close;
+        }
+        if close < self.chart_stats.low_price || self.chart_stats.low_price == 0.0 {
+            self.chart_stats.low_price = close;
+        }
+        self.chart_stats.volume += volume;
+    }
+
+    /// Update the last candle in-place (for in-progress kline bars).
+    pub fn update_current_candle(&mut self, open: f64, high: f64, low: f64, close: f64, volume: f64) {
+        if let Some(last) = self.candles.last_mut() {
+            last.high = high;
+            last.low = low;
+            last.close = close;
+            last.volume = volume;
+        } else {
+            self.push_candle(open, high, low, close, volume);
+        }
+        self.chart_stats.last_price = close;
+    }
+
+    /// Ingest a live trade tick — updates watchlist, chart line data, and stats.
+    pub fn push_live_trade(&mut self, symbol: &str, price: f64, volume: f64) {
+        // Update watchlist prices
+        if let Some(item) = self.watchlist.iter_mut().find(|w| w.symbol == symbol) {
+            let old_price = item.price;
+            item.price = price;
+            if old_price > 0.0 {
+                item.change_pct = (price - old_price) / old_price * 100.0;
+            }
+        }
+
+        // Update chart line data for active symbol
+        if symbol == self.active_symbol {
+            let next_x = self.chart_data.last().map(|(x, _)| *x + 1.0).unwrap_or(0.0);
+            self.chart_data.push((next_x, price));
+            if self.chart_data.len() > 2000 {
+                self.chart_data.remove(0);
+            }
+            self.volume_data.push((next_x, volume));
+            if self.volume_data.len() > 2000 {
+                self.volume_data.remove(0);
+            }
+
+            self.chart_stats.last_price = price;
+            if price > self.chart_stats.high_price || self.chart_stats.high_price == 0.0 {
+                self.chart_stats.high_price = price;
+            }
+            if price < self.chart_stats.low_price || self.chart_stats.low_price == 0.0 {
+                self.chart_stats.low_price = price;
+            }
+        }
+    }
+
+    /// Mark the Binance exchange as connected with latency.
+    pub fn set_exchange_connected(&mut self, latency_ms: f64) {
+        if let Some(ex) = self.exchanges.iter_mut().find(|e| e.name == ExchangeName::CRYPTO) {
+            ex.status = ExchangeStatus::Connected;
+            ex.latency_ms = latency_ms;
+            ex.last_heartbeat = Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as i64,
+            );
+        }
+    }
+
     // ── Session helpers ───────────────────────────────────────────────────────
 
     pub fn session_uptime(&self) -> String {
@@ -770,303 +884,4 @@ impl App {
             _ => {}
         }
     }
-}
-
-// ── Default data generators ───────────────────────────────────────────────────
-
-fn default_watchlist() -> Vec<WatchlistItem> {
-    vec![
-        WatchlistItem {
-            symbol: "AAPL".into(),
-            name: "Apple Inc.".into(),
-            price: 322.50,
-            change_pct: 1.58,
-        },
-        WatchlistItem {
-            symbol: "NVDA".into(),
-            name: "NVIDIA Corp.".into(),
-            price: 297.75,
-            change_pct: 0.32,
-        },
-        WatchlistItem {
-            symbol: "TSLA".into(),
-            name: "Tesla Inc.".into(),
-            price: 103.35,
-            change_pct: -0.31,
-        },
-        WatchlistItem {
-            symbol: "AMZN".into(),
-            name: "Amazon.com Inc.".into(),
-            price: 83.50,
-            change_pct: -0.17,
-        },
-        WatchlistItem {
-            symbol: "MSFT".into(),
-            name: "Microsoft Corp.".into(),
-            price: 119.50,
-            change_pct: -1.27,
-        },
-        WatchlistItem {
-            symbol: "GOOG".into(),
-            name: "Alphabet Inc.".into(),
-            price: 223.90,
-            change_pct: -0.79,
-        },
-        WatchlistItem {
-            symbol: "META".into(),
-            name: "Meta Platforms".into(),
-            price: 52.55,
-            change_pct: -0.33,
-        },
-        WatchlistItem {
-            symbol: "NFLX".into(),
-            name: "Netflix Inc.".into(),
-            price: 308.83,
-            change_pct: -0.32,
-        },
-        WatchlistItem {
-            symbol: "AMD".into(),
-            name: "AMD Inc.".into(),
-            price: 111.93,
-            change_pct: 1.22,
-        },
-        WatchlistItem {
-            symbol: "INTC".into(),
-            name: "Intel Corp.".into(),
-            price: 52.27,
-            change_pct: 0.12,
-        },
-        WatchlistItem {
-            symbol: "CRM".into(),
-            name: "Salesforce Inc.".into(),
-            price: 275.19,
-            change_pct: 0.12,
-        },
-        WatchlistItem {
-            symbol: "ORCL".into(),
-            name: "Oracle Corp.".into(),
-            price: 38.20,
-            change_pct: -0.30,
-        },
-        WatchlistItem {
-            symbol: "UBER".into(),
-            name: "Uber Tech.".into(),
-            price: 135.15,
-            change_pct: -0.38,
-        },
-    ]
-}
-
-fn default_positions() -> Vec<PositionEntry> {
-    vec![
-        PositionEntry {
-            symbol: "AAPL".into(),
-            holding: 222.50,
-            pnl_pct: 1.72,
-        },
-        PositionEntry {
-            symbol: "NVDA".into(),
-            holding: 100.00,
-            pnl_pct: 1.53,
-        },
-        PositionEntry {
-            symbol: "NVDA".into(),
-            holding: 50.00,
-            pnl_pct: 1.15,
-        },
-        PositionEntry {
-            symbol: "TSLA".into(),
-            holding: 0.00,
-            pnl_pct: -0.23,
-        },
-        PositionEntry {
-            symbol: "AMZN".into(),
-            holding: -10.00,
-            pnl_pct: -0.27,
-        },
-    ]
-}
-
-fn default_order_book() -> Vec<OrderBookRow> {
-    vec![
-        OrderBookRow {
-            ask_price: 7871.71,
-            ask_size: 100,
-            ask_total: 2382.0,
-            bid_price: 7871.70,
-            bid_size: 300,
-            bid_total: 10033.0,
-        },
-        OrderBookRow {
-            ask_price: 7871.70,
-            ask_size: 100,
-            ask_total: 2543.0,
-            bid_price: 7871.69,
-            bid_size: 200,
-            bid_total: 9893.0,
-        },
-        OrderBookRow {
-            ask_price: 7871.70,
-            ask_size: 120,
-            ask_total: 1592.0,
-            bid_price: 7871.68,
-            bid_size: 300,
-            bid_total: 4083.0,
-        },
-        OrderBookRow {
-            ask_price: 7871.70,
-            ask_size: 100,
-            ask_total: 1193.0,
-            bid_price: 7871.68,
-            bid_size: 200,
-            bid_total: 3283.0,
-        },
-        OrderBookRow {
-            ask_price: 7871.80,
-            ask_size: 100,
-            ask_total: 1213.0,
-            bid_price: 7871.67,
-            bid_size: 1000,
-            bid_total: 3132.0,
-        },
-        OrderBookRow {
-            ask_price: 7871.80,
-            ask_size: 360,
-            ask_total: 2133.0,
-            bid_price: 7871.66,
-            bid_size: 1000,
-            bid_total: 4282.0,
-        },
-        OrderBookRow {
-            ask_price: 7871.90,
-            ask_size: 80,
-            ask_total: 593.0,
-            bid_price: 7871.65,
-            bid_size: 400,
-            bid_total: 3282.0,
-        },
-    ]
-}
-
-fn default_news() -> VecDeque<NewsItem> {
-    let items = vec![
-        NewsItem { source: "Reuters".into(), time_ago: "2m ago".into(), headline: "Apple reports record Q4 revenue of $94.9B driven by strong iPhone 16 Pro demand across global markets".into() },
-        NewsItem { source: "Bloomberg".into(), time_ago: "5m ago".into(), headline: "NVIDIA Blackwell B200 GPU shipments accelerate as hyperscaler AI capex surges to $280B annually".into() },
-        NewsItem { source: "WSJ".into(), time_ago: "8m ago".into(), headline: "Federal Reserve holds rates steady at 5.25-5.50%, signals potential September cut amid cooling inflation".into() },
-        NewsItem { source: "CNBC".into(), time_ago: "12m ago".into(), headline: "Tesla FSD v13.2 achieves 99.97% safety rate in NHTSA evaluation, regulatory approval expected Q3".into() },
-        NewsItem { source: "Bloomberg".into(), time_ago: "15m ago".into(), headline: "S&P 500 hits fresh all-time high as tech mega-caps rally on stronger than expected earnings guidance".into() },
-        NewsItem { source: "Reuters".into(), time_ago: "19m ago".into(), headline: "Microsoft Azure AI revenue grows 63% YoY to $18.2B as enterprise adoption of Copilot accelerates".into() },
-        NewsItem { source: "WSJ".into(), time_ago: "25m ago".into(), headline: "Institutional investors increase allocation to mega-cap tech stocks, sector weighting reaches 32% of S&P".into() },
-        NewsItem { source: "CNBC".into(), time_ago: "30m ago".into(), headline: "AMD MI350 AI accelerator benchmarks show 2.4x inference throughput vs previous generation at 30% lower TDP".into() },
-        NewsItem { source: "Bloomberg".into(), time_ago: "35m ago".into(), headline: "Crude oil drops 2.1% to $72.40 as OPEC+ signals gradual production increase starting October".into() },
-        NewsItem { source: "Reuters".into(), time_ago: "42m ago".into(), headline: "US 10-year Treasury yield falls to 4.18% after weaker than expected non-farm payrolls report".into() },
-    ];
-    VecDeque::from(items)
-}
-
-fn default_alerts() -> VecDeque<AlertItem> {
-    let items = vec![
-        AlertItem {
-            text: "EV subsidy catalyst detected — TSLA".into(),
-            severity: AlertSeverity::Info,
-        },
-        AlertItem {
-            text: "Earnings beat expected — AAPL Q4 +12%".into(),
-            severity: AlertSeverity::Info,
-        },
-        AlertItem {
-            text: "Unusual options activity — NVDA $350C".into(),
-            severity: AlertSeverity::Warning,
-        },
-        AlertItem {
-            text: "Overbought RSI 78.4 — NVDA".into(),
-            severity: AlertSeverity::Warning,
-        },
-        AlertItem {
-            text: "Volume spike 3.2x avg — AMD".into(),
-            severity: AlertSeverity::Info,
-        },
-        AlertItem {
-            text: "Support level test — META $50.00".into(),
-            severity: AlertSeverity::Critical,
-        },
-        AlertItem {
-            text: "Bullish MACD crossover — GOOG".into(),
-            severity: AlertSeverity::Info,
-        },
-        AlertItem {
-            text: "Institutional accumulation — MSFT".into(),
-            severity: AlertSeverity::Info,
-        },
-    ];
-    VecDeque::from(items)
-}
-
-fn default_exchanges() -> Vec<ExchangeInfo> {
-    vec![
-        ExchangeInfo {
-            name: ExchangeName::NYSE,
-            status: ExchangeStatus::Connected,
-            latency_ms: 12.5,
-            last_heartbeat: None,
-        },
-        ExchangeInfo {
-            name: ExchangeName::NASDAQ,
-            status: ExchangeStatus::Connected,
-            latency_ms: 15.2,
-            last_heartbeat: None,
-        },
-        ExchangeInfo {
-            name: ExchangeName::CME,
-            status: ExchangeStatus::Connected,
-            latency_ms: 8.4,
-            last_heartbeat: None,
-        },
-        ExchangeInfo {
-            name: ExchangeName::CBOE,
-            status: ExchangeStatus::Connected,
-            latency_ms: 8.1,
-            last_heartbeat: None,
-        },
-        ExchangeInfo {
-            name: ExchangeName::LSE,
-            status: ExchangeStatus::Connected,
-            latency_ms: 22.3,
-            last_heartbeat: None,
-        },
-        ExchangeInfo {
-            name: ExchangeName::CRYPTO,
-            status: ExchangeStatus::Connected,
-            latency_ms: 45.1,
-            last_heartbeat: None,
-        },
-    ]
-}
-
-fn generate_mock_prices() -> Vec<(f64, f64)> {
-    let mut data = Vec::with_capacity(200);
-    let mut seed: u64 = 42;
-    for i in 0..200 {
-        let t = i as f64 / 200.0;
-        let base = 1400.0 + t * 62.0;
-        let wave = (t * std::f64::consts::PI * 6.0).sin() * 15.0;
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-        let noise = ((seed >> 33) as f64 / 2147483648.0 - 0.5) * 8.0;
-        data.push((i as f64, base + wave + noise));
-    }
-    if let Some(last) = data.last_mut() {
-        last.1 = 1461.98;
-    }
-    data
-}
-
-fn generate_mock_volumes() -> Vec<(f64, f64)> {
-    let mut data = Vec::with_capacity(200);
-    let mut seed: u64 = 12345;
-    for i in 0..200 {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
-        let v = ((seed >> 33) as f64 / 2147483648.0) * 80.0 + 20.0;
-        data.push((i as f64, v));
-    }
-    data
 }

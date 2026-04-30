@@ -143,10 +143,12 @@ impl PluggableStrategy for MomentumStrategy {
 // ─── Mean Reversion Strategy ─────────────────────────────────────
 
 /// Mean reversion: if price deviates >N std from mean → fade the move.
-/// Uses VecDeque for O(1) push/pop and running_sum for O(1) mean.
+/// Uses VecDeque for O(1) push/pop, running_sum for O(1) mean,
+/// and running_sum_sq for O(1) variance (Welford's online algorithm).
 pub struct MeanReversionStrategy {
     window: VecDeque<f64>,
     running_sum: f64,
+    running_sum_sq: f64,
     period: usize,
     z_score_threshold: f64,
     last_ai_confidence: f64,
@@ -157,6 +159,7 @@ impl MeanReversionStrategy {
         Self {
             window: VecDeque::with_capacity(period + 1),
             running_sum: 0.0,
+            running_sum_sq: 0.0,
             period,
             z_score_threshold,
             last_ai_confidence: 1.0,
@@ -169,8 +172,9 @@ impl MeanReversionStrategy {
         }
         let n = self.window.len() as f64;
         let mean = self.running_sum / n;
-        let variance = self.window.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n;
-        (mean, variance.sqrt())
+        // Var(X) = E[X²] - E[X]² — O(1) using running sums
+        let variance = (self.running_sum_sq / n) - mean * mean;
+        (mean, variance.max(0.0).sqrt())
     }
 }
 
@@ -188,9 +192,11 @@ impl PluggableStrategy for MeanReversionStrategy {
         // O(1) rolling window update
         self.window.push_back(price);
         self.running_sum += price;
+        self.running_sum_sq += price * price;
         if self.window.len() > self.period {
             if let Some(old) = self.window.pop_front() {
                 self.running_sum -= old;
+                self.running_sum_sq -= old * old;
             }
         }
         if self.window.len() < self.period {
@@ -244,6 +250,7 @@ impl PluggableStrategy for MeanReversionStrategy {
     fn reset(&mut self) {
         self.window.clear();
         self.running_sum = 0.0;
+        self.running_sum_sq = 0.0;
         self.last_ai_confidence = 1.0;
     }
 }

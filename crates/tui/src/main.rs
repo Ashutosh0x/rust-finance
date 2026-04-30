@@ -30,6 +30,7 @@ const YELLOW: Color = Color::Rgb(250, 204, 21);
 
 mod app;
 mod event_handler;
+mod live_feed;
 pub mod layout;
 pub mod setup;
 pub mod state;
@@ -37,7 +38,8 @@ pub mod widgets;
 
 use app::App;
 use common::models::exchange::ExchangeStatus;
-use widgets::chart_widget::render_chart;
+use live_feed::{LiveFeedEvent, spawn_binance_feed};
+use widgets::candlestick_widget::render_candlestick_chart;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -67,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut app = App::new(initial_screen);
 
-    // Event Bus Connection Manager
+    // ── Daemon Event Bus (legacy) ─────────────────────────────────────────
     let (tx_status, mut rx_status) = mpsc::channel::<String>(100);
     let (tx_event, mut rx_event) = mpsc::channel::<common::events::BotEvent>(1000);
 
@@ -115,12 +117,89 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // ── Direct Binance WebSocket Feed (real-time) ─────────────────────────
+    let (tx_feed, mut rx_feed) = mpsc::channel::<LiveFeedEvent>(5000);
+    spawn_binance_feed(tx_feed);
+
     loop {
+        // Drain daemon events
         while let Ok(msg) = rx_status.try_recv() {
             app.connection_status = msg;
         }
         while let Ok(event) = rx_event.try_recv() {
             app.update_from_event(event);
+        }
+
+        // Drain live Binance feed events (capped at 500/frame to prevent UI freeze)
+        let mut feed_budget = 500;
+        while feed_budget > 0 {
+            let feed_event = match rx_feed.try_recv() {
+                Ok(e) => e,
+                Err(_) => break,
+            };
+            feed_budget -= 1;
+            match feed_event {
+                LiveFeedEvent::Kline {
+                    symbol,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    is_closed,
+                } => {
+                    if symbol == app.active_symbol {
+                        if is_closed {
+                            // Bar closed — push a new finalized candle
+                            app.push_candle(open, high, low, close, volume);
+                        } else {
+                            // Bar still forming — update the current candle in-place
+                            app.update_current_candle(open, high, low, close, volume);
+                        }
+                    }
+                }
+                LiveFeedEvent::Trade {
+                    symbol,
+                    price,
+                    quantity,
+                } => {
+                    app.push_live_trade(&symbol, price, quantity);
+                }
+                LiveFeedEvent::BookTicker {
+                    symbol,
+                    bid_price,
+                    bid_size,
+                    ask_price,
+                    ask_size,
+                } => {
+                    if symbol == app.active_symbol {
+                        // Update the top-of-book in the order book
+                        if app.order_book.is_empty() {
+                            app.order_book.push(crate::app::OrderBookRow {
+                                ask_price,
+                                ask_size: ask_size as u64,
+                                ask_total: ask_price * ask_size,
+                                bid_price,
+                                bid_size: bid_size as u64,
+                                bid_total: bid_price * bid_size,
+                            });
+                        } else {
+                            app.order_book[0] = crate::app::OrderBookRow {
+                                ask_price,
+                                ask_size: ask_size as u64,
+                                ask_total: ask_price * ask_size,
+                                bid_price,
+                                bid_size: bid_size as u64,
+                                bid_total: bid_price * bid_size,
+                            };
+                        }
+                    }
+                    app.set_exchange_connected(0.5);
+                }
+                LiveFeedEvent::Status(msg) => {
+                    app.connection_status = msg;
+                }
+            }
         }
 
         terminal.draw(|f| match &app.screen {
@@ -727,13 +806,12 @@ fn draw_center_col(f: &mut Frame, area: Rect, app: &App) {
         .split(area);
 
     draw_index_strip(f, chunks[0]);
-    render_chart(
+    render_candlestick_chart(
         f,
         chunks[1],
-        &app.chart_data,
-        &app.volume_data,
-        &app.chart_state,
-        &app.chart_stats,
+        &app.candles,
+        &app.candle_state,
+        &app.active_symbol,
     );
     draw_order_book(f, chunks[2], app);
 

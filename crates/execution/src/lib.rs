@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+pub mod almgren_chriss;
 pub mod alpaca_executor;
 pub mod bracket;
 pub mod conditional;

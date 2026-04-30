@@ -57,7 +57,7 @@ impl VarCalculator {
         history.push(daily_return_pct);
         // Keep rolling window of 252 trading days
         if history.len() > 252 {
-            history.remove(0);
+            history.remove(0); // TODO: migrate to VecDeque for O(1)
         }
     }
 

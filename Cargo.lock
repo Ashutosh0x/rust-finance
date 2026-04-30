@@ -5468,12 +5468,16 @@ dependencies = [
  "crossbeam-channel",
  "crossterm 0.27.0",
  "dotenvy",
+ "futures",
  "postcard",
  "ratatui 0.29.0",
  "serde_json",
  "swarm_sim",
  "tokio",
  "tokio-retry",
+ "tokio-tungstenite 0.20.1",
+ "tracing",
+ "url",
  "zeroize",
 ]
 

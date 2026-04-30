@@ -25,3 +25,7 @@ tokio-retry = "0.3.0"
 ai = { version = "0.1.0", path = "../ai" }
 swarm_sim = { version = "0.1.0", path = "../swarm_sim" }
 chrono.workspace = true
+tokio-tungstenite = "0.20"
+futures = "0.3"
+url = "2.5"
+tracing = "0.1"

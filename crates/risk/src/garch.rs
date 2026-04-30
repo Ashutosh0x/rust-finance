@@ -669,13 +669,13 @@ impl RollingGarch {
         let history = self.return_history.entry(symbol.to_string()).or_default();
         history.push(log_return);
         if history.len() > 1000 {
-            history.remove(0);
+            history.remove(0); // TODO: migrate to VecDeque for O(1)
         }
 
         let tick = self.tick_counts.entry(symbol.to_string()).or_insert(0);
         *tick += 1;
 
-        if (!self.states.contains_key(symbol) || (*tick).is_multiple_of(self.reestimate_every))
+        if (!self.states.contains_key(symbol) || *tick % self.reestimate_every == 0)
             && history.len() >= self.min_history
         {
             if let Some((params, _)) = GarchEstimator::fit(history) {
