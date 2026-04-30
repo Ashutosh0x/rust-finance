@@ -24,4 +24,4 @@ statrs = "0.16"
 [dev-dependencies]
 tokio-test = "0.4"
 approx = "0.5"
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }

@@ -13,7 +13,7 @@ publish = false
 [dependencies]
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 hdrhistogram = "7.5"
 iai = "0.1"
 dhat = "0.3"
