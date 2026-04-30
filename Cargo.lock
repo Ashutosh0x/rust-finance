@@ -4033,10 +4033,12 @@ name = "risk"
 version = "0.1.0"
 dependencies = [
  "ai",
+ "chrono",
  "common",
  "compact_str 0.8.1",
  "execution",
  "serde",
+ "serde_json",
  "statrs",
  "swarm_sim",
  "tokio",
