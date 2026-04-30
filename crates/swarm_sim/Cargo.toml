@@ -19,7 +19,7 @@ serde = { workspace = true, optional = false }
 serde_json = { workspace = true, optional = false }
 tracing = { workspace = true, optional = false }
 chrono = { workspace = true, optional = false }
-statrs = "0.16"
+statrs = "0.18"
 
 [dev-dependencies]
 tokio-test = "0.4"
