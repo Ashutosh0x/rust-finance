@@ -57,7 +57,7 @@ impl MarketDataSource for FinnhubSource {
             .map_err(|e| IngestionError::ConnectionFailed(format!("Finnhub WS: {}", e)))?;
 
         info!("Finnhub WS connected.");
-        let (mut write, read) = ws_stream.split();
+        let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to all symbols (supports NSE:, BSE:, etc. prefixes)
         for symbol in &sub.symbols {
@@ -71,19 +71,22 @@ impl MarketDataSource for FinnhubSource {
         let seq_gen = self.seq_gen.clone();
 
         // Transform WS messages into MarketEvent envelopes
-        let stream = read.filter_map(move |msg| {
-            let seq_gen = seq_gen.clone();
-            async move {
+        let stream = async_stream::stream! {
+            while let Some(msg) = read.next().await {
                 match msg {
-                    Ok(Message::Text(text)) => parse_finnhub_message(&text, &seq_gen),
-                    Ok(_) => None,
+                    Ok(Message::Text(text)) => {
+                        for event in parse_finnhub_message(&text, &seq_gen) {
+                            yield event;
+                        }
+                    }
+                    Ok(_) => {}
                     Err(e) => {
                         error!("Finnhub WS error: {:?}", e);
-                        Some(Err(IngestionError::StreamClosed))
+                        yield Err(IngestionError::StreamClosed);
                     }
                 }
             }
-        });
+        };
 
         Ok(Box::pin(stream))
     }
@@ -97,27 +100,49 @@ impl MarketDataSource for FinnhubSource {
 fn parse_finnhub_message(
     text: &str,
     seq_gen: &SequenceGenerator,
-) -> Option<Result<Envelope<MarketEvent>, IngestionError>> {
-    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+) -> Vec<Result<Envelope<MarketEvent>, IngestionError>> {
+    let value: serde_json::Value = match serde_json::from_str(text) {
+        Ok(value) => value,
+        Err(e) => return vec![Err(IngestionError::Deserialize(e.to_string()))],
+    };
 
-    let msg_type = value.get("type")?.as_str()?;
+    let Some(msg_type) = value.get("type").and_then(|v| v.as_str()) else {
+        return Vec::new();
+    };
 
     if msg_type != "trade" {
         if msg_type == "ping" {
-            return None;
+            return Vec::new();
         }
         warn!("Finnhub unknown message type: {}", msg_type);
-        return None;
+        return Vec::new();
     }
 
-    let data = value.get("data")?.as_array()?;
+    let Some(data) = value.get("data").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
 
-    // Return the first trade as an envelope
+    let mut events = Vec::with_capacity(data.len());
     for trade in data {
-        let symbol = trade.get("s")?.as_str()?;
-        let price = trade.get("p")?.as_f64()?;
+        let Some(symbol) = trade.get("s").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(price) = trade.get("p").and_then(|v| v.as_f64()) else {
+            continue;
+        };
+        if !price.is_finite() || price <= 0.0 {
+            continue;
+        }
         let volume = trade.get("v").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let timestamp_ms = trade.get("t")?.as_i64()?;
+        if !volume.is_finite() || volume < 0.0 {
+            continue;
+        }
+        let Some(timestamp_ms) = trade.get("t").and_then(|v| v.as_i64()) else {
+            continue;
+        };
+        if timestamp_ms < 0 {
+            continue;
+        }
 
         let ts_event = UnixNanos::from_millis(timestamp_ms as u64);
         let ts_init = UnixNanos::now();
@@ -131,8 +156,8 @@ fn parse_finnhub_message(
 
         let envelope = Envelope::new(ts_event, ts_init, seq_gen.next_id(), event);
 
-        return Some(Ok(envelope));
+        events.push(Ok(envelope));
     }
 
-    None
+    events
 }

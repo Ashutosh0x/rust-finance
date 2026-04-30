@@ -8,7 +8,7 @@ use execution::gateway::{ExecutionGateway, OpenRequest, TimeInForce};
 use futures::StreamExt;
 use ingestion::source::MarketStream;
 use risk::interceptor::{RiskChain, RiskVerdict};
-use risk::state::EngineState;
+use risk::state::{EngineState, OpenOrderSnapshot};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
@@ -108,17 +108,41 @@ impl Engine {
             for signal in signals {
                 let _ = self.tui_tx.send(TuiEvent::Signal(signal.clone()));
 
+                if !signal.confidence.is_finite()
+                    || signal.confidence <= 0.0
+                    || signal.confidence > 1.0
+                {
+                    warn!(
+                        symbol = %signal.symbol,
+                        confidence = signal.confidence,
+                        "Dropping invalid strategy signal"
+                    );
+                    continue;
+                }
+
+                let Some(reference_price) = reference_price(&envelope.payload) else {
+                    warn!(
+                        symbol = %signal.symbol,
+                        "Dropping signal because no finite reference price is available"
+                    );
+                    continue;
+                };
+
                 self.order_counter += 1;
                 let client_order_id =
                     compact_str::CompactString::new(format!("RF-{:08}", self.order_counter));
+                let limit_price = match signal.direction {
+                    OrderSide::Buy => reference_price * 1.001,
+                    OrderSide::Sell => reference_price * 0.999,
+                };
 
                 let request = OpenRequest {
                     client_order_id: client_order_id.clone(),
                     symbol: signal.symbol.clone(),
                     side: signal.direction,
                     quantity: signal.confidence * 100.0, // Scale by confidence
-                    order_type: common::events::OrderType::Market,
-                    limit_price: None,
+                    order_type: common::events::OrderType::Limit,
+                    limit_price: Some(limit_price),
                     time_in_force: TimeInForce::DAY,
                 };
 
@@ -133,18 +157,7 @@ impl Engine {
                             "Order approved by risk chain"
                         );
 
-                        match self.executor.submit_order(request).await {
-                            Ok(order_event) => {
-                                let _ = self.tui_tx.send(TuiEvent::OrderUpdate(order_event));
-                            }
-                            Err(e) => {
-                                error!(
-                                    order_id = %client_order_id,
-                                    error = %e,
-                                    "Order submission failed"
-                                );
-                            }
-                        }
+                        self.submit_approved_order(request).await;
                     }
                     RiskVerdict::Blocked { reason } => {
                         warn!(
@@ -159,9 +172,27 @@ impl Engine {
                     } => {
                         info!(
                             reason = %reason,
-                            "Order modified by risk, submitting adjusted"
+                            "Order modified by risk; re-checking adjusted order"
                         );
-                        let _ = self.executor.submit_order(new_request).await;
+                        match self.risk_chain.evaluate(&self.state, &new_request) {
+                            RiskVerdict::Approved => {
+                                self.submit_approved_order(new_request).await;
+                            }
+                            RiskVerdict::Blocked { reason } => {
+                                warn!(
+                                    order_id = %client_order_id,
+                                    reason = %reason,
+                                    "Modified order blocked by second risk check"
+                                );
+                            }
+                            RiskVerdict::Modified { reason, .. } => {
+                                warn!(
+                                    order_id = %client_order_id,
+                                    reason = %reason,
+                                    "Nested risk modification blocked"
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -193,5 +224,83 @@ impl Engine {
             total_ticks = tick_count,
             "Engine stopped — stream exhausted"
         );
+    }
+
+    async fn submit_approved_order(&mut self, request: OpenRequest) {
+        let client_order_id = request.client_order_id.clone();
+        match self.executor.submit_order(request.clone()).await {
+            Ok(order_event) => {
+                self.apply_order_event(&request, &order_event);
+                let _ = self.tui_tx.send(TuiEvent::OrderUpdate(order_event));
+            }
+            Err(e) => {
+                error!(
+                    order_id = %client_order_id,
+                    error = %e,
+                    "Order submission failed"
+                );
+            }
+        }
+    }
+
+    fn apply_order_event(&mut self, request: &OpenRequest, event: &OrderEvent) {
+        match event {
+            OrderEvent::Accepted(_) => {
+                self.state.open_order_count = self.state.open_order_count.saturating_add(1);
+                if let Some(price) = request.limit_price {
+                    self.state.open_orders.push(OpenOrderSnapshot {
+                        symbol: request.symbol.clone(),
+                        side: request.side,
+                        price,
+                    });
+                }
+            }
+            OrderEvent::Filled(fill) => {
+                self.state.daily_trade_count = self.state.daily_trade_count.saturating_add(1);
+                if self.state.open_order_count > 0 {
+                    self.state.open_order_count -= 1;
+                }
+                self.state.open_orders.retain(|order| {
+                    !(order.symbol.as_str() == request.symbol.as_str()
+                        && order.side == request.side
+                        && (order.price - fill.fill_price).abs() < f64::EPSILON)
+                });
+            }
+            OrderEvent::Rejected(_) | OrderEvent::Cancelled(_) => {
+                if self.state.open_order_count > 0 {
+                    self.state.open_order_count -= 1;
+                }
+            }
+            OrderEvent::Submitted(_) => {}
+        }
+    }
+}
+
+fn reference_price(event: &MarketEvent) -> Option<f64> {
+    let price = match event {
+        MarketEvent::Trade(trade) => trade.price,
+        MarketEvent::Quote(quote) => {
+            if quote.bid > 0.0 && quote.ask > 0.0 && quote.bid <= quote.ask {
+                (quote.bid + quote.ask) * 0.5
+            } else {
+                return None;
+            }
+        }
+        MarketEvent::BookUpdate(book) => {
+            let best_bid = book.bids.first()?.price;
+            let best_ask = book.asks.first()?.price;
+            if best_bid > 0.0 && best_ask > 0.0 && best_bid <= best_ask {
+                (best_bid + best_ask) * 0.5
+            } else {
+                return None;
+            }
+        }
+        MarketEvent::Bar(bar) => bar.close,
+    };
+
+    if price.is_finite() && price > 0.0 {
+        Some(price)
+    } else {
+        None
     }
 }

@@ -131,11 +131,7 @@ impl CompositeSignal {
         let raw_score = weighted_sum / weight_total;
 
         // Regime scaling
-        let regime_mult = self
-            .regime_scaling
-            .get(regime_idx)
-            .copied()
-            .unwrap_or(1.0);
+        let regime_mult = self.regime_scaling.get(regime_idx).copied().unwrap_or(1.0);
 
         // Toxicity discount
         let toxicity_mult = (1.0 - toxicity * 1.5).max(0.0);
@@ -175,7 +171,11 @@ mod tests {
             1, // Normal regime
             0.0,
         );
-        assert!(output.score > 0.0, "Bullish OFI → positive score: {}", output.score);
+        assert!(
+            output.score > 0.0,
+            "Bullish OFI → positive score: {}",
+            output.score
+        );
         assert!(output.conviction > 0.0);
         assert_eq!(output.active_signals, 1);
     }
@@ -185,13 +185,17 @@ mod tests {
         let gen = CompositeSignal::new();
         let output = gen.compute(
             &[
-                make_signal("OFI", 1.0, 0.05, AlphaHealth::Healthy),  // Buy
-                make_signal("MR", -1.0, 0.05, AlphaHealth::Healthy),  // Sell
+                make_signal("OFI", 1.0, 0.05, AlphaHealth::Healthy), // Buy
+                make_signal("MR", -1.0, 0.05, AlphaHealth::Healthy), // Sell
             ],
             1,
             0.0,
         );
-        assert!(output.score.abs() < 0.01, "Conflicting → near zero: {}", output.score);
+        assert!(
+            output.score.abs() < 0.01,
+            "Conflicting → near zero: {}",
+            output.score
+        );
     }
 
     #[test]
@@ -206,7 +210,11 @@ mod tests {
             0.0,
         );
         // Strong signal (IC=0.10) should dominate weak (IC=0.02)
-        assert!(output.score > 0.0, "High-IC signal should dominate: {}", output.score);
+        assert!(
+            output.score > 0.0,
+            "High-IC signal should dominate: {}",
+            output.score
+        );
     }
 
     #[test]
@@ -220,7 +228,11 @@ mod tests {
             1,
             0.0,
         );
-        assert!(output.score > 0.0, "Decayed signal should not contribute: {}", output.score);
+        assert!(
+            output.score > 0.0,
+            "Decayed signal should not contribute: {}",
+            output.score
+        );
         assert_eq!(output.active_signals, 1);
     }
 
@@ -237,8 +249,12 @@ mod tests {
             3, // Crisis
             0.0,
         );
-        assert!(crisis.score.abs() < normal.score.abs(),
-            "Crisis should suppress signal: normal={}, crisis={}", normal.score, crisis.score);
+        assert!(
+            crisis.score.abs() < normal.score.abs(),
+            "Crisis should suppress signal: normal={}, crisis={}",
+            normal.score,
+            crisis.score
+        );
     }
 
     #[test]
@@ -254,8 +270,12 @@ mod tests {
             1,
             0.5,
         );
-        assert!(toxic.conviction < clean.conviction,
-            "Toxicity should reduce conviction: clean={}, toxic={}", clean.conviction, toxic.conviction);
+        assert!(
+            toxic.conviction < clean.conviction,
+            "Toxicity should reduce conviction: clean={}, toxic={}",
+            clean.conviction,
+            toxic.conviction
+        );
     }
 
     #[test]

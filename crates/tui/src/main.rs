@@ -30,15 +30,15 @@ const YELLOW: Color = Color::Rgb(250, 204, 21);
 
 mod app;
 mod event_handler;
-mod live_feed;
 pub mod layout;
+mod live_feed;
 pub mod setup;
 pub mod state;
 pub mod widgets;
 
 use app::App;
 use common::models::exchange::ExchangeStatus;
-use live_feed::{LiveFeedEvent, spawn_binance_feed};
+use live_feed::{spawn_binance_feed, LiveFeedEvent};
 use widgets::candlestick_widget::render_candlestick_chart;
 
 #[tokio::main]

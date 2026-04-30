@@ -1,4 +1,5 @@
 use crate::state::EngineState;
+use common::events::OrderType;
 use compact_str::CompactString;
 use execution::gateway::OpenRequest;
 
@@ -35,6 +36,18 @@ impl RiskChain {
     }
 
     pub fn evaluate(&self, state: &EngineState, req: &OpenRequest) -> RiskVerdict {
+        if let Err(err) = req.validate() {
+            return RiskVerdict::Blocked {
+                reason: CompactString::new(format!("Invalid order request: {err}")),
+            };
+        }
+
+        if self.interceptors.is_empty() {
+            return RiskVerdict::Blocked {
+                reason: "Risk chain has no interceptors; fail-closed".into(),
+            };
+        }
+
         for interceptor in &self.interceptors {
             match interceptor.evaluate(state, req) {
                 RiskVerdict::Approved => continue,
@@ -47,12 +60,66 @@ impl RiskChain {
 
 // Concrete Implementations
 
+pub struct OrderSanity;
+impl RiskInterceptor for OrderSanity {
+    fn evaluate(&self, _state: &EngineState, req: &OpenRequest) -> RiskVerdict {
+        match req.validate() {
+            Ok(()) => RiskVerdict::Approved,
+            Err(err) => RiskVerdict::Blocked {
+                reason: CompactString::new(format!("Invalid order request: {err}")),
+            },
+        }
+    }
+}
+
+pub struct BlockMarketOrders {
+    pub allow_market_orders: bool,
+}
+impl RiskInterceptor for BlockMarketOrders {
+    fn evaluate(&self, _state: &EngineState, req: &OpenRequest) -> RiskVerdict {
+        if !self.allow_market_orders && req.order_type == OrderType::Market {
+            RiskVerdict::Blocked {
+                reason: "Market orders disabled by risk policy".into(),
+            }
+        } else {
+            RiskVerdict::Approved
+        }
+    }
+}
+
+pub struct MaxOrderNotional {
+    pub max_notional: f64,
+}
+impl RiskInterceptor for MaxOrderNotional {
+    fn evaluate(&self, _state: &EngineState, req: &OpenRequest) -> RiskVerdict {
+        let Some(price) = req.limit_price else {
+            return RiskVerdict::Approved;
+        };
+
+        let notional = price * req.quantity;
+        if !notional.is_finite() || notional > self.max_notional {
+            RiskVerdict::Blocked {
+                reason: CompactString::new(format!(
+                    "Order notional {notional:.2} exceeds limit {:.2}",
+                    self.max_notional
+                )),
+            }
+        } else {
+            RiskVerdict::Approved
+        }
+    }
+}
+
 pub struct MaxPositionSize {
     pub max_quantity: f64,
 }
 impl RiskInterceptor for MaxPositionSize {
     fn evaluate(&self, _state: &EngineState, req: &OpenRequest) -> RiskVerdict {
-        if req.quantity > self.max_quantity {
+        if !self.max_quantity.is_finite() || self.max_quantity <= 0.0 {
+            RiskVerdict::Blocked {
+                reason: "Invalid max position limit".into(),
+            }
+        } else if req.quantity > self.max_quantity {
             RiskVerdict::Blocked {
                 reason: "Exceeds max position size".into(),
             }
@@ -67,7 +134,14 @@ pub struct MaxDrawdown {
 }
 impl RiskInterceptor for MaxDrawdown {
     fn evaluate(&self, state: &EngineState, _req: &OpenRequest) -> RiskVerdict {
-        if state.current_drawdown_pct > self.max_drawdown_pct {
+        if !self.max_drawdown_pct.is_finite()
+            || self.max_drawdown_pct <= 0.0
+            || self.max_drawdown_pct > 1.0
+        {
+            RiskVerdict::Blocked {
+                reason: "Invalid drawdown risk limit".into(),
+            }
+        } else if state.current_drawdown_pct > self.max_drawdown_pct {
             RiskVerdict::Blocked {
                 reason: "Exceeds max drawdown".into(),
             }
@@ -97,7 +171,11 @@ pub struct DailyLossLimit {
 }
 impl RiskInterceptor for DailyLossLimit {
     fn evaluate(&self, state: &EngineState, _req: &OpenRequest) -> RiskVerdict {
-        if state.daily_pnl <= -self.max_daily_loss {
+        if !self.max_daily_loss.is_finite() || self.max_daily_loss <= 0.0 {
+            RiskVerdict::Blocked {
+                reason: "Invalid daily loss limit".into(),
+            }
+        } else if state.daily_pnl <= -self.max_daily_loss {
             RiskVerdict::Blocked {
                 reason: "Max daily loss exceeded".into(),
             }
@@ -231,15 +309,42 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_chain_approves_everything() {
+    fn test_empty_chain_blocks_everything() {
         let chain = RiskChain::new();
         let state = default_state();
         let req = sample_request(999999.0);
         let verdict = chain.evaluate(&state, &req);
         assert!(
-            matches!(verdict, RiskVerdict::Approved),
-            "Empty chain should approve everything"
+            matches!(verdict, RiskVerdict::Blocked { .. }),
+            "Empty chain must fail closed"
         );
+    }
+
+    #[test]
+    fn test_chain_blocks_invalid_order_request() {
+        let chain = RiskChain::new().add(OrderSanity);
+        let state = default_state();
+        let mut req = sample_request(f64::NAN);
+        let verdict = chain.evaluate(&state, &req);
+        assert!(matches!(verdict, RiskVerdict::Blocked { .. }));
+
+        req.quantity = 1.0;
+        req.limit_price = None;
+        let verdict = chain.evaluate(&state, &req);
+        assert!(matches!(verdict, RiskVerdict::Blocked { .. }));
+    }
+
+    #[test]
+    fn test_market_orders_block_by_policy() {
+        let chain = RiskChain::new().add(BlockMarketOrders {
+            allow_market_orders: false,
+        });
+        let state = default_state();
+        let mut req = sample_request(10.0);
+        req.order_type = OrderType::Market;
+        req.limit_price = None;
+        let verdict = chain.evaluate(&state, &req);
+        assert!(matches!(verdict, RiskVerdict::Blocked { .. }));
     }
 
     /// E2E: feed an order through risk chain → if approved → submit to RecordingExecutor.

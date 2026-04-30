@@ -75,7 +75,7 @@ pub enum ToxicityAction {
 #[allow(dead_code)] // timestamp stored for audit trail / gap-alert logging
 struct FillEntry {
     price: f64,
-    is_bid: bool,      // true = we bought (filled on our bid)
+    is_bid: bool, // true = we bought (filled on our bid)
     timestamp: u64,
     evaluated: bool,
     post_move: Option<f64>,
@@ -255,10 +255,18 @@ mod tests {
         for i in 0..20 {
             det.record_fill(100.0, true, i);
             let action = det.evaluate(100.5, i + 3); // Price went UP after buy = good
-            assert_eq!(action, ToxicityAction::Normal,
-                "Normal flow should be Normal at tick {}", i);
+            assert_eq!(
+                action,
+                ToxicityAction::Normal,
+                "Normal flow should be Normal at tick {}",
+                i
+            );
         }
-        assert!(det.toxicity() < 0.1, "Toxicity should be low: {}", det.toxicity());
+        assert!(
+            det.toxicity() < 0.1,
+            "Toxicity should be low: {}",
+            det.toxicity()
+        );
     }
 
     #[test]
@@ -274,7 +282,11 @@ mod tests {
             let _action = det.evaluate(99.0, i + 3); // Price DOWN after buy = toxic
         }
 
-        assert!(det.toxicity() > 0.3, "Toxicity should be elevated: {}", det.toxicity());
+        assert!(
+            det.toxicity() > 0.3,
+            "Toxicity should be elevated: {}",
+            det.toxicity()
+        );
     }
 
     #[test]
@@ -294,7 +306,8 @@ mod tests {
         let action = det.evaluate(98.0, 33);
         assert!(
             matches!(action, ToxicityAction::HaltPassive),
-            "Extreme toxicity should halt: tox={:.3}", det.toxicity()
+            "Extreme toxicity should halt: tox={:.3}",
+            det.toxicity()
         );
     }
 
@@ -314,7 +327,10 @@ mod tests {
 
         // Should be somewhere between 0 and warn_threshold
         let tox = det.toxicity();
-        assert!(tox > 0.0 && tox < 0.5,
-            "Mixed flow toxicity should be moderate: {}", tox);
+        assert!(
+            tox > 0.0 && tox < 0.5,
+            "Mixed flow toxicity should be moderate: {}",
+            tox
+        );
     }
 }

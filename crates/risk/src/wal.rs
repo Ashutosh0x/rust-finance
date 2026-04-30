@@ -198,9 +198,7 @@ impl WALEngine {
             .rev()
             .find(|r| matches!(r.entry, WALEntry::Checkpoint { .. }));
 
-        let replay_from_lsn = checkpoint
-            .map(|cp| cp.lsn + 1)
-            .unwrap_or(1); // If no checkpoint, replay everything
+        let replay_from_lsn = checkpoint.map(|cp| cp.lsn + 1).unwrap_or(1); // If no checkpoint, replay everything
 
         let entries_to_replay: Vec<&WALRecord> = self
             .log
@@ -368,7 +366,10 @@ mod tests {
             drawdown_pct: 0.01,
             var_95: 1500.0,
         });
-        assert!(wal.needs_checkpoint(), "Should need checkpoint after 3 entries");
+        assert!(
+            wal.needs_checkpoint(),
+            "Should need checkpoint after 3 entries"
+        );
     }
 
     #[test]
@@ -401,7 +402,11 @@ mod tests {
         wal.truncate_before_checkpoint();
 
         // Should keep checkpoint + entries after it
-        assert!(wal.len() <= 3, "Should have truncated old entries, len={}", wal.len());
+        assert!(
+            wal.len() <= 3,
+            "Should have truncated old entries, len={}",
+            wal.len()
+        );
     }
 
     #[test]
@@ -445,29 +450,45 @@ mod tests {
 
         // First batch
         wal.append(WALEntry::PositionOpened {
-            symbol: "OLD".into(), side: "LONG".into(), quantity: 10.0, entry_price: 100.0,
+            symbol: "OLD".into(),
+            side: "LONG".into(),
+            quantity: 10.0,
+            entry_price: 100.0,
         });
         wal.write_checkpoint(50_000.0, -200.0, 50_200.0, r#"[{"OLD":10}]"#, "{}");
 
         // Second batch
         wal.append(WALEntry::PositionOpened {
-            symbol: "NEW".into(), side: "SHORT".into(), quantity: 5.0, entry_price: 200.0,
+            symbol: "NEW".into(),
+            side: "SHORT".into(),
+            quantity: 5.0,
+            entry_price: 200.0,
         });
         wal.write_checkpoint(55_000.0, 300.0, 55_000.0, r#"[{"NEW":5}]"#, "{}");
 
         // Third batch (post-checkpoint)
         wal.append(WALEntry::OrderSubmitted {
-            order_id: "FINAL".into(), symbol: "LATEST".into(), side: "BUY".into(),
-            quantity: 1.0, price: Some(500.0), order_type: "MARKET".into(),
+            order_id: "FINAL".into(),
+            symbol: "LATEST".into(),
+            side: "BUY".into(),
+            quantity: 1.0,
+            price: Some(500.0),
+            order_type: "MARKET".into(),
         });
 
         let (checkpoint, replay) = wal.recover();
         let cp = checkpoint.unwrap();
 
         // Should use the LATEST checkpoint (LSN 4)
-        if let WALEntry::Checkpoint { portfolio_value, .. } = &cp.entry {
-            assert!((*portfolio_value - 55_000.0).abs() < 1e-10,
-                "Should use latest checkpoint, got {}", portfolio_value);
+        if let WALEntry::Checkpoint {
+            portfolio_value, ..
+        } = &cp.entry
+        {
+            assert!(
+                (*portfolio_value - 55_000.0).abs() < 1e-10,
+                "Should use latest checkpoint, got {}",
+                portfolio_value
+            );
         }
 
         // Only 1 entry to replay (the FINAL order)

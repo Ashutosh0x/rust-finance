@@ -201,7 +201,6 @@ impl GapDetector {
                 self.gap_buffer.insert(incoming_seq, envelope);
                 self.total_messages_buffered += 1;
 
-
                 // Safety: flush if buffer gets too large
                 if self.gap_buffer.len() > self.config.max_buffer_size {
                     warn!(
@@ -305,21 +304,40 @@ impl GapDetector {
     // ACCESSORS
     // ═══════════════════════════════════════════════════════════════════
 
-    pub fn status(&self) -> FeedStatus { self.status }
-    pub fn source_name(&self) -> &str { &self.source_name }
-    pub fn last_sequence(&self) -> Option<u64> { self.last_seq }
-    pub fn buffer_size(&self) -> usize { self.gap_buffer.len() }
-    pub fn gap_log(&self) -> &[GapAlert] { &self.gap_log }
-    pub fn total_gaps(&self) -> u64 { self.total_gaps_detected }
+    pub fn status(&self) -> FeedStatus {
+        self.status
+    }
+    pub fn source_name(&self) -> &str {
+        &self.source_name
+    }
+    pub fn last_sequence(&self) -> Option<u64> {
+        self.last_seq
+    }
+    pub fn buffer_size(&self) -> usize {
+        self.gap_buffer.len()
+    }
+    pub fn gap_log(&self) -> &[GapAlert] {
+        &self.gap_log
+    }
+    pub fn total_gaps(&self) -> u64 {
+        self.total_gaps_detected
+    }
     pub fn is_frozen(&self) -> bool {
-        matches!(self.status, FeedStatus::GapDetected | FeedStatus::Recovering)
+        matches!(
+            self.status,
+            FeedStatus::GapDetected | FeedStatus::Recovering
+        )
     }
 
     /// Returns the missing sequence IDs for retransmission requests.
-    pub fn missing_sequences(&self) -> &[u64] { &self.missing_seqs }
+    pub fn missing_sequences(&self) -> &[u64] {
+        &self.missing_seqs
+    }
 
     /// Returns the active recovery strategy, if any.
-    pub fn active_recovery(&self) -> Option<RecoveryStrategy> { self.active_recovery }
+    pub fn active_recovery(&self) -> Option<RecoveryStrategy> {
+        self.active_recovery
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // INTERNAL
@@ -438,7 +456,9 @@ impl GapDetector {
     /// Complete recovery: log the gap, drain buffer, resume live state.
     fn complete_recovery(&mut self) -> Vec<Envelope<MarketEvent>> {
         let duration = self.gap_detected_at.map(|t| t.elapsed());
-        let strategy = self.active_recovery.unwrap_or(RecoveryStrategy::Retransmission);
+        let strategy = self
+            .active_recovery
+            .unwrap_or(RecoveryStrategy::Retransmission);
 
         // Log the gap alert
         if let (Some(&start), Some(&end)) = (self.missing_seqs.first(), self.missing_seqs.last()) {
@@ -476,11 +496,7 @@ impl GapDetector {
 
     /// Drain gap buffer → sorted Vec, update last_seq.
     fn drain_buffer(&mut self) -> Vec<Envelope<MarketEvent>> {
-        let events: Vec<Envelope<MarketEvent>> = self
-            .gap_buffer
-            .values()
-            .cloned()
-            .collect();
+        let events: Vec<Envelope<MarketEvent>> = self.gap_buffer.values().cloned().collect();
 
         if let Some(last) = events.last() {
             self.last_seq = Some(last.sequence_id.as_u64());
@@ -518,7 +534,7 @@ mod tests {
     use common::time::UnixNanos;
 
     fn make_envelope(seq: u64) -> Envelope<MarketEvent> {
-        use common::events::{QuoteEvent, MarketEvent};
+        use common::events::{MarketEvent, QuoteEvent};
         use compact_str::CompactString;
         Envelope {
             ts_event: UnixNanos::now(),

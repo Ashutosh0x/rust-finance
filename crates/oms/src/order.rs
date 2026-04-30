@@ -163,6 +163,22 @@ impl Order {
                 price,
                 commission,
             } => {
+                if !qty.is_finite() || qty <= 0.0 {
+                    return Err(format!("Invalid fill quantity: {qty}"));
+                }
+                if !price.is_finite() || price <= 0.0 {
+                    return Err(format!("Invalid fill price: {price}"));
+                }
+                if !commission.is_finite() || commission < 0.0 {
+                    return Err(format!("Invalid commission: {commission}"));
+                }
+                if qty > self.remaining_qty() + 1e-9 {
+                    return Err(format!(
+                        "Overfill rejected: fill {qty} exceeds remaining {}",
+                        self.remaining_qty()
+                    ));
+                }
+
                 // Update VWAP
                 let prev_notional = self.avg_fill_price.unwrap_or(0.0) * self.filled_qty;
                 self.filled_qty += qty;
@@ -273,5 +289,23 @@ mod tests {
         })
         .unwrap();
         assert!(o.status.is_terminal());
+    }
+
+    #[test]
+    fn test_overfill_rejected() {
+        let mut o = make_order();
+        o.apply(OrderEvent::Submit {
+            exchange_order_id: "EX-001".into(),
+        })
+        .unwrap();
+
+        let result = o.apply(OrderEvent::FillReceived {
+            qty: 101.0,
+            price: 175.0,
+            commission: 0.0,
+        });
+
+        assert!(result.is_err());
+        assert_eq!(o.filled_qty, 0.0);
     }
 }

@@ -184,9 +184,12 @@ fn parse_binance_combined(
         Err(e) => return Some(Err(IngestionError::Deserialize(e.to_string()))),
     };
 
-    let _stream_name = json.get("stream")?.as_str()?;
+    let stream_name = json.get("stream")?.as_str()?;
     let data = json.get("data")?;
-    let event_type = data.get("e")?.as_str()?;
+    let event_type = data
+        .get("e")
+        .and_then(|v| v.as_str())
+        .or_else(|| infer_event_type(stream_name))?;
 
     let ts_init = UnixNanos::now();
 
@@ -198,6 +201,9 @@ fn parse_binance_combined(
             let symbol = CompactString::new(data.get("s")?.as_str()?);
             let price: f64 = data.get("p")?.as_str()?.parse().ok()?;
             let quantity: f64 = data.get("q")?.as_str()?.parse().ok()?;
+            if !price.is_finite() || price <= 0.0 || !quantity.is_finite() || quantity <= 0.0 {
+                return None;
+            }
             let trade_time_ms = data.get("T")?.as_u64()?;
 
             // "m" = is buyer the market maker?
@@ -244,6 +250,17 @@ fn parse_binance_combined(
             let low: f64 = kline.get("l")?.as_str()?.parse().ok()?;
             let close: f64 = kline.get("c")?.as_str()?.parse().ok()?;
             let volume: f64 = kline.get("v")?.as_str()?.parse().ok()?;
+            if [open, high, low, close, volume]
+                .iter()
+                .any(|v| !v.is_finite())
+                || open <= 0.0
+                || high <= 0.0
+                || low <= 0.0
+                || close <= 0.0
+                || volume < 0.0
+            {
+                return None;
+            }
             let event_time_ms = data.get("E")?.as_u64()?;
 
             let event = MarketEvent::Bar(BarEvent {
@@ -283,6 +300,26 @@ fn parse_binance_combined(
             }))
         }
 
+        "partialDepth" => {
+            let symbol = data
+                .get("s")
+                .and_then(|v| v.as_str())
+                .map(CompactString::new)
+                .or_else(|| symbol_from_stream(stream_name).map(CompactString::new))?;
+
+            let bids = parse_depth_levels(data.get("bids").or_else(|| data.get("b"))?)?;
+            let asks = parse_depth_levels(data.get("asks").or_else(|| data.get("a"))?)?;
+
+            let event = MarketEvent::BookUpdate(BookUpdateEvent { symbol, bids, asks });
+
+            Some(Ok(Envelope {
+                ts_event: ts_init,
+                ts_init,
+                sequence_id: seq_gen.next_id(),
+                payload: event,
+            }))
+        }
+
         _ => {
             debug!(event_type = event_type, "Unhandled Binance event type");
             None
@@ -290,7 +327,22 @@ fn parse_binance_combined(
     }
 }
 
-/// Parse bookTicker — may arrive without "e" field on spot raw streams.
+/// Infer Binance event type for raw spot streams that omit the "e" field.
+fn infer_event_type(stream_name: &str) -> Option<&'static str> {
+    if stream_name.contains("@bookTicker") {
+        Some("bookTicker")
+    } else if stream_name.contains("@depth") {
+        Some("partialDepth")
+    } else {
+        None
+    }
+}
+
+fn symbol_from_stream(stream_name: &str) -> Option<&str> {
+    stream_name.split('@').next().filter(|s| !s.is_empty())
+}
+
+/// Parse bookTicker, which may arrive without an "e" field on spot raw streams.
 fn parse_book_ticker(
     data: &serde_json::Value,
     ts_init: UnixNanos,
@@ -301,6 +353,18 @@ fn parse_book_ticker(
     let bid_size: f64 = data.get("B")?.as_str()?.parse().ok()?;
     let ask: f64 = data.get("a")?.as_str()?.parse().ok()?;
     let ask_size: f64 = data.get("A")?.as_str()?.parse().ok()?;
+    if !bid.is_finite()
+        || !ask.is_finite()
+        || !bid_size.is_finite()
+        || !ask_size.is_finite()
+        || bid <= 0.0
+        || ask <= 0.0
+        || bid > ask
+        || bid_size < 0.0
+        || ask_size < 0.0
+    {
+        return None;
+    }
 
     // Event time may be present on futures ("E") but not spot bookTicker
     let ts_event = data
@@ -334,6 +398,9 @@ fn parse_depth_levels(value: &serde_json::Value) -> Option<Vec<PriceLevel>> {
             let pair = level.as_array()?;
             let price: f64 = pair.first()?.as_str()?.parse().ok()?;
             let quantity: f64 = pair.get(1)?.as_str()?.parse().ok()?;
+            if !price.is_finite() || price <= 0.0 || !quantity.is_finite() || quantity < 0.0 {
+                return None;
+            }
             Some(PriceLevel { price, quantity })
         })
         .collect();

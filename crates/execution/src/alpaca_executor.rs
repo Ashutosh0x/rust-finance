@@ -57,6 +57,8 @@ impl ExecutionGateway for AlpacaExecutor {
     }
 
     async fn submit_order(&self, req: OpenRequest) -> Result<OrderEvent, anyhow::Error> {
+        req.validate()?;
+
         let side = match req.side {
             OrderSide::Buy => "buy",
             OrderSide::Sell => "sell",

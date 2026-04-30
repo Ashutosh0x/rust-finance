@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
     let config = DaemonConfig::from_env();
 
     // Bootstrap all components
-    let (market_stream, risk_chain, executor, state) = bootstrap(&config).await;
+    let (market_stream, risk_chain, executor, state) = bootstrap(&config).await?;
 
     // TUI broadcast channel (daemon -> tui)
     let (tui_tx, _tui_rx) = broadcast::channel::<TuiEvent>(4096);

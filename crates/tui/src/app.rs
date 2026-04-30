@@ -1,5 +1,5 @@
-use crate::widgets::chart_widget::{ChartState, ChartStats};
 use crate::widgets::candlestick_widget::{Candle, CandlestickState};
+use crate::widgets::chart_widget::{ChartState, ChartStats};
 use std::collections::VecDeque;
 
 // ── Data structures for live panels ───────────────────────────────────────────
@@ -603,7 +603,14 @@ impl App {
     }
 
     /// Update the last candle in-place (for in-progress kline bars).
-    pub fn update_current_candle(&mut self, open: f64, high: f64, low: f64, close: f64, volume: f64) {
+    pub fn update_current_candle(
+        &mut self,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: f64,
+    ) {
         if let Some(last) = self.candles.last_mut() {
             last.high = high;
             last.low = low;
@@ -650,7 +657,11 @@ impl App {
 
     /// Mark the Binance exchange as connected with latency.
     pub fn set_exchange_connected(&mut self, latency_ms: f64) {
-        if let Some(ex) = self.exchanges.iter_mut().find(|e| e.name == ExchangeName::CRYPTO) {
+        if let Some(ex) = self
+            .exchanges
+            .iter_mut()
+            .find(|e| e.name == ExchangeName::CRYPTO)
+        {
             ex.status = ExchangeStatus::Connected;
             ex.latency_ms = latency_ms;
             ex.last_heartbeat = Some(

@@ -9,6 +9,7 @@ use ingestion::multiplexer::Multiplexer;
 use ingestion::source::{DataType, Subscription};
 use ingestion::sources::*;
 use risk::interceptor::*;
+use risk::self_match::{SelfMatchPrevention, SmpMode};
 use risk::state::EngineState;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -23,6 +24,10 @@ pub struct DaemonConfig {
     pub max_position_size: f64,
     pub max_drawdown_pct: f64,
     pub max_daily_loss: f64,
+    pub max_order_notional: f64,
+    pub allow_market_orders: bool,
+    pub allow_executor_fallback_to_mock: bool,
+    pub alpaca_paper_trading: bool,
 }
 
 impl DaemonConfig {
@@ -39,8 +44,12 @@ impl DaemonConfig {
             symbols_polymarket: env_list("SYMBOLS_POLYMARKET", ""),
             starting_equity: env_f64("STARTING_EQUITY", 100_000.0),
             max_position_size: env_f64("MAX_POSITION_SIZE", 10_000.0),
-            max_drawdown_pct: env_f64("MAX_DRAWDOWN_PCT", 5.0),
+            max_drawdown_pct: env_fraction("MAX_DRAWDOWN_PCT", 0.05),
             max_daily_loss: env_f64("MAX_DAILY_LOSS", 2_000.0),
+            max_order_notional: env_f64("MAX_ORDER_NOTIONAL", 25_000.0),
+            allow_market_orders: env_bool("ALLOW_MARKET_ORDERS", false),
+            allow_executor_fallback_to_mock: env_bool("ALLOW_EXECUTOR_FALLBACK_TO_MOCK", false),
+            alpaca_paper_trading: !env_bool("ALPACA_LIVE_TRADING", false),
         }
     }
 }
@@ -61,15 +70,35 @@ fn env_f64(key: &str, default: f64) -> f64 {
         .unwrap_or(default)
 }
 
+fn env_fraction(key: &str, default: f64) -> f64 {
+    let raw = env_f64(key, default);
+    if raw > 1.0 {
+        warn!(
+            key,
+            value = raw,
+            "Interpreting percentage-style risk limit as a fraction"
+        );
+        raw / 100.0
+    } else {
+        raw
+    }
+}
+
+fn env_bool(key: &str, default: bool) -> bool {
+    std::env::var(key)
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(default)
+}
+
 /// Build and return the multiplexed data stream + risk chain + executor.
 pub async fn bootstrap(
     config: &DaemonConfig,
-) -> (
+) -> anyhow::Result<(
     ingestion::source::MarketStream,
     RiskChain,
     Box<dyn ExecutionGateway>,
     EngineState,
-) {
+)> {
     let seq_gen = Arc::new(SequenceGenerator::new());
 
     // ─── Build data source multiplexer ───────────────────────────
@@ -137,8 +166,16 @@ pub async fn bootstrap(
     // ─── Build risk chain ────────────────────────────────────────
 
     let risk_chain = RiskChain::new()
+        .add(OrderSanity)
+        .add(SelfMatchPrevention::new(SmpMode::CancelAggressive))
+        .add(BlockMarketOrders {
+            allow_market_orders: config.allow_market_orders,
+        })
         .add(MaxPositionSize {
             max_quantity: config.max_position_size,
+        })
+        .add(MaxOrderNotional {
+            max_notional: config.max_order_notional,
         })
         .add(MaxDrawdown {
             max_drawdown_pct: config.max_drawdown_pct,
@@ -148,21 +185,30 @@ pub async fn bootstrap(
             max_daily_loss: config.max_daily_loss,
         });
 
-    info!("Risk chain configured: 4 interceptors");
+    info!("Risk chain configured: 7 interceptors");
 
     // ─── Build executor ──────────────────────────────────────────
 
     let executor: Box<dyn ExecutionGateway> = if config.use_mock {
         Box::new(MockExecutor::new())
     } else {
-        match AlpacaExecutor::from_env(true) {
+        match AlpacaExecutor::from_env(config.alpaca_paper_trading) {
             Ok(exec) => {
-                info!("Alpaca paper executor configured");
+                info!(
+                    paper = config.alpaca_paper_trading,
+                    "Alpaca executor configured"
+                );
                 Box::new(exec)
             }
             Err(e) => {
-                warn!(error = %e, "Alpaca executor unavailable, falling back to mock");
-                Box::new(MockExecutor::new())
+                if config.allow_executor_fallback_to_mock {
+                    warn!(error = %e, "Alpaca executor unavailable, falling back to mock");
+                    Box::new(MockExecutor::new())
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Alpaca executor unavailable and mock fallback is disabled: {e}"
+                    ));
+                }
             }
         }
     };
@@ -171,5 +217,5 @@ pub async fn bootstrap(
 
     let state = EngineState::new(config.starting_equity);
 
-    (market_stream, risk_chain, executor, state)
+    Ok((market_stream, risk_chain, executor, state))
 }

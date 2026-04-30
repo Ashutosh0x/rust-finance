@@ -17,6 +17,8 @@ impl ExecutionGateway for MockExecutor {
     }
 
     async fn submit_order(&self, req: OpenRequest) -> Result<OrderEvent, anyhow::Error> {
+        req.validate()?;
+
         Ok(OrderEvent::Filled(OrderFilled {
             client_order_id: req.client_order_id,
             fill_price: req.limit_price.unwrap_or(100.0), // Stub price
