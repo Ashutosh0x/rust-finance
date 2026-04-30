@@ -44,21 +44,24 @@ https://github.com/user-attachments/assets/c769b2c2-cfa0-44bd-a261-99786ea653e1
 
 RustForge is an institutional-grade AI trading terminal built in pure Rust. It combines real-time multi-exchange market data, Claude-powered AI analysis, quantitative risk management, prediction market trading, and a full TUI dashboard — all in a single binary with nanosecond-precision timestamps and sub-millisecond latency.
 
-> **v0.3** — Self-match prevention (CME/NASDAQ/Both modes), SEBI 2026 Algo-ID compliance, Almgren-Chriss square-root market impact fill model, alpha decay monitoring (rolling IC/Sharpe), and production FIX 4.4 parser.
+> **v0.4** — 2026 Quant Alpha Library: Multi-level Microprice (MLOFI), Adverse Selection Detection, Regime-Conditioned Quoting, Kelly+Bayesian Sizing, Alpha Health Monitor, IC-Weighted Composite Signals, Enhanced Avellaneda-Stoikov Quoting Engine, Almgren-Chriss Optimal Execution, Live Binance WebSocket Candlestick Feed, and WebSocket Gap Detection Engine. 82+ unit tests passing on Rust 1.95.0.
 
 | Feature | Detail |
 |:---|:---|
 | Language | Pure Rust |
 | Interface | Full TUI Dashboard (Ratatui, 6 screens) |
 | AI Integration | Claude-powered Dexter Analyst |
-| Execution Algorithms | TWAP, VWAP, Iceberg, POV — Bloomberg EMSX-grade slicing |
-| Market Making | Avellaneda-Stoikov optimal quoting with VPIN toxicity detection |
-| Microstructure | OFI, Microprice, Kyle's Lambda, VPIN, Amihud, Lee-Ready |
+| Execution Algorithms | TWAP, VWAP, Iceberg, POV, Almgren-Chriss Optimal Execution |
+| Market Making | Enhanced Avellaneda-Stoikov with regime gating, VPIN toxicity, OFI skew |
+| Microstructure | Multi-level MLOFI, OFI, Microprice, Kyle's Lambda, VPIN, Amihud, Lee-Ready |
 | Smart Order Router | Multi-venue scoring (fill rate, latency, fees, impact) |
+| Alpha Signals | Toxicity detection, regime classifier, IC-weighted composite, alpha health |
+| Position Sizing | Quarter-Kelly with Bayesian shrinkage, conviction scaling |
+| Live Data | Binance WebSocket candlestick feed with gap detection engine |
 | Prediction Markets | Polymarket CLOB + cross-platform arbitrage engine |
 | Agent Simulation | 100K-agent Rayon-parallel swarm |
 | Knowledge Graph | petgraph-backed RAG engine |
-| Risk Models | GARCH(1,1) + VaR + Kill Switch + SMP + Interceptor Chain |
+| Risk Models | GARCH(1,1) + VaR + Kill Switch + SMP + Regime Detection + Toxicity Gating |
 | Timestamp Precision | Nanosecond (`UnixNanos`) |
 | Deterministic Replay | `DeterministicClock` + `SequenceId` ordering |
 | Regulatory Compliance | SEBI 2026 Algo-ID + OPS threshold + pre-trade checks |
@@ -142,9 +145,9 @@ graph TD;
 
 ```
 common           Nanosecond timestamps, events, config, models
-ingestion        Multi-source market data (Alpaca, Binance, Finnhub, Polymarket)
-execution        ExecutionGateway + TWAP/VWAP/Iceberg/POV algos + Smart Order Router
-strategy         Momentum, MeanReversion, Avellaneda-Stoikov market maker
+ingestion        Multi-source market data (Alpaca, Binance, Finnhub, Polymarket) + gap detector
+execution        ExecutionGateway + TWAP/VWAP/Iceberg/POV + Almgren-Chriss optimal execution
+strategy         Momentum, MeanReversion, Avellaneda-Stoikov (Welford O(1) variance)
 risk             Kill switch, GARCH vol, VaR, risk interceptor chain, self-match prevention
 pricing          Black-Scholes-Merton, Heston, GARCH(1,1) models
 backtest         Walk-forward, Monte Carlo, backtesting engine, √-impact fill model
@@ -154,10 +157,10 @@ knowledge_graph  petgraph-backed RAG knowledge engine
 polymarket       CLOB + EIP-712 signing + sum-to-one/cross-platform arb engine
 daemon           Hybrid intelligence pipeline, engine orchestration
 event_bus        Postcard-serialized TCP event bus (daemon <-> TUI)
-tui              Ratatui-powered 6-screen trading dashboard
+tui              Ratatui TUI + live Binance candlestick feed + 500 msg/frame cap
 oms              Order Management System (netting + hedging + SEBI 2026 Algo-ID)
 alerts           Rule-based alert engine
-signals          Technical indicators + OFI, Microprice, Kyle's Lambda, VPIN
+signals          2026 Quant Alpha Library (see below) + indicators + microstructure
 compliance       Pre-trade compliance, audit trail
 persistence      PostgreSQL + SQLite persistence layer
 metrics          Prometheus-compatible telemetry
@@ -171,6 +174,32 @@ web-dashboard    Web-based dashboard
 dashboard        Dashboard data models
 tests            Integration test suite
 benchmarks       Criterion performance benchmarks
+```
+
+#### Signals Crate — 2026 Quant Alpha Library
+
+Based on 18 research papers (2025–2026). 55 unit tests.
+
+```
+Indicators       SMA, EMA, RSI, MACD, Bollinger Bands, VWAP
+Microstructure   OFI (Cont 2014), Microprice, Kyle's Lambda, VPIN (Easley 2012),
+                 Amihud Illiquidity, Lee-Ready Trade Classifier
+Microprice ML    Multi-level microprice MLOFI (Oxford 2019, arXiv 2602.00776)
+Adverse Select.  Toxicity detection + halt/widen (Barzykin 2025, Crypto 2026)
+Regime           Fast/slow EMA vol ratio → LowVol/Normal/HighVol/Crisis (RegimeFolio 2025)
+Kelly            Quarter-Kelly + Bayesian shrinkage sizing (PolySwarm Apr 2026)
+Alpha Health     IC decay + hit rate monitor → Healthy/Degraded/Decayed (AlphaForgeBench 2026)
+Composite        IC-weighted signal combiner with regime + toxicity gating (Chain-of-Alpha 2025)
+Quoting Engine   Enhanced Avellaneda-Stoikov: regime γ, VPIN widening, OFI skew, Kelly sizing
+```
+
+#### Execution Crate — Almgren-Chriss Optimal Execution
+
+```
+Almgren-Chriss   Optimal trajectory: xⱼ = X × sinh(κ(N-j)) / sinh(κN)
+                 Urgency parameter κ = √(λσ²/η), square-root impact model
+                 Presets: liquid_default, aggressive, passive
+                 7 unit tests (TWAP convergence, front-loading, quantity conservation)
 ```
 
 ---
@@ -213,7 +242,9 @@ cargo run -p tui --release
 
 ### Market Data
 - **Alpaca** — Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
-- **Binance** — Crypto streams (trades, bookTicker, depth5) via combined WS endpoint
+- **Binance** — Crypto streams (trades, bookTicker, kline, depth5) via combined WS endpoint
+  - **Live Candlestick Feed** — Direct WebSocket kline_1m stream → real-time OHLCV candlestick rendering in TUI
+  - **Gap Detection Engine** — Sequence-based WebSocket gap detector with configurable thresholds (small gap: retransmit, medium: snapshot, large: failover)
 - **Finnhub** — Global market data (incl. NSE/BSE) and live trades via WebSocket
 - **Polymarket** — Prediction market data via 3 APIs:
   - **Gamma API** — Events, markets, tags, search, profiles (`gamma-api.polymarket.com`)
@@ -222,6 +253,7 @@ cargo run -p tui --release
 - **Mock source** — Deterministic replay for backtesting
 - Auto-reconnect with exponential backoff on all sources
 - Source Multiplexer — unified `SelectAll` stream from any combination of sources
+- **500 msg/frame cap** — Prevents TUI freeze during high-volume market activity (e.g., BTC flash crashes)
 
 ### AI Intelligence
 - **Dexter AI Analyst** — Claude-powered market analysis with structured signal output
@@ -233,6 +265,7 @@ cargo run -p tui --release
 
 ### Execution & Algorithmic Trading
 - `ExecutionGateway` trait — plug-and-play execution backends
+- **Almgren-Chriss Optimal Execution** — closed-form trajectory minimizing E[cost] + λ×Var[cost], with urgency parameter κ = √(λσ²/η), square-root impact model, and adaptive σ/λ updates from GARCH + regime detector
 - **TWAP** — Time-weighted slicing with configurable `horizon_secs` / `interval_secs`
 - **VWAP** — Volume-weighted execution with U-shape intraday profile
 - **Iceberg** — Hidden liquidity: only `display_qty` visible, auto-replenish on fill
@@ -241,7 +274,6 @@ cargo run -p tui --release
 - **Alpaca Executor** — Full REST integration (25+ endpoints: orders, positions, assets, historical data)
 - **Polymarket CLOB** — full order lifecycle (limit/market/FOK/GTC/GTD), EIP-712 signed orders
 - **Polymarket Arbitrage** — Sum-to-one (YES+NO < $1), cross-market, and cross-platform (Polymarket vs Kalshi) spread detection with fee-aware P&L
-- **Polymarket BTC 15-Min** — Crypto prediction markets (BTC Up/Down, ETH, SOL, XRP, DOGE)
 - **Paper trading** — MockExecutor for risk-free strategy testing
 - **Bracket orders** — OCO/OTO stop-loss + take-profit combos
 - **Trailing stops** — dynamic stop-loss that follows price
@@ -263,16 +295,28 @@ cargo run -p tui --release
 - Max Drawdown and Daily Loss Limit trading guardrails
 - **SEBI 2026 Compliance** — Algo-ID tagging (mandatory since April 1, 2026), OPS threshold monitoring, order variety classification, price band checks, uptick rule, squareoff time enforcement
 
-### Market Making & Microstructure
-- **Avellaneda-Stoikov Market Maker** — Optimal quoting: `r = s - q·γ·σ²·(T-t)`, `δ = γσ²τ + (2/γ)·ln(1 + γ/κ)`
-- **VPIN Toxicity Detection** — Volume-synchronized Probability of Informed Trading; auto-widen spreads above threshold
-- **Inventory Skew** — Asymmetric quotes to manage directional exposure
+### Market Making & Microstructure (2026 Enhanced)
+- **Enhanced Avellaneda-Stoikov Quoting Engine** — Reservation pricing `r = FV - q·γ·σ²·τ` with:
+  - **Regime-conditioned γ** — auto-adjusts risk aversion per volatility regime (RegimeFolio 2025)
+  - **VPIN spread widening** — widens quotes when informed trading probability exceeds 0.5 (Easley 2012)
+  - **Toxicity halt** — stops passive quoting at toxicity > 0.65 (Barzykin 2025)
+  - **OFI skew** — shifts quotes by λ_ofi × OFI for order flow anticipation (Cont 2014)
+  - **Kelly-scaled sizing** — position size = quarter-Kelly × conviction × regime_mult × (1 - toxicity)
+- **Adverse Selection Detector** — EMA-smoothed post-fill price move analysis; classifies fills as toxic/safe and recommends Normal/Widen/HaltPassive actions
+- **Multi-Level Microprice (MLOFI)** — Oxford 2019 depth-decayed fair value across 5+ LOB levels; ~50-tick predictive lead over arithmetic mid
+- **Two-State Regime Classifier** — Fast/slow EMA vol ratio → LowVol/Normal/HighVol/Crisis with debounce; each regime maps to concrete γ, spread_mult, size_mult parameters
 - **Order Flow Imbalance (OFI)** — Cont et al. (2014) — net bid/ask volume change for short-term direction
-- **Microprice** — Size-weighted midpoint; ~50-tick lead over arithmetic mid
-- **Kyle's Lambda** — Price impact coefficient per unit signed order flow
+- **VPIN Toxicity** — Volume-synchronized Probability of Informed Trading (Easley et al. 2012)
+- **Kyle's Lambda** — Price impact coefficient per unit signed order flow (Kyle 1985)
 - **Amihud Illiquidity** — `|return| / dollar_volume` for position sizing in thin names
 - **Lee-Ready Classifier** — Buyer/seller-initiated trade classification
 - **EWMA Volatility** — Real-time annualized vol estimation (RiskMetrics λ=0.94)
+
+### Alpha Signal Pipeline (2026 Quant Library)
+- **Alpha Health Monitor** — Tracks IC (information coefficient) and hit rate per signal; classifies Healthy (weight=1.0) / Degraded (0.4) / Decayed (0.0) with automatic disabling of decayed signals
+- **Composite Signal Generator** — IC-proportional weighting (Chain-of-Alpha 2025) with regime scaling and toxicity discounting; outputs (score, conviction) for downstream Kelly sizing
+- **Kelly Criterion + Bayesian Shrinkage** — Quarter-Kelly (industry standard per PolySwarm Apr 2026) with n/(n+30) Bayesian shrinkage for small sample sizes
+- **Bayesian Fair Value** — Weighted combination of microprice, fast EMA, and slow EMA with configurable alpha weights
 
 ### Quantitative Models
 - **Black-Scholes-Merton** — options pricing with full Greeks (Delta, Gamma, Theta, Vega, Rho)
