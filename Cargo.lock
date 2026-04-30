@@ -818,7 +818,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "dotenvy",
  "envy",
  "postcard",
@@ -849,6 +849,20 @@ name = "compact_str"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b79c4069c6cad78e2e0cdfcbd26275770669fb39fd308a752dc110e83b9af32"
+dependencies = [
+ "castaway",
+ "cfg-if",
+ "itoa",
+ "rustversion",
+ "ryu",
+ "static_assertions",
+]
+
+[[package]]
+name = "compact_str"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fdb1325a1cece981e8a296ab8f0f9b63ae357bd0784a9faaf548cc7b480707a"
 dependencies = [
  "castaway",
  "cfg-if",
@@ -1141,7 +1155,7 @@ dependencies = [
  "chrono",
  "clap",
  "common",
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "dotenvy",
  "event_bus",
  "execution",
@@ -1569,7 +1583,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "common",
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "futures",
  "ingestion",
  "rand 0.8.5",
@@ -2455,7 +2469,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "common",
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "futures",
  "reqwest 0.11.27",
  "serde",
@@ -3594,7 +3608,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls 0.23.37",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -3631,9 +3645,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4034,7 +4048,7 @@ version = "0.1.0"
 dependencies = [
  "ai",
  "common",
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "execution",
  "serde",
  "statrs",
@@ -5464,7 +5478,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "common",
- "compact_str 0.8.1",
+ "compact_str 0.9.0",
  "crossbeam-channel",
  "crossterm 0.27.0",
  "dotenvy",

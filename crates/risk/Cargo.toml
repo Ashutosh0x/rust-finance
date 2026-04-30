@@ -14,7 +14,7 @@ common = { path = "../common" }
 execution = { path = "../execution" }
 ai = { path = "../ai" }
 swarm_sim = { path = "../swarm_sim" }
-compact_str = "0.8"
+compact_str = "0.9"
 tracing = "0.1"
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
