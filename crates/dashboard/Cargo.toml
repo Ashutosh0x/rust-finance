@@ -13,7 +13,7 @@ categories.workspace = true
 common = { path = "../common" }
 tokio = { version = "1.0", features = ["full"] }
 ratatui = "0.26"
-crossterm = "0.27"
+crossterm = "0.28"
 tracing = "0.1"
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
