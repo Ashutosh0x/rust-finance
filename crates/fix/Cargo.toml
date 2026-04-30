@@ -13,4 +13,4 @@ categories.workspace = true
 tokio = { version = "1", features = ["net", "io-util", "sync", "time"] }
 tracing = "0.1"
 chrono = "0.4"
-thiserror = "1.0"
+thiserror = "2.0"
