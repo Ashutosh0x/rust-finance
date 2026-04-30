@@ -153,10 +153,9 @@ impl ClobClient {
             info!("Deriving L2 API credentials via L1 auth...");
             let l1 = L1Auth::new(wallet.clone());
             let creds = l1.derive_api_credentials(&config.clob_host).await?;
-            info!("Save these to .env to skip derivation next time:");
-            info!("  POLYMARKET_API_KEY={}", creds.api_key);
-            info!("  POLYMARKET_API_SECRET={}", creds.api_secret);
-            info!("  POLYMARKET_API_PASSPHRASE={}", creds.api_passphrase);
+            info!(
+                "Derived L2 API credentials; store them in a secret manager or .env outside logs"
+            );
             creds
         };
 
@@ -387,6 +386,8 @@ impl ClobClient {
         order_type: OrderType,
         neg_risk: bool,
     ) -> Result<PostOrderResponse, Box<dyn std::error::Error>> {
+        validate_order_inputs(token_id, price, size)?;
+
         if self.dry_run {
             info!(
                 "DRY RUN: {:?} {} @ {} ({}) token={}",
@@ -413,14 +414,14 @@ impl ClobClient {
             Side::Buy => {
                 let usdc = price * size;
                 // Convert to 6-decimal USDC units
-                let maker = (usdc * dec!(1_000_000)).to_string();
-                let taker = (size * dec!(1_000_000)).to_string();
+                let maker = decimal_to_base_units(usdc)?;
+                let taker = decimal_to_base_units(size)?;
                 (maker, taker)
             }
             Side::Sell => {
                 let usdc = price * size;
-                let maker = (size * dec!(1_000_000)).to_string();
-                let taker = (usdc * dec!(1_000_000)).to_string();
+                let maker = decimal_to_base_units(size)?;
+                let taker = decimal_to_base_units(usdc)?;
                 (maker, taker)
             }
         };
@@ -613,4 +614,34 @@ impl ClobClient {
         self.place_order(token_id, Side::Sell, price, size, OrderType::FOK, neg_risk)
             .await
     }
+}
+
+fn validate_order_inputs(
+    token_id: &str,
+    price: Decimal,
+    size: Decimal,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if token_id.trim().is_empty() || token_id.len() > 256 {
+        return Err("invalid token_id".into());
+    }
+    if price <= dec!(0) || price > dec!(1) {
+        return Err("Polymarket price must be in (0, 1]".into());
+    }
+    if size <= dec!(0) {
+        return Err("order size must be positive".into());
+    }
+    Ok(())
+}
+
+fn decimal_to_base_units(value: Decimal) -> Result<String, Box<dyn std::error::Error>> {
+    if value <= dec!(0) {
+        return Err("amount must be positive".into());
+    }
+
+    let scaled = value * dec!(1_000_000);
+    if scaled.fract() != dec!(0) {
+        return Err("amount has more than 6 decimal places".into());
+    }
+
+    Ok(scaled.trunc().normalize().to_string())
 }

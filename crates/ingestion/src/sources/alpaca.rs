@@ -10,8 +10,20 @@ pub struct AlpacaSource {
 }
 
 impl AlpacaSource {
-    pub fn from_env(seq_gen: Arc<SequenceGenerator>) -> Result<Self, IngestionError> {
-        Ok(Self { seq_gen })
+    pub fn from_env(_seq_gen: Arc<SequenceGenerator>) -> Result<Self, IngestionError> {
+        let key = std::env::var("ALPACA_API_KEY")
+            .map_err(|_| IngestionError::ConnectionFailed("ALPACA_API_KEY not set".into()))?;
+        let secret = std::env::var("ALPACA_SECRET_KEY")
+            .map_err(|_| IngestionError::ConnectionFailed("ALPACA_SECRET_KEY not set".into()))?;
+        if key.trim().is_empty() || secret.trim().is_empty() {
+            return Err(IngestionError::ConnectionFailed(
+                "Alpaca credentials cannot be empty".into(),
+            ));
+        }
+
+        Err(IngestionError::ConnectionFailed(
+            "AlpacaSource is not implemented; use alpaca_ws or Finnhub for equities".into(),
+        ))
     }
 }
 
@@ -24,12 +36,11 @@ impl MarketDataSource for AlpacaSource {
         &[DataType::Trades, DataType::Quotes]
     }
     async fn connect(&self, _sub: &Subscription) -> Result<MarketStream, IngestionError> {
-        let stream = futures::stream::empty::<
-            Result<common::events::Envelope<common::events::MarketEvent>, IngestionError>,
-        >();
-        Ok(Box::pin(stream))
+        Err(IngestionError::ConnectionFailed(
+            "AlpacaSource is not implemented; use Finnhub/Binance or alpaca_ws instead".into(),
+        ))
     }
     async fn is_healthy(&self) -> bool {
-        true
+        false
     }
 }

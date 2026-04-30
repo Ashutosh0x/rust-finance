@@ -41,6 +41,8 @@ impl ExecutionGateway for RecordingExecutor {
     }
 
     async fn submit_order(&self, req: OpenRequest) -> Result<OrderEvent, anyhow::Error> {
+        req.validate()?;
+
         self.submissions.lock().unwrap().push(req.clone());
         // Return a synthetic fill so the caller can proceed
         Ok(OrderEvent::Filled(OrderFilled {

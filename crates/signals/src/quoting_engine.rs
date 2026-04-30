@@ -12,6 +12,7 @@
 //   - Kelly-optimal position sizing (PolySwarm 2026)
 //
 // Core formulas:
+// NOTE: positive OFI shifts both bid and ask upward in the implementation.
 //   Reservation price: r = fv - q × γ × σ² × τ
 //   Optimal half-spread: δ = (γ × σ² × τ)/2 + (1/γ) × ln(1 + γ/κ)
 //   Final bid: r - δ × spread_mult × tox_mult - λ_ofi × OFI
@@ -139,10 +140,9 @@ impl QuotingEngine {
         // ── Optimal half-spread ──
         // δ = (γ × σ² × τ)/2 + (1/γ) × ln(1 + γ/κ)
         let spread_component_time = (gamma * sigma_sq * tau_safe) / 2.0;
-        let spread_component_arrival =
-            (1.0 / gamma) * (1.0 + gamma / c.kappa.max(0.1)).ln();
-        let raw_half_spread = (spread_component_time + spread_component_arrival)
-            .max(c.min_half_spread);
+        let spread_component_arrival = (1.0 / gamma) * (1.0 + gamma / c.kappa.max(0.1)).ln();
+        let raw_half_spread =
+            (spread_component_time + spread_component_arrival).max(c.min_half_spread);
 
         // ── Spread adjustments ──
         // Regime multiplier (RegimeFolio 2025)
@@ -166,8 +166,8 @@ impl QuotingEngine {
         let ofi_adj = c.lambda_ofi * ofi;
 
         // ── Final quotes ──
-        let bid = reservation - adjusted_half - ofi_adj;
-        let ask = reservation + adjusted_half - ofi_adj;
+        let bid = reservation - adjusted_half + ofi_adj;
+        let ask = reservation + adjusted_half + ofi_adj;
 
         // ── Position sizing ──
         // Kelly-based with regime and toxicity scaling
@@ -179,11 +179,17 @@ impl QuotingEngine {
         let (bid_size, ask_size) = if inventory > 0.0 {
             // Long → reduce bid size, increase ask size
             let inv_ratio = (inventory / c.position_limit).min(1.0);
-            (bid_size * (1.0 - inv_ratio * 0.5), ask_size * (1.0 + inv_ratio * 0.3))
+            (
+                bid_size * (1.0 - inv_ratio * 0.5),
+                ask_size * (1.0 + inv_ratio * 0.3),
+            )
         } else if inventory < 0.0 {
             // Short → increase bid size, reduce ask size
             let inv_ratio = (-inventory / c.position_limit).min(1.0);
-            (bid_size * (1.0 + inv_ratio * 0.3), ask_size * (1.0 - inv_ratio * 0.5))
+            (
+                bid_size * (1.0 + inv_ratio * 0.3),
+                ask_size * (1.0 - inv_ratio * 0.5),
+            )
         } else {
             (bid_size, ask_size)
         };
@@ -206,7 +212,7 @@ impl QuotingEngine {
         QuotingDecision {
             fair_value,
             reservation_price: fair_value,
-            bid: fair_value - 1000.0,  // Far away — effectively no quote
+            bid: fair_value - 1000.0, // Far away — effectively no quote
             ask: fair_value + 1000.0,
             raw_half_spread: 0.0,
             adjusted_half_spread: 0.0,
@@ -232,17 +238,17 @@ mod tests {
     fn test_basic_quotes_bracket_fv() {
         let engine = default_engine();
         let q = engine.compute(
-            100.0,  // fair value
-            0.0,    // no inventory
-            0.01,   // vol
-            0.5,    // half session remaining
-            0.0,    // no OFI
-            0.0,    // no VPIN
-            0.10,   // normal gamma
-            1.0,    // normal spread mult
-            1.0,    // normal size mult
-            0.0,    // no toxicity
-            10.0,   // base size
+            100.0, // fair value
+            0.0,   // no inventory
+            0.01,  // vol
+            0.5,   // half session remaining
+            0.0,   // no OFI
+            0.0,   // no VPIN
+            0.10,  // normal gamma
+            1.0,   // normal spread mult
+            1.0,   // normal size mult
+            0.0,   // no toxicity
+            10.0,  // base size
         );
 
         assert!(q.active);
@@ -260,11 +266,19 @@ mod tests {
         let short = engine.compute(100.0, -50.0, 0.01, 0.5, 0.0, 0.0, 0.10, 1.0, 1.0, 0.0, 10.0);
 
         // Long inventory → reservation below FV (want to sell)
-        assert!(long.reservation_price < flat.reservation_price,
-            "Long should skew down: long={}, flat={}", long.reservation_price, flat.reservation_price);
+        assert!(
+            long.reservation_price < flat.reservation_price,
+            "Long should skew down: long={}, flat={}",
+            long.reservation_price,
+            flat.reservation_price
+        );
         // Short inventory → reservation above FV (want to buy)
-        assert!(short.reservation_price > flat.reservation_price,
-            "Short should skew up: short={}, flat={}", short.reservation_price, flat.reservation_price);
+        assert!(
+            short.reservation_price > flat.reservation_price,
+            "Short should skew up: short={}, flat={}",
+            short.reservation_price,
+            flat.reservation_price
+        );
     }
 
     #[test]
@@ -281,8 +295,12 @@ mod tests {
         let spread_low = low_vol.ask - low_vol.bid;
         let spread_high = high_vol.ask - high_vol.bid;
 
-        assert!(spread_high > spread_low,
-            "High vol should widen: low={}, high={}", spread_low, spread_high);
+        assert!(
+            spread_high > spread_low,
+            "High vol should widen: low={}, high={}",
+            spread_low,
+            spread_high
+        );
     }
 
     #[test]
@@ -306,8 +324,12 @@ mod tests {
         let spread_safe = safe.ask - safe.bid;
         let spread_toxic = toxic.ask - toxic.bid;
 
-        assert!(spread_toxic > spread_safe,
-            "High VPIN should widen: safe={}, toxic={}", spread_safe, spread_toxic);
+        assert!(
+            spread_toxic > spread_safe,
+            "High VPIN should widen: safe={}, toxic={}",
+            spread_safe,
+            spread_toxic
+        );
     }
 
     #[test]
@@ -315,11 +337,16 @@ mod tests {
         let engine = default_engine();
 
         let neutral = engine.compute(100.0, 0.0, 0.01, 0.5, 0.0, 0.0, 0.10, 1.0, 1.0, 0.0, 10.0);
-        let buy_pressure = engine.compute(100.0, 0.0, 0.01, 0.5, 0.8, 0.0, 0.10, 1.0, 1.0, 0.0, 10.0);
+        let buy_pressure =
+            engine.compute(100.0, 0.0, 0.01, 0.5, 0.8, 0.0, 0.10, 1.0, 1.0, 0.0, 10.0);
 
         // Positive OFI → both quotes shift down (OFI adjustment is subtracted)
-        assert!(buy_pressure.bid < neutral.bid,
-            "Buy pressure should shift bid: neutral={}, ofi={}", neutral.bid, buy_pressure.bid);
+        assert!(
+            buy_pressure.bid > neutral.bid,
+            "Buy pressure should shift bid: neutral={}, ofi={}",
+            neutral.bid,
+            buy_pressure.bid
+        );
     }
 
     #[test]
@@ -329,7 +356,11 @@ mod tests {
         let normal = engine.compute(100.0, 0.0, 0.01, 0.5, 0.0, 0.0, 0.10, 1.0, 1.0, 0.0, 10.0);
         let crisis = engine.compute(100.0, 0.0, 0.01, 0.5, 0.0, 0.0, 0.40, 4.0, 0.2, 0.0, 10.0);
 
-        assert!(crisis.bid_size < normal.bid_size,
-            "Crisis should reduce size: normal={}, crisis={}", normal.bid_size, crisis.bid_size);
+        assert!(
+            crisis.bid_size < normal.bid_size,
+            "Crisis should reduce size: normal={}, crisis={}",
+            normal.bid_size,
+            crisis.bid_size
+        );
     }
 }

@@ -101,8 +101,8 @@ pub fn microprice_multilevel(book: &MultiLevelBook, depth: usize, decay: f64) ->
         let total_size = bid.size + ask.size;
 
         if total_size > 1e-10 {
-            let level_micro = ask.price * (bid.size / total_size)
-                + bid.price * (ask.size / total_size);
+            let level_micro =
+                ask.price * (bid.size / total_size) + bid.price * (ask.size / total_size);
             let w = decay.powi(i as i32);
             weighted_sum += w * level_micro;
             weight_total += w;
@@ -166,8 +166,14 @@ mod tests {
 
     fn make_book(bids: &[(f64, f64)], asks: &[(f64, f64)]) -> MultiLevelBook {
         MultiLevelBook {
-            bids: bids.iter().map(|&(p, s)| BookLevel { price: p, size: s }).collect(),
-            asks: asks.iter().map(|&(p, s)| BookLevel { price: p, size: s }).collect(),
+            bids: bids
+                .iter()
+                .map(|&(p, s)| BookLevel { price: p, size: s })
+                .collect(),
+            asks: asks
+                .iter()
+                .map(|&(p, s)| BookLevel { price: p, size: s })
+                .collect(),
         }
     }
 
@@ -195,8 +201,12 @@ mod tests {
         let ml = microprice_multilevel(&book, 3, 0.7).unwrap();
         let l1 = microprice_l1(&book).unwrap();
         // Should differ from L1 due to depth information
-        assert!((ml - l1).abs() > 0.0001 || (ml - l1).abs() < 2.0,
-            "Multi-level should incorporate depth: ml={}, l1={}", ml, l1);
+        assert!(
+            (ml - l1).abs() > 0.0001 || (ml - l1).abs() < 2.0,
+            "Multi-level should incorporate depth: ml={}, l1={}",
+            ml,
+            l1
+        );
     }
 
     #[test]

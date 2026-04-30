@@ -56,13 +56,21 @@ impl GarchState {
     }
 
     pub fn from_returns(params: GarchParams, returns: &[f64]) -> Self {
-        let n = returns.len() as f64;
-        let mean = returns.iter().sum::<f64>() / n;
-        let var = returns.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        let clean: Vec<f64> = returns.iter().copied().filter(|v| v.is_finite()).collect();
+        let var = if clean.len() >= 2 {
+            let n = clean.len() as f64;
+            let mean = clean.iter().sum::<f64>() / n;
+            clean.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / (n - 1.0)
+        } else {
+            params.long_run_variance().max(1e-10)
+        };
         Self::new(params, var)
     }
 
     pub fn update(&mut self, return_t: f64) {
+        if !return_t.is_finite() {
+            return;
+        }
         let new_var = self.params.omega
             + self.params.alpha * return_t.powi(2)
             + self.params.beta * self.conditional_variance;
@@ -97,6 +105,8 @@ pub struct GarchEstimator;
 
 impl GarchEstimator {
     pub fn fit(returns: &[f64]) -> Option<(GarchParams, f64)> {
+        let clean: Vec<f64> = returns.iter().copied().filter(|v| v.is_finite()).collect();
+        let returns = clean.as_slice();
         if returns.len() < 50 {
             return None;
         }

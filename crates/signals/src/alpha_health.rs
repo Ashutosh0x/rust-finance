@@ -94,7 +94,11 @@ impl AlphaMonitor {
         self.total_updates += 1;
 
         // Hit rate: did signal predict direction correctly?
-        let hit = if signal * actual_return > 0.0 { 1.0 } else { 0.0 };
+        let hit = if signal * actual_return > 0.0 {
+            1.0
+        } else {
+            0.0
+        };
         self.hit_rate_ema = 0.05 * hit + 0.95 * self.hit_rate_ema;
 
         // Simplified IC: normalized sign agreement
@@ -167,12 +171,16 @@ mod tests {
 
         // Consistently correct predictions
         for _ in 0..100 {
-            mon.update(1.0, 0.5);  // Positive signal, positive return
+            mon.update(1.0, 0.5); // Positive signal, positive return
         }
 
         assert_eq!(mon.health(), AlphaHealth::Healthy);
         assert!(mon.ic() > IC_HEALTHY, "IC should be high: {}", mon.ic());
-        assert!(mon.hit_rate() > HIT_HEALTHY, "Hit rate should be high: {}", mon.hit_rate());
+        assert!(
+            mon.hit_rate() > HIT_HEALTHY,
+            "Hit rate should be high: {}",
+            mon.hit_rate()
+        );
     }
 
     #[test]
@@ -181,11 +189,15 @@ mod tests {
 
         // Signal is anti-predictive (worse than random)
         for _ in 0..200 {
-            mon.update(1.0, -0.5);  // Signal says up, market goes down
+            mon.update(1.0, -0.5); // Signal says up, market goes down
         }
 
         assert_eq!(mon.health(), AlphaHealth::Decayed);
-        assert!(mon.ic() < IC_DEGRADED, "IC should be negative: {}", mon.ic());
+        assert!(
+            mon.ic() < IC_DEGRADED,
+            "IC should be negative: {}",
+            mon.ic()
+        );
     }
 
     #[test]

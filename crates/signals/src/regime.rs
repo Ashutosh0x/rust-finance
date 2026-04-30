@@ -160,10 +160,10 @@ impl RegimeDetector {
     /// Returns the current regime.
     pub fn update(&mut self, vol_observation: f64) -> Regime {
         // Update EMAs
-        self.vol_fast_ema = self.fast_alpha * vol_observation
-            + (1.0 - self.fast_alpha) * self.vol_fast_ema;
-        self.vol_slow_ema = self.slow_alpha * vol_observation
-            + (1.0 - self.slow_alpha) * self.vol_slow_ema;
+        self.vol_fast_ema =
+            self.fast_alpha * vol_observation + (1.0 - self.fast_alpha) * self.vol_fast_ema;
+        self.vol_slow_ema =
+            self.slow_alpha * vol_observation + (1.0 - self.slow_alpha) * self.vol_slow_ema;
 
         // Compute ratio
         self.vol_ratio = self.vol_fast_ema / self.vol_slow_ema.max(1e-10);
@@ -244,8 +244,11 @@ mod tests {
         for _ in 0..20 {
             det.update(10.0);
         }
-        assert!(det.vol_ratio() > 1.5,
-            "Vol ratio should be elevated: {}", det.vol_ratio());
+        assert!(
+            det.vol_ratio() > 1.5,
+            "Vol ratio should be elevated: {}",
+            det.vol_ratio()
+        );
     }
 
     #[test]
@@ -259,17 +262,30 @@ mod tests {
         for _ in 0..50 {
             det.update(0.5);
         }
-        assert!(det.vol_ratio() < 1.0,
-            "Vol ratio should be below 1.0: {}", det.vol_ratio());
+        assert!(
+            det.vol_ratio() < 1.0,
+            "Vol ratio should be below 1.0: {}",
+            det.vol_ratio()
+        );
     }
 
     #[test]
     fn test_regime_params_monotonic_risk() {
-        let regimes = [Regime::LowVol, Regime::Normal, Regime::HighVol, Regime::Crisis];
+        let regimes = [
+            Regime::LowVol,
+            Regime::Normal,
+            Regime::HighVol,
+            Regime::Crisis,
+        ];
         for pair in regimes.windows(2) {
-            assert!(pair[0].params().gamma <= pair[1].params().gamma,
+            assert!(
+                pair[0].params().gamma <= pair[1].params().gamma,
                 "Gamma should increase with risk: {:?}={} vs {:?}={}",
-                pair[0], pair[0].params().gamma, pair[1], pair[1].params().gamma);
+                pair[0],
+                pair[0].params().gamma,
+                pair[1],
+                pair[1].params().gamma
+            );
         }
     }
 

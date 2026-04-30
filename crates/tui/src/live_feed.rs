@@ -61,16 +61,20 @@ pub fn spawn_binance_feed(tx: mpsc::Sender<LiveFeedEvent>) {
                 solusdt@trade/\
                 bnbusdt@trade";
 
-            let _ = tx.send(LiveFeedEvent::Status(
-                "Connecting to Binance WebSocket...".to_string(),
-            )).await;
+            let _ = tx
+                .send(LiveFeedEvent::Status(
+                    "Connecting to Binance WebSocket...".to_string(),
+                ))
+                .await;
 
             match connect_async(url).await {
                 Ok((ws, _)) => {
                     backoff_secs = 1; // Reset on success
-                    let _ = tx.send(LiveFeedEvent::Status(
-                        "Connected to Binance (live feed)".to_string(),
-                    )).await;
+                    let _ = tx
+                        .send(LiveFeedEvent::Status(
+                            "Connected to Binance (live feed)".to_string(),
+                        ))
+                        .await;
 
                     let (_, mut read) = ws.split();
 
@@ -87,15 +91,20 @@ pub fn spawn_binance_feed(tx: mpsc::Sender<LiveFeedEvent>) {
                                 // tungstenite auto-responds with Pong
                             }
                             Ok(Message::Close(_)) => {
-                                let _ = tx.send(LiveFeedEvent::Status(
-                                    "Binance WebSocket closed. Reconnecting...".to_string(),
-                                )).await;
+                                let _ = tx
+                                    .send(LiveFeedEvent::Status(
+                                        "Binance WebSocket closed. Reconnecting...".to_string(),
+                                    ))
+                                    .await;
                                 break;
                             }
                             Err(e) => {
-                                let _ = tx.send(LiveFeedEvent::Status(
-                                    format!("WebSocket error: {}. Reconnecting...", e),
-                                )).await;
+                                let _ = tx
+                                    .send(LiveFeedEvent::Status(format!(
+                                        "WebSocket error: {}. Reconnecting...",
+                                        e
+                                    )))
+                                    .await;
                                 break;
                             }
                             _ => {}
@@ -103,9 +112,12 @@ pub fn spawn_binance_feed(tx: mpsc::Sender<LiveFeedEvent>) {
                     }
                 }
                 Err(e) => {
-                    let _ = tx.send(LiveFeedEvent::Status(
-                        format!("Connection failed: {}. Retry in {}s...", e, backoff_secs),
-                    )).await;
+                    let _ = tx
+                        .send(LiveFeedEvent::Status(format!(
+                            "Connection failed: {}. Retry in {}s...",
+                            e, backoff_secs
+                        )))
+                        .await;
                 }
             }
 
@@ -134,22 +146,18 @@ fn parse_combined_message(text: &str) -> Option<LiveFeedEvent> {
                 is_closed: k.get("x")?.as_bool()?,
             })
         }
-        "trade" => {
-            Some(LiveFeedEvent::Trade {
-                symbol: data.get("s")?.as_str()?.to_string(),
-                price: data.get("p")?.as_str()?.parse().ok()?,
-                quantity: data.get("q")?.as_str()?.parse().ok()?,
-            })
-        }
-        "bookTicker" => {
-            Some(LiveFeedEvent::BookTicker {
-                symbol: data.get("s")?.as_str()?.to_string(),
-                bid_price: data.get("b")?.as_str()?.parse().ok()?,
-                bid_size: data.get("B")?.as_str()?.parse().ok()?,
-                ask_price: data.get("a")?.as_str()?.parse().ok()?,
-                ask_size: data.get("A")?.as_str()?.parse().ok()?,
-            })
-        }
+        "trade" => Some(LiveFeedEvent::Trade {
+            symbol: data.get("s")?.as_str()?.to_string(),
+            price: data.get("p")?.as_str()?.parse().ok()?,
+            quantity: data.get("q")?.as_str()?.parse().ok()?,
+        }),
+        "bookTicker" => Some(LiveFeedEvent::BookTicker {
+            symbol: data.get("s")?.as_str()?.to_string(),
+            bid_price: data.get("b")?.as_str()?.parse().ok()?,
+            bid_size: data.get("B")?.as_str()?.parse().ok()?,
+            ask_price: data.get("a")?.as_str()?.parse().ok()?,
+            ask_size: data.get("A")?.as_str()?.parse().ok()?,
+        }),
         _ => None,
     }
 }

@@ -370,8 +370,10 @@ mod tests {
         assert!(result.var_95_1d > 0.0, "VaR95 must be positive");
         assert!(result.var_99_1d > result.var_95_1d, "VaR99 > VaR95");
         assert_eq!(result.symbols.len(), 1);
-        assert!((result.diversification_ratio - 1.0).abs() < 0.01,
-            "Single asset diversification ratio should ≈ 1.0");
+        assert!(
+            (result.diversification_ratio - 1.0).abs() < 0.01,
+            "Single asset diversification ratio should ≈ 1.0"
+        );
     }
 
     #[test]
@@ -386,10 +388,7 @@ mod tests {
             calc.update_return("ETH", returns[1][day]);
         }
 
-        let positions = vec![
-            ("BTC".to_string(), 30_000.0),
-            ("ETH".to_string(), 20_000.0),
-        ];
+        let positions = vec![("BTC".to_string(), 30_000.0), ("ETH".to_string(), 20_000.0)];
         let result = calc.compute(&positions).unwrap();
 
         assert!(result.var_99_1d > 0.0);
@@ -398,13 +397,19 @@ mod tests {
 
         // Correlation between BTC and ETH should be high (>0.5)
         let corr_01 = result.correlation_matrix[0 * 2 + 1];
-        assert!(corr_01 > 0.3, "BTC-ETH correlation should be high, got {:.3}", corr_01);
+        assert!(
+            corr_01 > 0.3,
+            "BTC-ETH correlation should be high, got {:.3}",
+            corr_01
+        );
 
         // Diversification ratio should be close to 1 (not much benefit)
         // because assets are highly correlated
-        assert!(result.diversification_ratio < 1.5,
+        assert!(
+            result.diversification_ratio < 1.5,
             "High-corr portfolio diversification ratio should be close to 1, got {:.3}",
-            result.diversification_ratio);
+            result.diversification_ratio
+        );
     }
 
     #[test]
@@ -426,9 +431,11 @@ mod tests {
         let result = calc.compute(&positions).unwrap();
 
         // Diversification ratio should be > 1 (benefit from diversification)
-        assert!(result.diversification_ratio > 1.0,
+        assert!(
+            result.diversification_ratio > 1.0,
             "Uncorrelated portfolio should have diversification benefit, got {:.3}",
-            result.diversification_ratio);
+            result.diversification_ratio
+        );
     }
 
     #[test]
@@ -449,8 +456,11 @@ mod tests {
         ];
         let result = calc.compute(&positions).unwrap();
 
-        assert!(result.shrinkage_intensity >= 0.0 && result.shrinkage_intensity <= 1.0,
-            "Shrinkage intensity must be in [0, 1], got {:.4}", result.shrinkage_intensity);
+        assert!(
+            result.shrinkage_intensity >= 0.0 && result.shrinkage_intensity <= 1.0,
+            "Shrinkage intensity must be in [0, 1], got {:.4}",
+            result.shrinkage_intensity
+        );
     }
 
     #[test]
@@ -532,14 +542,17 @@ mod tests {
             calc.update_return("B", ((rng as f64) / (u64::MAX as f64) - 0.5) * 0.02);
         }
 
-        let positions = vec![
-            ("A".to_string(), 10_000.0),
-            ("B".to_string(), 10_000.0),
-        ];
+        let positions = vec![("A".to_string(), 10_000.0), ("B".to_string(), 10_000.0)];
         let result = calc.compute(&positions).unwrap();
 
         // Diagonal of correlation matrix should be 1.0
-        assert!((result.correlation_matrix[0] - 1.0).abs() < 1e-10, "Corr(A,A) should be 1.0");
-        assert!((result.correlation_matrix[3] - 1.0).abs() < 1e-10, "Corr(B,B) should be 1.0");
+        assert!(
+            (result.correlation_matrix[0] - 1.0).abs() < 1e-10,
+            "Corr(A,A) should be 1.0"
+        );
+        assert!(
+            (result.correlation_matrix[3] - 1.0).abs() < 1e-10,
+            "Corr(B,B) should be 1.0"
+        );
     }
 }

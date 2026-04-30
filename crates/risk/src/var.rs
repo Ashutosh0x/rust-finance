@@ -53,6 +53,9 @@ impl VarCalculator {
 
     /// Feed daily returns data. Call once per day per symbol.
     pub fn update_returns(&mut self, symbol: &str, daily_return_pct: f64) {
+        if symbol.trim().is_empty() || !daily_return_pct.is_finite() {
+            return;
+        }
         let history = self.returns_history.entry(symbol.to_string()).or_default();
         history.push(daily_return_pct);
         // Keep rolling window of 252 trading days
@@ -64,7 +67,7 @@ impl VarCalculator {
     /// Historical VaR — non-parametric, uses actual return distribution
     /// Most accurate because it captures fat tails and skew
     pub fn historical_var(&self, positions: &[Position]) -> Option<VarResult> {
-        if positions.is_empty() {
+        if positions.is_empty() || positions.iter().any(|p| !p.is_valid()) {
             return None;
         }
 
@@ -102,7 +105,11 @@ impl VarCalculator {
 
         // Sort losses (negative P&L = loss)
         let mut sorted = pnl_series.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.retain(|v| v.is_finite());
+        if sorted.is_empty() {
+            return None;
+        }
+        sorted.sort_by(|a, b| a.total_cmp(b));
 
         let n = sorted.len() as f64;
         let idx_95 = ((1.0 - 0.95) * n) as usize;
@@ -142,7 +149,7 @@ impl VarCalculator {
 
     /// Parametric (Delta-Normal) VaR — faster, assumes normal distribution
     pub fn parametric_var(&self, positions: &[Position]) -> Option<VarResult> {
-        if positions.is_empty() {
+        if positions.is_empty() || positions.iter().any(|p| !p.is_valid()) {
             return None;
         }
 
@@ -196,10 +203,10 @@ impl VarCalculator {
     pub fn parametric_var_student_t(&self, positions: &[Position], nu: f64) -> Option<VarResult> {
         use statrs::distribution::{ContinuousCDF, StudentsT};
 
-        if positions.is_empty() {
+        if positions.is_empty() || positions.iter().any(|p| !p.is_valid()) {
             return None;
         }
-        if nu <= 2.0 {
+        if !nu.is_finite() || nu <= 2.0 {
             return None;
         } // Student-t variance undefined for ν ≤ 2
 
@@ -248,10 +255,23 @@ impl VarCalculator {
     }
 
     fn std_dev(returns: &[f64]) -> f64 {
-        let n = returns.len() as f64;
-        let mean = returns.iter().sum::<f64>() / n;
-        let variance = returns.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        let clean: Vec<f64> = returns.iter().copied().filter(|v| v.is_finite()).collect();
+        if clean.len() < 2 {
+            return 0.0;
+        }
+        let n = clean.len() as f64;
+        let mean = clean.iter().sum::<f64>() / n;
+        let variance = clean.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / (n - 1.0);
         variance.sqrt()
+    }
+}
+
+impl Position {
+    fn is_valid(&self) -> bool {
+        !self.symbol.trim().is_empty()
+            && self.quantity.is_finite()
+            && self.current_price.is_finite()
+            && self.current_price > 0.0
     }
 }
 

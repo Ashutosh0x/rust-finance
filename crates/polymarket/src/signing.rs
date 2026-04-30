@@ -14,6 +14,8 @@ pub enum SigningError {
     Signing(String),
     #[error("Invalid address: {0}")]
     Address(String),
+    #[error("Invalid order field {field}: {value}")]
+    InvalidOrderField { field: &'static str, value: String },
 }
 
 /// Polymarket CTF Exchange contract addresses on Polygon
@@ -82,36 +84,40 @@ fn order_type_hash() -> H256 {
 }
 
 /// Encode an order for EIP-712 struct hashing
-fn encode_order(order: &Order) -> Vec<u8> {
+fn encode_order(order: &Order) -> Result<Vec<u8>, SigningError> {
     use ethers_core::abi::{encode, Token};
 
     let tokens = vec![
         Token::FixedBytes(order_type_hash().as_bytes().to_vec()),
-        Token::Uint(U256::from_dec_str(&order.salt).unwrap_or_default()),
-        Token::Address(Address::from_str(&order.maker).unwrap_or_default()),
-        Token::Address(Address::from_str(&order.signer).unwrap_or_default()),
-        Token::Address(Address::from_str(&order.taker).unwrap_or_default()),
-        Token::Uint(U256::from_dec_str(&order.token_id).unwrap_or_default()),
-        Token::Uint(U256::from_dec_str(&order.maker_amount).unwrap_or_default()),
-        Token::Uint(U256::from_dec_str(&order.taker_amount).unwrap_or_default()),
-        Token::Uint(U256::from_dec_str(&order.expiration).unwrap_or_default()),
-        Token::Uint(U256::from_dec_str(&order.nonce).unwrap_or_default()),
-        Token::Uint(U256::from_dec_str(&order.fee_rate_bps).unwrap_or_default()),
-        Token::Uint(U256::from(order.side.parse::<u8>().unwrap_or(0))),
-        Token::Uint(U256::from(order.signature_type.parse::<u8>().unwrap_or(0))),
+        Token::Uint(parse_u256("salt", &order.salt)?),
+        Token::Address(parse_address("maker", &order.maker)?),
+        Token::Address(parse_address("signer", &order.signer)?),
+        Token::Address(parse_address("taker", &order.taker)?),
+        Token::Uint(parse_u256("token_id", &order.token_id)?),
+        Token::Uint(parse_positive_u256("maker_amount", &order.maker_amount)?),
+        Token::Uint(parse_positive_u256("taker_amount", &order.taker_amount)?),
+        Token::Uint(parse_u256("expiration", &order.expiration)?),
+        Token::Uint(parse_u256("nonce", &order.nonce)?),
+        Token::Uint(parse_u256("fee_rate_bps", &order.fee_rate_bps)?),
+        Token::Uint(U256::from(parse_u8("side", &order.side, 1)?)),
+        Token::Uint(U256::from(parse_u8(
+            "signature_type",
+            &order.signature_type,
+            2,
+        )?)),
     ];
 
-    encode(&tokens)
+    Ok(encode(&tokens))
 }
 
 /// Compute the EIP-712 struct hash of an order
-fn hash_struct(order: &Order) -> H256 {
+fn hash_struct(order: &Order) -> Result<H256, SigningError> {
     use ethers_core::utils::keccak256;
-    H256::from(keccak256(&encode_order(order)))
+    Ok(H256::from(keccak256(&encode_order(order)?)))
 }
 
 /// Compute the full EIP-712 digest: keccak256("\x19\x01" || domainSeparator || structHash)
-pub fn compute_order_digest(order: &Order, neg_risk: bool) -> H256 {
+pub fn compute_order_digest(order: &Order, neg_risk: bool) -> Result<H256, SigningError> {
     use ethers_core::utils::keccak256;
 
     let domain = ctf_exchange_domain(neg_risk);
@@ -135,7 +141,7 @@ pub fn compute_order_digest(order: &Order, neg_risk: bool) -> H256 {
         H256::from(keccak256(&encode(&tokens)))
     };
 
-    let struct_hash = hash_struct(order);
+    let struct_hash = hash_struct(order)?;
 
     // "\x19\x01" || domainSeparator || structHash
     let mut msg = Vec::with_capacity(66);
@@ -144,7 +150,7 @@ pub fn compute_order_digest(order: &Order, neg_risk: bool) -> H256 {
     msg.extend_from_slice(domain_separator.as_bytes());
     msg.extend_from_slice(struct_hash.as_bytes());
 
-    H256::from(keccak256(&msg))
+    Ok(H256::from(keccak256(&msg)))
 }
 
 /// Sign an order with a local wallet
@@ -153,7 +159,7 @@ pub async fn sign_order(
     order: &Order,
     neg_risk: bool,
 ) -> Result<String, SigningError> {
-    let digest = compute_order_digest(order, neg_risk);
+    let digest = compute_order_digest(order, neg_risk)?;
 
     let signature = wallet
         .sign_hash(digest)
@@ -161,6 +167,49 @@ pub async fn sign_order(
 
     // Return as hex string with 0x prefix
     Ok(format!("0x{}", hex::encode(signature.to_vec())))
+}
+
+fn parse_u256(field: &'static str, value: &str) -> Result<U256, SigningError> {
+    U256::from_dec_str(value).map_err(|_| SigningError::InvalidOrderField {
+        field,
+        value: value.to_string(),
+    })
+}
+
+fn parse_positive_u256(field: &'static str, value: &str) -> Result<U256, SigningError> {
+    let parsed = parse_u256(field, value)?;
+    if parsed.is_zero() {
+        Err(SigningError::InvalidOrderField {
+            field,
+            value: value.to_string(),
+        })
+    } else {
+        Ok(parsed)
+    }
+}
+
+fn parse_address(field: &'static str, value: &str) -> Result<Address, SigningError> {
+    Address::from_str(value).map_err(|_| SigningError::InvalidOrderField {
+        field,
+        value: value.to_string(),
+    })
+}
+
+fn parse_u8(field: &'static str, value: &str, max: u8) -> Result<u8, SigningError> {
+    let parsed = value
+        .parse::<u8>()
+        .map_err(|_| SigningError::InvalidOrderField {
+            field,
+            value: value.to_string(),
+        })?;
+    if parsed > max {
+        Err(SigningError::InvalidOrderField {
+            field,
+            value: value.to_string(),
+        })
+    } else {
+        Ok(parsed)
+    }
 }
 
 /// Create a wallet from a private key string
@@ -188,5 +237,27 @@ mod tests {
         let test_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
         let wallet = create_wallet(test_key).unwrap();
         assert_eq!(wallet.chain_id(), POLYGON_CHAIN_ID);
+    }
+
+    #[tokio::test]
+    async fn test_sign_order_rejects_invalid_numeric_fields() {
+        let test_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let wallet = create_wallet(test_key).unwrap();
+        let order = Order {
+            salt: "not-a-number".into(),
+            maker: "0x0000000000000000000000000000000000000001".into(),
+            signer: "0x0000000000000000000000000000000000000001".into(),
+            taker: "0x0000000000000000000000000000000000000000".into(),
+            token_id: "1".into(),
+            maker_amount: "1".into(),
+            taker_amount: "1".into(),
+            expiration: "0".into(),
+            nonce: "0".into(),
+            fee_rate_bps: "0".into(),
+            side: "0".into(),
+            signature_type: "0".into(),
+        };
+
+        assert!(sign_order(&wallet, &order, false).await.is_err());
     }
 }

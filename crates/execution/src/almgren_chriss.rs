@@ -315,8 +315,12 @@ mod tests {
         // All slices should be approximately equal (TWAP)
         for slice in &plan.slices {
             let expected = 10_000.0 / 10.0;
-            assert!((slice.quantity - expected).abs() < 1.0,
-                "TWAP slice should be ~{}: got {}", expected, slice.quantity);
+            assert!(
+                (slice.quantity - expected).abs() < 1.0,
+                "TWAP slice should be ~{}: got {}",
+                expected,
+                slice.quantity
+            );
         }
     }
 
@@ -334,9 +338,12 @@ mod tests {
         let plan = engine.compute_trajectory(10_000.0, 10);
 
         // First slice should be larger than last slice (front-loaded)
-        assert!(plan.slices[0].quantity > plan.slices[9].quantity,
+        assert!(
+            plan.slices[0].quantity > plan.slices[9].quantity,
             "Urgent execution should front-load: first={}, last={}",
-            plan.slices[0].quantity, plan.slices[9].quantity);
+            plan.slices[0].quantity,
+            plan.slices[9].quantity
+        );
     }
 
     #[test]
@@ -346,8 +353,11 @@ mod tests {
         let plan = engine.compute_trajectory(10_000.0, 20);
 
         let total: f64 = plan.slices.iter().map(|s| s.quantity).sum();
-        assert!((total - 10_000.0).abs() < 1.0,
-            "Total traded should equal input: {}", total);
+        assert!(
+            (total - 10_000.0).abs() < 1.0,
+            "Total traded should equal input: {}",
+            total
+        );
     }
 
     #[test]
@@ -357,8 +367,11 @@ mod tests {
         let plan = engine.compute_trajectory(-5_000.0, 10);
 
         for slice in &plan.slices {
-            assert!(slice.quantity <= 0.0,
-                "Sell order slices should be negative: {}", slice.quantity);
+            assert!(
+                slice.quantity <= 0.0,
+                "Sell order slices should be negative: {}",
+                slice.quantity
+            );
         }
     }
 
@@ -373,8 +386,11 @@ mod tests {
         assert!(large > small, "Larger orders should have more impact");
         // 100x quantity → 10x impact (square root)
         let ratio = large / small;
-        assert!((ratio - 10.0).abs() < 0.1,
-            "Impact should scale as sqrt: ratio={}", ratio);
+        assert!(
+            (ratio - 10.0).abs() < 0.1,
+            "Impact should scale as sqrt: ratio={}",
+            ratio
+        );
     }
 
     #[test]
@@ -398,7 +414,11 @@ mod tests {
         let plan_p = eng_p.compute_trajectory(10_000.0, 20);
         let plan_a = eng_a.compute_trajectory(10_000.0, 20);
 
-        assert!(plan_a.kappa > plan_p.kappa,
-            "Aggressive should have higher kappa: agg={}, pass={}", plan_a.kappa, plan_p.kappa);
+        assert!(
+            plan_a.kappa > plan_p.kappa,
+            "Aggressive should have higher kappa: agg={}, pass={}",
+            plan_a.kappa,
+            plan_p.kappa
+        );
     }
 }

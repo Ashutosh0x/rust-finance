@@ -22,9 +22,17 @@ pub struct AlpacaConfig {
 
 impl AlpacaConfig {
     pub fn from_env() -> Result<Self> {
+        let key_id = std::env::var("ALPACA_API_KEY").context("ALPACA_API_KEY not set")?;
+        let secret_key = std::env::var("ALPACA_SECRET_KEY").context("ALPACA_SECRET_KEY not set")?;
+        anyhow::ensure!(!key_id.trim().is_empty(), "ALPACA_API_KEY cannot be empty");
+        anyhow::ensure!(
+            !secret_key.trim().is_empty(),
+            "ALPACA_SECRET_KEY cannot be empty"
+        );
+
         Ok(Self {
-            key_id: std::env::var("ALPACA_API_KEY").unwrap_or_default(),
-            secret_key: std::env::var("ALPACA_SECRET_KEY").unwrap_or_default(),
+            key_id,
+            secret_key,
             base_url: std::env::var("ALPACA_BASE_URL")
                 .unwrap_or_else(|_| "https://paper-api.alpaca.markets".to_string()),
             data_url: std::env::var("ALPACA_DATA_URL")

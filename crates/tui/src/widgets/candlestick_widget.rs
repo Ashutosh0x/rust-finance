@@ -27,10 +27,10 @@ const BORDER: Color = Color::Rgb(30, 37, 48);
 const TEXT_PRI: Color = Color::Rgb(226, 232, 240);
 const TEXT_SEC: Color = Color::Rgb(148, 163, 184);
 const TEXT_DIM: Color = Color::Rgb(80, 90, 100);
-const BULL: Color = Color::Rgb(34, 197, 94);       // Green candle
-const BEAR: Color = Color::Rgb(239, 68, 68);       // Red candle
-const BULL_DIM: Color = Color::Rgb(22, 101, 52);   // Green volume
-const BEAR_DIM: Color = Color::Rgb(127, 29, 29);   // Red volume
+const BULL: Color = Color::Rgb(34, 197, 94); // Green candle
+const BEAR: Color = Color::Rgb(239, 68, 68); // Red candle
+const BULL_DIM: Color = Color::Rgb(22, 101, 52); // Green volume
+const BEAR_DIM: Color = Color::Rgb(127, 29, 29); // Red volume
 const CROSSHAIR: Color = Color::Rgb(100, 116, 139);
 const PRICE_TAG_BG: Color = Color::Rgb(59, 130, 246);
 
@@ -38,7 +38,7 @@ const PRICE_TAG_BG: Color = Color::Rgb(59, 130, 246);
 
 #[derive(Debug, Clone, Copy)]
 pub struct Candle {
-    pub time: f64,    // x-axis index
+    pub time: f64, // x-axis index
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -118,7 +118,12 @@ pub fn render_candlestick_chart(
 
     let title = format!(
         " {} — {:.2}  {}{:.3} ({}{:.2}%) ",
-        symbol, current_price, sign, change.abs(), sign, change_pct
+        symbol,
+        current_price,
+        sign,
+        change.abs(),
+        sign,
+        change_pct
     );
 
     let block = Block::default()
@@ -127,7 +132,9 @@ pub fn render_candlestick_chart(
         .border_type(BorderType::Plain)
         .title(Span::styled(
             title,
-            Style::default().fg(title_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(title_color)
+                .add_modifier(Modifier::BOLD),
         ))
         .style(Style::default().bg(BG));
 
@@ -137,10 +144,7 @@ pub fn render_candlestick_chart(
     // Split: price chart (75%) | volume chart (25%)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(75),
-            Constraint::Percentage(25),
-        ])
+        .constraints([Constraint::Percentage(75), Constraint::Percentage(25)])
         .split(inner);
 
     let price_area = chunks[0];
@@ -164,7 +168,10 @@ pub fn render_candlestick_chart(
 
     // Price bounds
     let y_min = visible.iter().map(|c| c.low).fold(f64::INFINITY, f64::min);
-    let y_max = visible.iter().map(|c| c.high).fold(f64::NEG_INFINITY, f64::max);
+    let y_max = visible
+        .iter()
+        .map(|c| c.high)
+        .fold(f64::NEG_INFINITY, f64::max);
     let y_pad = (y_max - y_min).max(0.01) * 0.08;
     let y_lo = y_min - y_pad;
     let y_hi = y_max + y_pad;
@@ -285,7 +292,11 @@ pub fn render_candlestick_chart(
         .y_bounds([0.0, v_max * 1.15])
         .paint(move |ctx| {
             for candle in &vis_vol {
-                let color = if candle.is_bullish() { BULL_DIM } else { BEAR_DIM };
+                let color = if candle.is_bullish() {
+                    BULL_DIM
+                } else {
+                    BEAR_DIM
+                };
                 ctx.draw(&Rectangle {
                     x: candle.time - body_w / 2.0,
                     y: 0.0,
@@ -312,4 +323,3 @@ pub fn render_candlestick_chart(
     f.render_widget(vol_block, volume_area);
     f.render_widget(vol_canvas, vol_inner);
 }
-

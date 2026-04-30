@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -95,7 +96,7 @@ impl AuditTrail {
     pub fn open(path: PathBuf) -> Result<Self, std::io::Error> {
         // Verify existing chain if file exists
         if path.exists() {
-            Self::verify_chain(&path).ok(); // log warning but don't block startup
+            Self::verify_chain(&path).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
         }
 
         let file = OpenOptions::new().create(true).append(true).open(&path)?;
@@ -137,6 +138,7 @@ impl AuditTrail {
         let line = serde_json::to_string(&entry).unwrap_or_default();
         writeln!(self.writer, "{}", line)?;
         self.writer.flush()?;
+        self.writer.get_ref().sync_data()?;
 
         self.prev_hash = hash.clone();
         Ok(hash)

@@ -5,16 +5,36 @@ use hmac::{Hmac, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use std::fmt;
 use tracing::{error, info};
 
 type HmacSha256 = Hmac<Sha256>;
 
 /// L2 API credentials (derived from L1 signing or stored)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ApiCredentials {
     pub api_key: String,
     pub api_secret: String,
     pub api_passphrase: String,
+}
+
+impl fmt::Debug for ApiCredentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ApiCredentials")
+            .field("api_key", &redact(&self.api_key))
+            .field("api_secret", &"<redacted>")
+            .field("api_passphrase", &"<redacted>")
+            .finish()
+    }
+}
+
+fn redact(value: &str) -> String {
+    let prefix: String = value.chars().take(4).collect();
+    if prefix.is_empty() {
+        "<redacted>".into()
+    } else {
+        format!("{prefix}...<redacted>")
+    }
 }
 
 /// L1 auth header: sign a timestamp with the private key
@@ -121,6 +141,13 @@ impl L2Auth {
         path: &str,
         body: &str,
     ) -> Result<HeaderMap, Box<dyn std::error::Error>> {
+        if self.credentials.api_key.trim().is_empty()
+            || self.credentials.api_secret.trim().is_empty()
+            || self.credentials.api_passphrase.trim().is_empty()
+        {
+            return Err("Polymarket L2 credentials cannot be empty".into());
+        }
+
         let timestamp = chrono::Utc::now().timestamp().to_string();
 
         // HMAC message: timestamp + method + path + body
@@ -149,15 +176,7 @@ impl L2Auth {
         Ok(headers)
     }
 
-    pub fn api_key(&self) -> &str {
-        &self.credentials.api_key
-    }
-
-    pub fn api_secret(&self) -> &str {
-        &self.credentials.api_secret
-    }
-
-    pub fn passphrase(&self) -> &str {
-        &self.credentials.api_passphrase
+    pub fn api_key_for_diagnostics(&self) -> String {
+        redact(&self.credentials.api_key)
     }
 }

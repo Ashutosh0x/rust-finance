@@ -155,7 +155,13 @@ impl KellyTracker {
 
     /// Compute optimal Kelly fraction with Bayesian shrinkage.
     pub fn optimal_fraction(&self, kelly_mult: f64) -> f64 {
-        kelly_bayesian(self.win_prob(), self.win_loss_ratio(), self.n_trades(), 30, kelly_mult)
+        kelly_bayesian(
+            self.win_prob(),
+            self.win_loss_ratio(),
+            self.n_trades(),
+            30,
+            kelly_mult,
+        )
     }
 }
 
@@ -189,23 +195,34 @@ mod tests {
     fn test_bayesian_shrinkage() {
         let few_trades = kelly_bayesian(0.6, 1.5, 5, 30, 0.25);
         let many_trades = kelly_bayesian(0.6, 1.5, 200, 30, 0.25);
-        assert!(many_trades > few_trades,
-            "More trades should mean larger bet: few={}, many={}", few_trades, many_trades);
+        assert!(
+            many_trades > few_trades,
+            "More trades should mean larger bet: few={}, many={}",
+            few_trades,
+            many_trades
+        );
     }
 
     #[test]
     fn test_conviction_sizing_scales() {
         let full_conv = conviction_sized_qty(0.1, 100.0, 1.0, 0.0, 1.0);
         let half_conv = conviction_sized_qty(0.1, 100.0, 0.5, 0.0, 1.0);
-        assert!((full_conv / half_conv - 2.0).abs() < 0.01,
-            "Double conviction = double size");
+        assert!(
+            (full_conv / half_conv - 2.0).abs() < 0.01,
+            "Double conviction = double size"
+        );
     }
 
     #[test]
     fn test_toxicity_reduces_size() {
         let safe = conviction_sized_qty(0.1, 100.0, 1.0, 0.0, 1.0);
         let toxic = conviction_sized_qty(0.1, 100.0, 1.0, 0.4, 1.0);
-        assert!(toxic < safe, "Toxicity should reduce size: safe={}, toxic={}", safe, toxic);
+        assert!(
+            toxic < safe,
+            "Toxicity should reduce size: safe={}, toxic={}",
+            safe,
+            toxic
+        );
     }
 
     #[test]

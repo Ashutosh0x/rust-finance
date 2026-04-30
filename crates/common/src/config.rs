@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use tracing::warn;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     // Required keys
     pub finnhub_api_key: String,
@@ -23,6 +24,37 @@ pub struct AppConfig {
     // Logging
     #[serde(default = "default_log_level")]
     pub rust_log: String,
+}
+
+impl fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppConfig")
+            .field("finnhub_api_key", &redact(&self.finnhub_api_key))
+            .field("alpaca_api_key", &redact(&self.alpaca_api_key))
+            .field("alpaca_secret_key", &"<redacted>")
+            .field(
+                "anthropic_api_key",
+                &self.anthropic_api_key.as_ref().map(|k| redact(k)),
+            )
+            .field(
+                "sol_private_key",
+                &self.sol_private_key.as_ref().map(|_| "<redacted>"),
+            )
+            .field("use_mock", &self.use_mock)
+            .field("alpaca_base_url", &self.alpaca_base_url)
+            .field("rust_log", &self.rust_log)
+            .finish()
+    }
+}
+
+fn redact(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() <= 4 {
+        "<redacted>".to_string()
+    } else {
+        let prefix: String = trimmed.chars().take(4).collect();
+        format!("{}...<redacted>", prefix)
+    }
 }
 
 fn default_use_mock() -> String {
@@ -56,6 +88,9 @@ impl AppConfig {
             }
             if self.alpaca_api_key.trim().is_empty() {
                 return Err("ALPACA_API_KEY cannot be empty when USE_MOCK=0".into());
+            }
+            if self.alpaca_secret_key.trim().is_empty() {
+                return Err("ALPACA_SECRET_KEY cannot be empty when USE_MOCK=0".into());
             }
         }
 

@@ -1,11 +1,12 @@
 //! Multiplexer: merges multiple MarketDataSource streams into one unified
-//! stream, preserving event ordering by sequence_id.
+//! stream. It preserves per-source order, but does not perform global
+//! timestamp/sequence sorting across venues.
 //!
 //! This is the key architectural component that lets the daemon consume
 //! Finnhub + Alpaca + Binance + Polymarket through a single Stream.
 
 use crate::source::{IngestionError, MarketDataSource, MarketStream, Subscription};
-use futures::stream::{SelectAll, StreamExt};
+use futures::stream::{self, SelectAll, StreamExt};
 use tracing::{error, info, warn};
 
 /// A collection of data sources that get merged into one stream.
@@ -29,8 +30,8 @@ impl Multiplexer {
     /// Connect all sources and merge their streams.
     ///
     /// Each source subscribes to the appropriate subset of the subscription
-    /// based on what it supports. Failed connections are logged and skipped
-    /// (partial degradation rather than total failure).
+    /// based on what it supports. Failed connections are logged and skipped,
+    /// but startup fails closed if no source connects.
     pub async fn connect(self, subscription: &Subscription) -> MarketStream {
         let mut select_all: SelectAll<MarketStream> = SelectAll::new();
         let mut connected_count = 0;
@@ -76,6 +77,13 @@ impl Multiplexer {
             connected = connected_count,
             "Multiplexer ready"
         );
+
+        if connected_count == 0 {
+            let err = IngestionError::ConnectionFailed(
+                "No market data sources connected; refusing silent empty stream".into(),
+            );
+            return Box::pin(stream::once(async move { Err(err) }));
+        }
 
         Box::pin(select_all)
     }

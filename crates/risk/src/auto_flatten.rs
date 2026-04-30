@@ -74,7 +74,11 @@ pub enum KillReason {
     /// Drawdown from peak exceeded limit.
     Drawdown { drawdown_pct: f64, limit_pct: f64 },
     /// Volatility surge detected by GARCH.
-    VolatilitySurge { symbol: String, vol: f64, threshold: f64 },
+    VolatilitySurge {
+        symbol: String,
+        vol: f64,
+        threshold: f64,
+    },
     /// Manual activation via TUI/API.
     Manual { operator: String },
     /// External signal (e.g., exchange maintenance, circuit breaker).
@@ -84,18 +88,40 @@ pub enum KillReason {
 impl std::fmt::Display for KillReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DailyLossUsd { loss, limit } =>
-                write!(f, "Daily loss ${:.2} exceeds limit ${:.2}", loss, limit),
-            Self::DailyLossPct { loss_pct, limit_pct } =>
-                write!(f, "Daily loss {:.2}% exceeds limit {:.2}%", loss_pct * 100.0, limit_pct * 100.0),
-            Self::Drawdown { drawdown_pct, limit_pct } =>
-                write!(f, "Drawdown {:.2}% exceeds limit {:.2}%", drawdown_pct * 100.0, limit_pct * 100.0),
-            Self::VolatilitySurge { symbol, vol, threshold } =>
-                write!(f, "GARCH vol {:.1}% exceeds {:.1}% for {}", vol * 100.0, threshold * 100.0, symbol),
-            Self::Manual { operator } =>
-                write!(f, "Manual kill switch by {}", operator),
-            Self::External { source } =>
-                write!(f, "External halt: {}", source),
+            Self::DailyLossUsd { loss, limit } => {
+                write!(f, "Daily loss ${:.2} exceeds limit ${:.2}", loss, limit)
+            }
+            Self::DailyLossPct {
+                loss_pct,
+                limit_pct,
+            } => write!(
+                f,
+                "Daily loss {:.2}% exceeds limit {:.2}%",
+                loss_pct * 100.0,
+                limit_pct * 100.0
+            ),
+            Self::Drawdown {
+                drawdown_pct,
+                limit_pct,
+            } => write!(
+                f,
+                "Drawdown {:.2}% exceeds limit {:.2}%",
+                drawdown_pct * 100.0,
+                limit_pct * 100.0
+            ),
+            Self::VolatilitySurge {
+                symbol,
+                vol,
+                threshold,
+            } => write!(
+                f,
+                "GARCH vol {:.1}% exceeds {:.1}% for {}",
+                vol * 100.0,
+                threshold * 100.0,
+                symbol
+            ),
+            Self::Manual { operator } => write!(f, "Manual kill switch by {}", operator),
+            Self::External { source } => write!(f, "External halt: {}", source),
         }
     }
 }
@@ -210,7 +236,10 @@ impl AutoFlattenEngine {
         if equity > self.peak_equity {
             self.peak_equity = equity;
         }
-        info!(sod_equity = equity, "SOD equity set for auto-flatten engine");
+        info!(
+            sod_equity = equity,
+            "SOD equity set for auto-flatten engine"
+        );
     }
 
     /// Update current equity. Call on every portfolio valuation tick.
@@ -225,7 +254,11 @@ impl AutoFlattenEngine {
 
     /// Check if any auto-flatten trigger has been breached.
     /// Returns `Some(FlattenEvent)` if triggered, `None` if safe.
-    pub fn check_triggers(&mut self, open_positions: usize, open_orders: usize) -> Option<FlattenEvent> {
+    pub fn check_triggers(
+        &mut self,
+        open_positions: usize,
+        open_orders: usize,
+    ) -> Option<FlattenEvent> {
         // Already halted — don't re-trigger
         if self.is_halted() {
             return None;
@@ -271,7 +304,12 @@ impl AutoFlattenEngine {
     }
 
     /// Manually trigger auto-flatten (e.g., from TUI hotkey or API).
-    pub fn manual_trigger(&mut self, operator: &str, open_positions: usize, open_orders: usize) -> FlattenEvent {
+    pub fn manual_trigger(
+        &mut self,
+        operator: &str,
+        open_positions: usize,
+        open_orders: usize,
+    ) -> FlattenEvent {
         let reason = KillReason::Manual {
             operator: operator.to_string(),
         };
@@ -532,7 +570,10 @@ mod tests {
 
         let result = engine.check_triggers(1, 0);
         assert!(result.is_some(), "Should trigger on pct loss");
-        assert!(matches!(result.unwrap().reason, KillReason::DailyLossPct { .. }));
+        assert!(matches!(
+            result.unwrap().reason,
+            KillReason::DailyLossPct { .. }
+        ));
     }
 
     #[test]
@@ -544,7 +585,10 @@ mod tests {
 
         let result = engine.check_triggers(3, 1);
         assert!(result.is_some(), "Should trigger on drawdown");
-        assert!(matches!(result.unwrap().reason, KillReason::Drawdown { .. }));
+        assert!(matches!(
+            result.unwrap().reason,
+            KillReason::Drawdown { .. }
+        ));
     }
 
     #[test]

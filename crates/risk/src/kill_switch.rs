@@ -106,8 +106,20 @@ impl GarchTracker {
     }
 
     fn update(&mut self, price: f64) -> Option<f64> {
+        if !price.is_finite() || price <= 0.0 {
+            return None;
+        }
+
         if let Some(prev) = self.last_price {
+            if !prev.is_finite() || prev <= 0.0 {
+                self.last_price = Some(price);
+                return None;
+            }
             let ret = (price / prev).ln();
+            if !ret.is_finite() {
+                self.last_price = Some(price);
+                return None;
+            }
             self.returns.push_back(ret);
 
             // σ²_t = ω + α·ε²_{t-1} + β·σ²_{t-1}
@@ -132,11 +144,14 @@ impl GarchTracker {
 // ── Historical VaR ───────────────────────────────────────────────────────────
 
 fn historical_var(returns: &VecDeque<f64>, confidence: f64) -> Option<f64> {
-    if returns.is_empty() {
+    if returns.is_empty() || !confidence.is_finite() || !(0.0..1.0).contains(&confidence) {
         return None;
     }
-    let mut sorted: Vec<f64> = returns.iter().copied().collect();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let mut sorted: Vec<f64> = returns.iter().copied().filter(|v| v.is_finite()).collect();
+    if sorted.is_empty() {
+        return None;
+    }
+    sorted.sort_by(|a, b| a.total_cmp(b));
     let idx = ((1.0 - confidence) * sorted.len() as f64) as usize;
     Some(-sorted[idx.min(sorted.len() - 1)])
 }
@@ -188,6 +203,12 @@ impl RiskEngine {
     /// Update portfolio value and run all risk checks.
     /// Returns `Err(reason)` if the kill switch should be activated.
     pub async fn update_portfolio(&mut self, value: f64) -> Result<(), String> {
+        if !value.is_finite() || value <= 0.0 {
+            return self
+                .activate_kill_switch(format!("Invalid portfolio value: {value}"))
+                .await;
+        }
+
         let prev = self.portfolio_value;
         self.portfolio_value = value;
 
@@ -215,6 +236,12 @@ impl RiskEngine {
 
     /// Feed a new price tick for a symbol — runs GARCH vol check.
     pub async fn on_price_tick(&mut self, symbol: &str, price: f64) -> Result<(), String> {
+        if symbol.trim().is_empty() || !price.is_finite() || price <= 0.0 {
+            return self
+                .activate_kill_switch(format!("Invalid price tick for {symbol}: {price}"))
+                .await;
+        }
+
         let tracker = self
             .garch_trackers
             .entry(symbol.to_string())
@@ -227,6 +254,12 @@ impl RiskEngine {
             });
 
         if let Some(ann_vol) = tracker.update(price) {
+            if tracker.returns.len() > self.cfg.var_window {
+                tracker.returns.pop_front();
+            }
+            if tracker.returns.len() < self.cfg.garch_min_bars {
+                return Ok(());
+            }
             if ann_vol > self.cfg.vol_threshold {
                 let event = RiskEvent::VolatilitySurge {
                     symbol: symbol.to_string(),

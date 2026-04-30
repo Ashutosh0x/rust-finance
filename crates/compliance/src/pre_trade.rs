@@ -61,11 +61,47 @@ impl PreTradeGuard {
         last_price: f64,
         now_ts_secs: u64,
     ) -> Result<(), ComplianceError> {
+        self.check_basic_inputs(order, last_price)?;
         self.check_notional_single(order, last_price)?;
         self.check_daily_notional(order, last_price)?;
         self.check_price_deviation(order, last_price)?;
         self.check_fat_finger_size(order)?;
         self.check_rate_limit(now_ts_secs)?;
+        Ok(())
+    }
+
+    fn check_basic_inputs(&self, order: &Order, last_price: f64) -> Result<(), ComplianceError> {
+        if order.symbol.trim().is_empty() {
+            return Err(ComplianceError::FatFinger("Order symbol is empty".into()));
+        }
+        if !order.quantity.is_finite() || order.quantity <= 0.0 {
+            return Err(ComplianceError::FatFinger(format!(
+                "Invalid order quantity {}",
+                order.quantity
+            )));
+        }
+        if !last_price.is_finite() || last_price <= 0.0 {
+            return Err(ComplianceError::FatFinger(format!(
+                "Invalid last price {}",
+                last_price
+            )));
+        }
+        if let Some(limit) = order.limit_price {
+            if !limit.is_finite() || limit <= 0.0 {
+                return Err(ComplianceError::FatFinger(format!(
+                    "Invalid limit price {}",
+                    limit
+                )));
+            }
+        }
+        if let Some(stop) = order.stop_price {
+            if !stop.is_finite() || stop <= 0.0 {
+                return Err(ComplianceError::FatFinger(format!(
+                    "Invalid stop price {}",
+                    stop
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -144,6 +180,9 @@ impl PreTradeGuard {
 
     /// Call after a fill is confirmed to track daily notional + update average size
     pub fn record_fill(&mut self, quantity: u64, fill_price: f64) {
+        if quantity == 0 || !fill_price.is_finite() || fill_price <= 0.0 {
+            return;
+        }
         let notional = fill_price * quantity as f64;
         self.state.daily_notional_used += notional;
         // Exponential moving average of order size (α = 0.1)
