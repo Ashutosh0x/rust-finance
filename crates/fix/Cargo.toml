@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-tokio = { version = "1", features = ["net", "io-util", "sync", "time"] }
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros"] }
 tracing = "0.1"
 chrono = "0.4"
 thiserror = "1.0"

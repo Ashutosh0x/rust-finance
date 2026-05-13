@@ -145,8 +145,19 @@ impl FixSession {
                                     Ok(n) => {
                                         last_rx = Instant::now();
                                         parser.push_bytes(&read_buf[..n]);
-                                        while let Some(msg) = parser.next_message() {
-                                            self.handle_inbound(msg, &mut writer).await?;
+                                        loop {
+                                            match parser.next_message() {
+                                                Ok(Some(msg)) => self.handle_inbound(msg, &mut writer).await?,
+                                                // Not enough bytes yet — wait for the next read.
+                                                Ok(None) => break,
+                                                // One frame was garbage. The parser has already
+                                                // resynced past it; log and keep draining. We do
+                                                // NOT propagate this — a single malformed frame
+                                                // must not tear down the session (recover-open).
+                                                // A genuine I/O error is handled by the `Err(e)`
+                                                // arm on `reader.read` above, not here.
+                                                Err(e) => warn!("FIX: dropped malformed frame, resynced: {e}"),
+                                            }
                                         }
                                     }
                                     Err(e) => {
