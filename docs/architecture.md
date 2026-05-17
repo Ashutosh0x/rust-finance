@@ -1,4 +1,4 @@
-# RustForge — Architecture Guide
+# RustForge -- Architecture Guide
 
 ## System Overview
 
@@ -10,25 +10,25 @@ RustForge is a modular trading terminal built as a Cargo workspace of 30+ crates
 
 The Hybrid Intelligence Pipeline processes market data through six stages:
 
-1. **Ingestion** — `MarketDataSource` trait implementations connect to exchanges (Alpaca, Binance, Finnhub, Polymarket) and normalize raw feeds into `Envelope<MarketEvent>` events with nanosecond timestamps.
+1. **Ingestion** -- `MarketDataSource` trait implementations connect to exchanges (Alpaca, Binance, Finnhub, Polymarket) and normalize raw feeds into `Envelope<MarketEvent>` events with nanosecond timestamps.
 
-2. **Feature Extraction** — The `feature` crate computes technical indicators and quantitative features from the normalized market data stream.
+2. **Feature Extraction** -- The `feature` crate computes technical indicators and quantitative features from the normalized market data stream.
 
-3. **Intelligence Layer** — Three parallel subsystems analyze the features:
-   - **Swarm Simulator** — 100K autonomous agents model market microstructure via Rayon
-   - **Knowledge Graph** — petgraph-backed RAG links entities, catalysts, and context
-   - **Dexter AI** — Claude-powered analyst receives fused context and produces structured signals
+3. **Intelligence Layer** -- Three parallel subsystems analyze the features:
+   - **Swarm Simulator** -- 100K autonomous agents model market microstructure via Rayon
+   - **Knowledge Graph** -- petgraph-backed RAG links entities, catalysts, and context
+   - **Dexter AI** -- Claude-powered analyst receives fused context and produces structured signals
 
-4. **Strategy** — `PluggableStrategy` trait implementations consume signals and emit `TradeSignal` objects with direction, size, and confidence.
+4. **Strategy** -- `PluggableStrategy` trait implementations consume signals and emit `TradeSignal` objects with direction, size, and confidence.
 
-5. **Risk Gate** — Composable `RiskInterceptor` chain validates orders against:
+5. **Risk Gate** -- Composable `RiskInterceptor` chain validates orders against:
    - GARCH(1,1) volatility thresholds
    - Value at Risk limits
    - Position size limits (Kelly criterion)
    - Max drawdown and daily loss limits
    - Kill switch state
 
-6. **Execution** — `ExecutionGateway` trait routes validated orders to the target venue:
+6. **Execution** -- `ExecutionGateway` trait routes validated orders to the target venue:
    - `AlpacaExecutor` for US equities (REST API)
    - `ClobClient` for Polymarket prediction markets (EIP-712 signed)
    - `MockExecutor` for paper trading
@@ -55,7 +55,7 @@ The daemon and TUI communicate via a TCP event bus:
 
 - **Wire format:** Postcard binary serialization (zero-copy, compact)
 - **Protocol:** Length-prefixed frames over TCP (`127.0.0.1:7001`)
-- **Direction:** Bidirectional — daemon broadcasts `BotEvent`, TUI sends `ControlCommand`
+- **Direction:** Bidirectional -- daemon broadcasts `BotEvent`, TUI sends `ControlCommand`
 - **In-process:** `tokio::sync::broadcast` channels with 100K buffer
 
 ---

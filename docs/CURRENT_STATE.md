@@ -1,4 +1,4 @@
-# RustForge — Current State
+# RustForge -- Current State
 
 **Version:** 1.0.0
 **Date:** March 2026

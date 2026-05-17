@@ -58,9 +58,9 @@ RustFinance Terminal, also called RustForge, is an open-source Rust trading term
 https://github.com/user-attachments/assets/c769b2c2-cfa0-44bd-a261-99786ea653e1
 
 
-RustForge is an institutional-grade AI trading terminal built in pure Rust. It combines real-time multi-exchange market data, Claude-powered AI analysis, quantitative risk management, prediction market trading, and a full TUI dashboard — all in a single binary with nanosecond-precision timestamps and sub-millisecond latency.
+RustForge is an institutional-grade AI trading terminal built in pure Rust. It combines real-time multi-exchange market data, Claude-powered AI analysis, quantitative risk management, prediction market trading, and a full TUI dashboard -- all in a single binary with nanosecond-precision timestamps and sub-millisecond latency.
 
-> **v0.4** — 2026 Quant Alpha Library: Multi-level Microprice (MLOFI), Adverse Selection Detection, Regime-Conditioned Quoting, Kelly+Bayesian Sizing, Alpha Health Monitor, IC-Weighted Composite Signals, Enhanced Avellaneda-Stoikov Quoting Engine, Almgren-Chriss Optimal Execution, Live Binance WebSocket Candlestick Feed, and WebSocket Gap Detection Engine. 82+ unit tests passing on Rust 1.95.0.
+> **v0.4** -- 2026 Quant Alpha Library: Multi-level Microprice (MLOFI), Adverse Selection Detection, Regime-Conditioned Quoting, Kelly+Bayesian Sizing, Alpha Health Monitor, IC-Weighted Composite Signals, Enhanced Avellaneda-Stoikov Quoting Engine, Almgren-Chriss Optimal Execution, Live Binance WebSocket Candlestick Feed, and WebSocket Gap Detection Engine. 82+ unit tests passing on Rust 1.95.0.
 
 | Feature | Detail |
 |:---|:---|
@@ -81,7 +81,7 @@ RustForge is an institutional-grade AI trading terminal built in pure Rust. It c
 | Timestamp Precision | Nanosecond (`UnixNanos`) |
 | Deterministic Replay | `DeterministicClock` + `SequenceId` ordering |
 | Regulatory Compliance | SEBI 2026 Algo-ID + OPS threshold + pre-trade checks |
-| Fill Simulation | Almgren-Chriss √-impact model + fixed slippage |
+| Fill Simulation | Almgren-Chriss square-root impact model + fixed slippage |
 | Alpha Monitoring | Rolling IC, Sharpe, hit rate with auto-decay detection |
 | FIX Protocol | Production FIX 4.4 parser with checksum validation |
 | Market Sources | Alpaca, Binance, Finnhub, Polymarket, Mock |
@@ -125,14 +125,14 @@ graph TD;
 
     subgraph "RustForge Engine"
         Ingest(Ingestion / Source Multiplexer) --> Bus(TCP Event Bus)
-        Bus --> AI(AI Engine — Dexter / Mirofish)
+        Bus --> AI(AI Engine -- Dexter / Mirofish)
         Bus --> Quant(Quant Features)
-        Quant --> Swarm(Swarm Simulator — 100K Agents)
-        Swarm --> KG(Knowledge Graph — petgraph RAG)
+        Quant --> Swarm(Swarm Simulator -- 100K Agents)
+        Swarm --> KG(Knowledge Graph -- petgraph RAG)
         KG --> AI
 
         AI --> Strategy(Strategy Dispatcher)
-        Strategy --> Risk(Risk Gate — GARCH / VaR / Kill Switch)
+        Strategy --> Risk(Risk Gate -- GARCH / VaR / Kill Switch)
         Risk --> Exec(Execution Gateway)
 
         Exec -.-> |Paper Mode| Mock(MockExecutor)
@@ -168,7 +168,7 @@ execution        ExecutionGateway + TWAP/VWAP/Iceberg/POV + Almgren-Chriss optim
 strategy         Momentum, MeanReversion, Avellaneda-Stoikov (Welford O(1) variance)
 risk             Kill switch, GARCH vol, VaR, risk interceptor chain, self-match prevention
 pricing          Black-Scholes-Merton, Heston, GARCH(1,1) models
-backtest         Walk-forward, Monte Carlo, backtesting engine, √-impact fill model
+backtest         Walk-forward, Monte Carlo, backtesting engine, square-root impact fill model
 ai               Dexter AI analyst, Claude integration, signal routing
 swarm_sim        100,000-agent market microstructure simulator
 knowledge_graph  petgraph-backed RAG knowledge engine
@@ -185,7 +185,7 @@ metrics          Prometheus-compatible telemetry
 ml               Machine learning model inference, alpha decay monitoring
 model            Model registry and versioning
 feature          Feature engineering pipeline
-fix              FIX 4.4 protocol engine — production parser + session layer
+fix              FIX 4.4 protocol engine -- production parser + session layer
 cli              Command-line interface
 web              REST API server
 web-dashboard    Web-based dashboard
@@ -194,9 +194,9 @@ tests            Integration test suite
 benchmarks       Criterion performance benchmarks
 ```
 
-#### Signals Crate — 2026 Quant Alpha Library
+#### Signals Crate -- 2026 Quant Alpha Library
 
-Based on 18 research papers (2025–2026). 55 unit tests.
+Based on 18 research papers (2025-2026). 55 unit tests.
 
 ```
 Indicators       SMA, EMA, RSI, MACD, Bollinger Bands, VWAP
@@ -204,18 +204,18 @@ Microstructure   OFI (Cont 2014), Microprice, Kyle's Lambda, VPIN (Easley 2012),
                  Amihud Illiquidity, Lee-Ready Trade Classifier
 Microprice ML    Multi-level microprice MLOFI (Oxford 2019, arXiv 2602.00776)
 Adverse Select.  Toxicity detection + halt/widen (Barzykin 2025, Crypto 2026)
-Regime           Fast/slow EMA vol ratio → LowVol/Normal/HighVol/Crisis (RegimeFolio 2025)
+Regime           Fast/slow EMA vol ratio -> LowVol/Normal/HighVol/Crisis (RegimeFolio 2025)
 Kelly            Quarter-Kelly + Bayesian shrinkage sizing (PolySwarm Apr 2026)
-Alpha Health     IC decay + hit rate monitor → Healthy/Degraded/Decayed (AlphaForgeBench 2026)
+Alpha Health     IC decay + hit rate monitor -> Healthy/Degraded/Decayed (AlphaForgeBench 2026)
 Composite        IC-weighted signal combiner with regime + toxicity gating (Chain-of-Alpha 2025)
-Quoting Engine   Enhanced Avellaneda-Stoikov: regime γ, VPIN widening, OFI skew, Kelly sizing
+Quoting Engine   Enhanced Avellaneda-Stoikov: regime gamma, VPIN widening, OFI skew, Kelly sizing
 ```
 
-#### Execution Crate — Almgren-Chriss Optimal Execution
+#### Execution Crate -- Almgren-Chriss Optimal Execution
 
 ```
-Almgren-Chriss   Optimal trajectory: xⱼ = X × sinh(κ(N-j)) / sinh(κN)
-                 Urgency parameter κ = √(λσ²/η), square-root impact model
+Almgren-Chriss   Optimal trajectory: x_j = X * sinh(kappa * (N-j)) / sinh(kappa * N)
+                 Urgency parameter kappa = sqrt(lambda*sigma^2/eta), square-root impact model
                  Presets: liquid_default, aggressive, passive
                  7 unit tests (TWAP convergence, front-loading, quantity conservation)
 ```
@@ -234,12 +234,12 @@ cd rust-finance
 
 # 3. Configure
 cp .env.example .env
-# Edit .env — add your API keys (see Configuration below)
+# Edit .env -- add your API keys (see Configuration below)
 
 # 4. Build
 cargo build --release
 
-# 5. Run (mock mode — no API keys required)
+# 5. Run (mock mode -- no API keys required)
 USE_MOCK=1 cargo run -p daemon --release
 
 # 6. Run TUI (separate terminal)
@@ -251,148 +251,148 @@ cargo run -p tui --release
 ## Features
 
 ### Core Engine
-- Hybrid Intelligence Pipeline — Quant, Swarm, Knowledge Graph, Dexter AI, Risk Gate, Execution
+- Hybrid Intelligence Pipeline -- Quant, Swarm, Knowledge Graph, Dexter AI, Risk Gate, Execution
 - Nanosecond-precision timestamps (`UnixNanos`) with monotonic `SequenceId` ordering
-- Swappable clock — `RealtimeClock` for live trading, `DeterministicClock` for backtesting
+- Swappable clock -- `RealtimeClock` for live trading, `DeterministicClock` for backtesting
 - Event-driven architecture with typed `Envelope<T>` wrapping every system event
-- Deterministic Safety Gate — zero-AI verification layer preventing agent confirmation bias
+- Deterministic Safety Gate -- zero-AI verification layer preventing agent confirmation bias
 - 34-crate workspace compiling in ~17s
 
 ### Market Data
-- **Alpaca** — Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
-- **Binance** — Crypto streams (trades, bookTicker, kline, depth5) via combined WS endpoint
-  - **Live Candlestick Feed** — Direct WebSocket kline_1m stream → real-time OHLCV candlestick rendering in TUI
-  - **Gap Detection Engine** — Sequence-based WebSocket gap detector with configurable thresholds (small gap: retransmit, medium: snapshot, large: failover)
-- **Finnhub** — Global market data (incl. NSE/BSE) and live trades via WebSocket
-- **Polymarket** — Prediction market data via 3 APIs:
-  - **Gamma API** — Events, markets, tags, search, profiles (`gamma-api.polymarket.com`)
-  - **CLOB API** — Orderbook, midpoint, spread, prices-history, tick-size, fee-rate (`clob.polymarket.com`)
-  - **Data API** — Positions, trades, leaderboards, open interest (`data-api.polymarket.com`)
-- **Mock source** — Deterministic replay for backtesting
+- **Alpaca** -- Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
+- **Binance** -- Crypto streams (trades, bookTicker, kline, depth5) via combined WS endpoint
+  - **Live Candlestick Feed** -- Direct WebSocket kline_1m stream -> real-time OHLCV candlestick rendering in TUI
+  - **Gap Detection Engine** -- Sequence-based WebSocket gap detector with configurable thresholds (small gap: retransmit, medium: snapshot, large: failover)
+- **Finnhub** -- Global market data (incl. NSE/BSE) and live trades via WebSocket
+- **Polymarket** -- Prediction market data via 3 APIs:
+  - **Gamma API** -- Events, markets, tags, search, profiles (`gamma-api.polymarket.com`)
+  - **CLOB API** -- Orderbook, midpoint, spread, prices-history, tick-size, fee-rate (`clob.polymarket.com`)
+  - **Data API** -- Positions, trades, leaderboards, open interest (`data-api.polymarket.com`)
+- **Mock source** -- Deterministic replay for backtesting
 - Auto-reconnect with exponential backoff on all sources
-- Source Multiplexer — unified `SelectAll` stream from any combination of sources
-- **500 msg/frame cap** — Prevents TUI freeze during high-volume market activity (e.g., BTC flash crashes)
+- Source Multiplexer -- unified `SelectAll` stream from any combination of sources
+- **500 msg/frame cap** -- Prevents TUI freeze during high-volume market activity (e.g., BTC flash crashes)
 
 ### AI Intelligence
-- **Dexter AI Analyst** — Claude-powered market analysis with structured signal output
-- **100K Agent Swarm Simulation** — Rayon-parallel microstructure Monte Carlo
-- **Knowledge Graph** — petgraph RAG with entity linking and context fusion
-- **Fused Context** — Quant + Swarm + Graph consensus fed into Dexter prompt
-- **Impact Analysis Engine** — AI-driven market impact estimation
-- **Mirofish** — 5,000-agent scenario simulator (rally/sideways/dip probabilities)
+- **Dexter AI Analyst** -- Claude-powered market analysis with structured signal output
+- **100K Agent Swarm Simulation** -- Rayon-parallel microstructure Monte Carlo
+- **Knowledge Graph** -- petgraph RAG with entity linking and context fusion
+- **Fused Context** -- Quant + Swarm + Graph consensus fed into Dexter prompt
+- **Impact Analysis Engine** -- AI-driven market impact estimation
+- **Mirofish** -- 5,000-agent scenario simulator (rally/sideways/dip probabilities)
 
 ### Execution & Algorithmic Trading
-- `ExecutionGateway` trait — plug-and-play execution backends
-- **Almgren-Chriss Optimal Execution** — closed-form trajectory minimizing E[cost] + λ×Var[cost], with urgency parameter κ = √(λσ²/η), square-root impact model, and adaptive σ/λ updates from GARCH + regime detector
-- **TWAP** — Time-weighted slicing with configurable `horizon_secs` / `interval_secs`
-- **VWAP** — Volume-weighted execution with U-shape intraday profile
-- **Iceberg** — Hidden liquidity: only `display_qty` visible, auto-replenish on fill
-- **POV (Percentage of Volume)** — Adaptive participation tracking real-time market volume
-- **Smart Order Router (SOR)** — Multi-venue scoring (fill rate, latency, fees, liquidity, market impact), dark pool preference for large orders, spray routing, MiFID II best execution reporting
-- **Alpaca Executor** — Full REST integration (25+ endpoints: orders, positions, assets, historical data)
-- **Polymarket CLOB** — full order lifecycle (limit/market/FOK/GTC/GTD), EIP-712 signed orders
-- **Polymarket Arbitrage** — Sum-to-one (YES+NO < $1), cross-market, and cross-platform (Polymarket vs Kalshi) spread detection with fee-aware P&L
-- **Paper trading** — MockExecutor for risk-free strategy testing
-- **Bracket orders** — OCO/OTO stop-loss + take-profit combos
-- **Trailing stops** — dynamic stop-loss that follows price
+- `ExecutionGateway` trait -- plug-and-play execution backends
+- **Almgren-Chriss Optimal Execution** -- closed-form trajectory minimizing E[cost] + lambda*Var[cost], with urgency parameter kappa = sqrt(lambda*sigma^2/eta), square-root impact model, and adaptive sigma/lambda updates from GARCH + regime detector
+- **TWAP** -- Time-weighted slicing with configurable `horizon_secs` / `interval_secs`
+- **VWAP** -- Volume-weighted execution with U-shape intraday profile
+- **Iceberg** -- Hidden liquidity: only `display_qty` visible, auto-replenish on fill
+- **POV (Percentage of Volume)** -- Adaptive participation tracking real-time market volume
+- **Smart Order Router (SOR)** -- Multi-venue scoring (fill rate, latency, fees, liquidity, market impact), dark pool preference for large orders, spray routing, MiFID II best execution reporting
+- **Alpaca Executor** -- Full REST integration (25+ endpoints: orders, positions, assets, historical data)
+- **Polymarket CLOB** -- full order lifecycle (limit/market/FOK/GTC/GTD), EIP-712 signed orders
+- **Polymarket Arbitrage** -- Sum-to-one (YES+NO < $1), cross-market, and cross-platform (Polymarket vs Kalshi) spread detection with fee-aware P&L
+- **Paper trading** -- MockExecutor for risk-free strategy testing
+- **Bracket orders** -- OCO/OTO stop-loss + take-profit combos
+- **Trailing stops** -- dynamic stop-loss that follows price
 
 ### Risk Management
-- **Deterministic Safety Gate** — zero-AI verification layer detecting agent confirmation bias (>85% agreement), concentration, drawdown, and correlation exposure
-- **Self-Match Prevention (SMP)** — wash trade prevention for market makers with 3 exchange-standard modes: `CancelResting` (CME), `CancelAggressive` (NASDAQ), `CancelBoth` (safest)
-- **Kill Switch** — emergency circuit breaker (hotkey `K` in TUI)
-- **GARCH(1,1) + EGARCH** — real-time symmetric and asymmetric volatility estimation
-- **Value at Risk (VaR)** — Historical, Parametric (Delta-Normal), and Student-t fat-tail VaR at 95%/99% confidence with CVaR (Expected Shortfall)
-- **Component VaR** — per-position marginal contribution to portfolio risk
-- **10-Day Basel VaR** — √10 scaling for regulatory compliance
-- **PnL Attribution** — component-level profit/loss decomposition
-- **Risk Interceptor Chain** — composable pre-trade risk checks (MaxPositionSize, MaxDrawdown, MaxOpenOrders, DailyLossLimit, SMP)
-- **Kelly Criterion Sizing** — quarter-Kelly position sizing with conviction scaling
-- **Cross-Asset Correlation** — rolling pairwise correlation and concentration penalty
-- **Regime Detection** — GARCH-based volatility regime classification with position scaling
-- **Alpha Decay Monitor** — rolling Information Coefficient (Spearman IC), Sharpe ratio, and hit rate tracking; auto-flags `Healthy` → `Degraded` → `Decayed` health states for strategy auto-pause
+- **Deterministic Safety Gate** -- zero-AI verification layer detecting agent confirmation bias (>85% agreement), concentration, drawdown, and correlation exposure
+- **Self-Match Prevention (SMP)** -- wash trade prevention for market makers with 3 exchange-standard modes: `CancelResting` (CME), `CancelAggressive` (NASDAQ), `CancelBoth` (safest)
+- **Kill Switch** -- emergency circuit breaker (hotkey `K` in TUI)
+- **GARCH(1,1) + EGARCH** -- real-time symmetric and asymmetric volatility estimation
+- **Value at Risk (VaR)** -- Historical, Parametric (Delta-Normal), and Student-t fat-tail VaR at 95%/99% confidence with CVaR (Expected Shortfall)
+- **Component VaR** -- per-position marginal contribution to portfolio risk
+- **10-Day Basel VaR** -- sqrt(10) scaling for regulatory compliance
+- **PnL Attribution** -- component-level profit/loss decomposition
+- **Risk Interceptor Chain** -- composable pre-trade risk checks (MaxPositionSize, MaxDrawdown, MaxOpenOrders, DailyLossLimit, SMP)
+- **Kelly Criterion Sizing** -- quarter-Kelly position sizing with conviction scaling
+- **Cross-Asset Correlation** -- rolling pairwise correlation and concentration penalty
+- **Regime Detection** -- GARCH-based volatility regime classification with position scaling
+- **Alpha Decay Monitor** -- rolling Information Coefficient (Spearman IC), Sharpe ratio, and hit rate tracking; auto-flags `Healthy` -> `Degraded` -> `Decayed` health states for strategy auto-pause
 - Max Drawdown and Daily Loss Limit trading guardrails
-- **SEBI 2026 Compliance** — Algo-ID tagging (mandatory since April 1, 2026), OPS threshold monitoring, order variety classification, price band checks, uptick rule, squareoff time enforcement
+- **SEBI 2026 Compliance** -- Algo-ID tagging (mandatory since April 1, 2026), OPS threshold monitoring, order variety classification, price band checks, uptick rule, squareoff time enforcement
 
 ### Market Making & Microstructure (2026 Enhanced)
-- **Enhanced Avellaneda-Stoikov Quoting Engine** — Reservation pricing `r = FV - q·γ·σ²·τ` with:
-  - **Regime-conditioned γ** — auto-adjusts risk aversion per volatility regime (RegimeFolio 2025)
-  - **VPIN spread widening** — widens quotes when informed trading probability exceeds 0.5 (Easley 2012)
-  - **Toxicity halt** — stops passive quoting at toxicity > 0.65 (Barzykin 2025)
-  - **OFI skew** — shifts quotes by λ_ofi × OFI for order flow anticipation (Cont 2014)
-  - **Kelly-scaled sizing** — position size = quarter-Kelly × conviction × regime_mult × (1 - toxicity)
-- **Adverse Selection Detector** — EMA-smoothed post-fill price move analysis; classifies fills as toxic/safe and recommends Normal/Widen/HaltPassive actions
-- **Multi-Level Microprice (MLOFI)** — Oxford 2019 depth-decayed fair value across 5+ LOB levels; ~50-tick predictive lead over arithmetic mid
-- **Two-State Regime Classifier** — Fast/slow EMA vol ratio → LowVol/Normal/HighVol/Crisis with debounce; each regime maps to concrete γ, spread_mult, size_mult parameters
-- **Order Flow Imbalance (OFI)** — Cont et al. (2014) — net bid/ask volume change for short-term direction
-- **VPIN Toxicity** — Volume-synchronized Probability of Informed Trading (Easley et al. 2012)
-- **Kyle's Lambda** — Price impact coefficient per unit signed order flow (Kyle 1985)
-- **Amihud Illiquidity** — `|return| / dollar_volume` for position sizing in thin names
-- **Lee-Ready Classifier** — Buyer/seller-initiated trade classification
-- **EWMA Volatility** — Real-time annualized vol estimation (RiskMetrics λ=0.94)
+- **Enhanced Avellaneda-Stoikov Quoting Engine** -- Reservation pricing `r = FV - q*gamma*sigma^2*tau` with:
+  - **Regime-conditioned gamma** -- auto-adjusts risk aversion per volatility regime (RegimeFolio 2025)
+  - **VPIN spread widening** -- widens quotes when informed trading probability exceeds 0.5 (Easley 2012)
+  - **Toxicity halt** -- stops passive quoting at toxicity > 0.65 (Barzykin 2025)
+  - **OFI skew** -- shifts quotes by lambda_ofi * OFI for order flow anticipation (Cont 2014)
+  - **Kelly-scaled sizing** -- position size = quarter-Kelly * conviction * regime_mult * (1 - toxicity)
+- **Adverse Selection Detector** -- EMA-smoothed post-fill price move analysis; classifies fills as toxic/safe and recommends Normal/Widen/HaltPassive actions
+- **Multi-Level Microprice (MLOFI)** -- Oxford 2019 depth-decayed fair value across 5+ LOB levels; ~50-tick predictive lead over arithmetic mid
+- **Two-State Regime Classifier** -- Fast/slow EMA vol ratio -> LowVol/Normal/HighVol/Crisis with debounce; each regime maps to concrete gamma, spread_mult, size_mult parameters
+- **Order Flow Imbalance (OFI)** -- Cont et al. (2014) -- net bid/ask volume change for short-term direction
+- **VPIN Toxicity** -- Volume-synchronized Probability of Informed Trading (Easley et al. 2012)
+- **Kyle's Lambda** -- Price impact coefficient per unit signed order flow (Kyle 1985)
+- **Amihud Illiquidity** -- `|return| / dollar_volume` for position sizing in thin names
+- **Lee-Ready Classifier** -- Buyer/seller-initiated trade classification
+- **EWMA Volatility** -- Real-time annualized vol estimation (RiskMetrics lambda=0.94)
 
 ### Alpha Signal Pipeline (2026 Quant Library)
-- **Alpha Health Monitor** — Tracks IC (information coefficient) and hit rate per signal; classifies Healthy (weight=1.0) / Degraded (0.4) / Decayed (0.0) with automatic disabling of decayed signals
-- **Composite Signal Generator** — IC-proportional weighting (Chain-of-Alpha 2025) with regime scaling and toxicity discounting; outputs (score, conviction) for downstream Kelly sizing
-- **Kelly Criterion + Bayesian Shrinkage** — Quarter-Kelly (industry standard per PolySwarm Apr 2026) with n/(n+30) Bayesian shrinkage for small sample sizes
-- **Bayesian Fair Value** — Weighted combination of microprice, fast EMA, and slow EMA with configurable alpha weights
+- **Alpha Health Monitor** -- Tracks IC (information coefficient) and hit rate per signal; classifies Healthy (weight=1.0) / Degraded (0.4) / Decayed (0.0) with automatic disabling of decayed signals
+- **Composite Signal Generator** -- IC-proportional weighting (Chain-of-Alpha 2025) with regime scaling and toxicity discounting; outputs (score, conviction) for downstream Kelly sizing
+- **Kelly Criterion + Bayesian Shrinkage** -- Quarter-Kelly (industry standard per PolySwarm Apr 2026) with n/(n+30) Bayesian shrinkage for small sample sizes
+- **Bayesian Fair Value** -- Weighted combination of microprice, fast EMA, and slow EMA with configurable alpha weights
 
 ### Quantitative Models
-- **Black-Scholes-Merton** — options pricing with full Greeks (Delta, Gamma, Theta, Vega, Rho)
-- **Heston Stochastic Volatility** — smile-calibrated pricing via Monte Carlo
-- **SABR Model** — stochastic alpha-beta-rho for FX/rates vol surface
-- **Hull-White** — short-rate model for fixed income
-- **Bond Pricer** — yield-to-maturity, duration, convexity
-- **GARCH(1,1) + EGARCH** — volatility forecasting with leverage effects
-- **Fundamental Analysis** — DCF, Graham, and PEG valuation models
-- **Monte Carlo Engine** — path simulation for derivative pricing
-- **Walk-Forward Backtesting** — out-of-sample validation with Sharpe, Sortino, CAGR, profit factor
-- **Pluggable Fill Model** — `FillModel` trait with two implementations:
-  - `FixedSlippage` — constant basis-point slippage (backward compat)
-  - `SquareRootImpact` — Almgren-Chriss institutional model: `impact = σ × η × √(q/ADV)` with presets for liquid (η=0.1), mid-cap (η=0.25), and illiquid (η=0.5) instruments
-- **Transaction Cost Analysis (TCA)** — Implementation Shortfall, VWAP/TWAP slippage, market impact, per-strategy breakdown
-- **Gamma Exposure (GEX)** — dealer gamma surface, flip points, pin risk zones, vol regime detection
-- **Latency Queue** — priority-queue latency simulation for realistic fills
+- **Black-Scholes-Merton** -- options pricing with full Greeks (Delta, Gamma, Theta, Vega, Rho)
+- **Heston Stochastic Volatility** -- smile-calibrated pricing via Monte Carlo
+- **SABR Model** -- stochastic alpha-beta-rho for FX/rates vol surface
+- **Hull-White** -- short-rate model for fixed income
+- **Bond Pricer** -- yield-to-maturity, duration, convexity
+- **GARCH(1,1) + EGARCH** -- volatility forecasting with leverage effects
+- **Fundamental Analysis** -- DCF, Graham, and PEG valuation models
+- **Monte Carlo Engine** -- path simulation for derivative pricing
+- **Walk-Forward Backtesting** -- out-of-sample validation with Sharpe, Sortino, CAGR, profit factor
+- **Pluggable Fill Model** -- `FillModel` trait with two implementations:
+  - `FixedSlippage` -- constant basis-point slippage (backward compat)
+  - `SquareRootImpact` -- Almgren-Chriss institutional model: `impact = sigma * eta * sqrt(q/ADV)` with presets for liquid (eta=0.1), mid-cap (eta=0.25), and illiquid (eta=0.5) instruments
+- **Transaction Cost Analysis (TCA)** -- Implementation Shortfall, VWAP/TWAP slippage, market impact, per-strategy breakdown
+- **Gamma Exposure (GEX)** -- dealer gamma surface, flip points, pin risk zones, vol regime detection
+- **Latency Queue** -- priority-queue latency simulation for realistic fills
 
 ### TUI Dashboard
-- 6-screen navigation — Dashboard, Charts, Orderbook, Positions, AI, Settings
+- 6-screen navigation -- Dashboard, Charts, Orderbook, Positions, AI, Settings
 - Real-time sparkline charts with zoom, scroll, and time range cycling
-- Live order book visualization — L2 depth with cumulative volume
+- Live order book visualization -- L2 depth with cumulative volume
 - 13-symbol watchlist auto-updating from market data feed
-- Exchange heartbeat monitor — NYSE, NASDAQ, CME, CBOE, LSE, CRYPTO, NSE, BSE
+- Exchange heartbeat monitor -- NYSE, NASDAQ, CME, CBOE, LSE, CRYPTO, NSE, BSE
 - Dexter AI panel with live analysis output and BUY/SELL/HOLD recommendation
-- Mirofish simulation widget — rally/sideways/dip probability bars
+- Mirofish simulation widget -- rally/sideways/dip probability bars
 - Buy/Sell order entry dialogs with quantity and price inputs
-- Emergency controls — kill switch, paper/live toggle, risk adjustment
+- Emergency controls -- kill switch, paper/live toggle, risk adjustment
 
 ### Compliance and Audit
-- Full audit trail — every state transition logged with `AuditTick`
-- Pre-trade compliance — rule-based order validation
-- **SEBI 2026 Algo Framework** — Algo-ID tagging on every order to NSE/BSE, static IP whitelisting, OPS threshold monitoring (>10 OPS requires registration), order value caps, MIS squareoff time enforcement, uptick rule, price band circuit filters
-- Deterministic replay — reproduce any historical trading session
+- Full audit trail -- every state transition logged with `AuditTick`
+- Pre-trade compliance -- rule-based order validation
+- **SEBI 2026 Algo Framework** -- Algo-ID tagging on every order to NSE/BSE, static IP whitelisting, OPS threshold monitoring (>10 OPS requires registration), order value caps, MIS squareoff time enforcement, uptick rule, price band circuit filters
+- Deterministic replay -- reproduce any historical trading session
 
 ### FIX Protocol (v0.3)
-- **Production FIX 4.4 Parser** — length-delimited (`BodyLength` tag 9) message framing with checksum validation
-- **Tag-Value Extraction** — full field parsing into `HashMap<u32, String>` with `MsgType` derivation from tag 35
-- **Streaming Parser** — `push_bytes()` + `next_message()` pattern for TCP stream processing
-- **Session Layer** — Logon/Logout/Heartbeat/TestRequest/ResendRequest/SequenceReset handling
-- **Supported Messages** — Logon, Logout, Heartbeat, TestRequest, ResendRequest, SequenceReset, ExecutionReport, OrderCancelReject, NewOrderSingle, OrderCancelRequest
-- Zero external dependencies — hand-rolled for maximum control and auditability
+- **Production FIX 4.4 Parser** -- length-delimited (`BodyLength` tag 9) message framing with checksum validation
+- **Tag-Value Extraction** -- full field parsing into `HashMap<u32, String>` with `MsgType` derivation from tag 35
+- **Streaming Parser** -- `push_bytes()` + `next_message()` pattern for TCP stream processing
+- **Session Layer** -- Logon/Logout/Heartbeat/TestRequest/ResendRequest/SequenceReset handling
+- **Supported Messages** -- Logon, Logout, Heartbeat, TestRequest, ResendRequest, SequenceReset, ExecutionReport, OrderCancelReject, NewOrderSingle, OrderCancelRequest
+- Zero external dependencies -- hand-rolled for maximum control and auditability
 
 ### Security & Supply Chain (CI/CD)
-- **8-job Security pipeline** — cargo-audit (CVE), cargo-deny (licenses/bans/advisories), cargo-vet (supply chain verification), Clippy (pedantic + cargo lints), rustfmt, SHA-pin enforcement, CodeQL SAST, OpenSSF Scorecard
+- **8-job Security pipeline** -- cargo-audit (CVE), cargo-deny (licenses/bans/advisories), cargo-vet (supply chain verification), Clippy (pedantic + cargo lints), rustfmt, SHA-pin enforcement, CodeQL SAST, OpenSSF Scorecard
 - All GitHub Actions SHA-pinned to full 40-character commit hashes
-- Cross-platform CI — tests on Ubuntu, macOS, and Windows
-- MSRV verification — Minimum Supported Rust Version enforced
-- Benchmark compilation checks — Criterion benchmarks verified on every push
+- Cross-platform CI -- tests on Ubuntu, macOS, and Windows
+- MSRV verification -- Minimum Supported Rust Version enforced
+- Benchmark compilation checks -- Criterion benchmarks verified on every push
 
 ### News Feed Sources
-- **Finnhub News API** — general market news, company-specific news, sector news
-- **Alpaca News API** — US equities breaking news, earnings, SEC filings
-- **NewsAPI.org** — aggregates Reuters, Bloomberg, CNBC, WSJ, Financial Times, BBC Business
-- **Polygon.io** — SEC filings, earnings reports, company reference data
-- **BSE/NSE RSS** — Indian market news from Bombay and National Stock Exchanges
-- **CoinGecko** — cryptocurrency market news and sentiment
-- **SEC EDGAR** — real-time regulatory filings (10-K, 10-Q, 8-K)
+- **Finnhub News API** -- general market news, company-specific news, sector news
+- **Alpaca News API** -- US equities breaking news, earnings, SEC filings
+- **NewsAPI.org** -- aggregates Reuters, Bloomberg, CNBC, WSJ, Financial Times, BBC Business
+- **Polygon.io** -- SEC filings, earnings reports, company reference data
+- **BSE/NSE RSS** -- Indian market news from Bombay and National Stock Exchanges
+- **CoinGecko** -- cryptocurrency market news and sentiment
+- **SEC EDGAR** -- real-time regulatory filings (10-K, 10-Q, 8-K)
 
 ---
 
@@ -405,7 +405,7 @@ cargo run -p tui --release
 | `S` | Open SELL dialog |
 | `Enter` | Confirm order |
 | `Esc` | Dismiss dialog |
-| `K` | KILL SWITCH — emergency halt all trading |
+| `K` | KILL SWITCH -- emergency halt all trading |
 | `M` | Toggle paper/live mode |
 | `+` / `-` | Adjust risk threshold |
 | `D` | Trigger Dexter AI analysis |
@@ -494,17 +494,17 @@ For examples, see `AiGatedMomentum` in `crates/daemon/src/strategy_registry.rs`.
 | Tracing Export (Jaeger) | `4318` | OTLP UDP |
 
 ### Alpaca Broker Integration
-- `POST /v2/orders` — order submission via `AlpacaBroker::submit_order`, rate-limited to 150 req/min
-- `GET /v2/positions` — periodic position reconciliation into TUI
+- `POST /v2/orders` -- order submission via `AlpacaBroker::submit_order`, rate-limited to 150 req/min
+- `GET /v2/positions` -- periodic position reconciliation into TUI
 
 ### Polymarket CLOB Integration
-- `POST /order` — EIP-712 signed order placement
-- `DELETE /order/{id}` — cancel specific order
-- `DELETE /cancel-all` — cancel all open orders
-- `GET /orders` — list open orders
-- `GET /book` — order book snapshot
-- `GET /midpoint` — midpoint price
-- `GET /balance-allowance` — USDC balance
+- `POST /order` -- EIP-712 signed order placement
+- `DELETE /order/{id}` -- cancel specific order
+- `DELETE /cancel-all` -- cancel all open orders
+- `GET /orders` -- list open orders
+- `GET /book` -- order book snapshot
+- `GET /midpoint` -- midpoint price
+- `GET /balance-allowance` -- USDC balance
 
 ---
 
