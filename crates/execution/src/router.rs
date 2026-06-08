@@ -1,10 +1,19 @@
 use crate::dry_run::{simulate_fill, Order, Fill};
+use std::sync::OnceLock;
 use tracing::info;
 
-pub async fn execute(order: Order) -> Result<Fill, String> {
-    let mode = std::env::var("EXECUTION_MODE").unwrap_or_else(|_| "dry_run".to_string());
+static EXECUTION_MODE: OnceLock<String> = OnceLock::new();
 
-    match mode.as_str() {
+fn execution_mode() -> &'static str {
+    EXECUTION_MODE
+        .get_or_init(|| std::env::var("EXECUTION_MODE").unwrap_or_else(|_| "dry_run".to_string()))
+        .as_str()
+}
+
+pub async fn execute(order: Order) -> Result<Fill, String> {
+    let mode = execution_mode();
+
+    match mode {
         "dry_run" | "paper_trade" => {
             let fill = simulate_fill(&order);
             info!("[DRY RUN] Simulated fill for {}: price = {:.4}, qty = {}", order.symbol, fill.fill_price, order.qty);

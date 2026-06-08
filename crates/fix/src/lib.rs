@@ -26,7 +26,29 @@ pub mod serializer {
         pub fn msg_type(&self) -> MsgType { self.msg_type.clone() }
         pub fn set_field(&mut self, tag: u32, val: &str) { self.fields.insert(tag, val.to_string()); }
         pub fn get_field(&self, tag: u32) -> Option<&String> { self.fields.get(&tag) }
-        pub fn encode(&self) -> Vec<u8> { vec![] }
+        pub fn encode(&self) -> Vec<u8> {
+            let mut fields: Vec<(u32, String)> = self.fields.iter().map(|(k, v)| (*k, v.clone())).collect();
+            if !fields.iter().any(|(tag, _)| *tag == 35) {
+                let msg_type = match self.msg_type {
+                    MsgType::Logon => "A",
+                    MsgType::Logout => "5",
+                    MsgType::Heartbeat => "0",
+                    MsgType::TestRequest => "1",
+                    MsgType::ResendRequest => "2",
+                    MsgType::SequenceReset => "4",
+                    MsgType::ExecutionReport => "8",
+                    MsgType::OrderCancelReject => "9",
+                    MsgType::Unknown => "?",
+                };
+                fields.push((35, msg_type.to_string()));
+            }
+            fields.sort_by_key(|(tag, _)| *tag);
+            let mut out = String::new();
+            for (tag, val) in fields {
+                out.push_str(&format!("{}={}", tag, val));
+            }
+            out.into_bytes()
+        }
     }
     
     pub struct FixParser;

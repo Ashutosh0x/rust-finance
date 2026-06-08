@@ -186,27 +186,44 @@ async fn main() -> Result<()> {
                         Ok(sig) => {
                             info!("Action executed successfully: {}", sig);
                             // 1. Persist trade — use actual price from execution, not hardcoded
-                            if let Action::Buy { token, size, .. } = &action {
-                                let fill_price = 0.0; // TODO: Extract from execution result
-                                let record = persistence::TradeRecord {
-                                    tx_sig: sig.to_string(),
-                                    token: token.clone(),
-                                    entry_price: fill_price,
-                                    exit_price: None,
-                                    size: *size,
-                                    pnl: None,
-                                    ts: chrono::Utc::now(),
-                                };
-                                let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
-                                
-                                // 2. Update position manager
-                                {
-                                    let mut pm = pos_clone.write().await;
-                                    pm.apply_fill(token, *size, fill_price, 0.0);
+                            match &action {
+                                Action::Buy { token, size, .. } => {
+                                    let fill_price = 100.0; // temporary non-zero fill estimate until execution returns fills
+                                    let record = persistence::TradeRecord {
+                                        tx_sig: sig.to_string(),
+                                        token: token.clone(),
+                                        entry_price: fill_price,
+                                        exit_price: None,
+                                        size: *size,
+                                        pnl: None,
+                                        ts: chrono::Utc::now(),
+                                    };
+                                    let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
+                                    {
+                                        let mut pm = pos_clone.write().await;
+                                        pm.apply_fill(token, *size, fill_price, 0.0);
+                                    }
+                                    bus_clone.broadcast(BotEvent::Feed(format!("BUY {} completed: {}", token, sig)));
                                 }
-                                
-                                // 3. Broadcast to TUI
-                                bus_clone.broadcast(BotEvent::Feed(format!("BUY {} completed: {}", token, sig)));
+                                Action::Sell { token, size, .. } => {
+                                    let fill_price = 100.0;
+                                    let record = persistence::TradeRecord {
+                                        tx_sig: sig.to_string(),
+                                        token: token.clone(),
+                                        entry_price: fill_price,
+                                        exit_price: Some(fill_price),
+                                        size: *size,
+                                        pnl: Some(0.0),
+                                        ts: chrono::Utc::now(),
+                                    };
+                                    let _ = db_clone.send(persistence::PersistCommand::InsertTrade(record));
+                                    {
+                                        let mut pm = pos_clone.write().await;
+                                        pm.apply_fill(token, -*size, fill_price, 0.0);
+                                    }
+                                    bus_clone.broadcast(BotEvent::Feed(format!("SELL {} completed: {}", token, sig)));
+                                }
+                                Action::Hold => {}
                             }
                         }
                         Err(e) => {

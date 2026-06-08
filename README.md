@@ -178,6 +178,79 @@ A specialized machine learning Neural Network loss function used to price illiqu
 ### 4. Hull-White Trinomial Rate Trees & BVAL
 Proprietary implementation of the **Hull-White One-Factor** model wrapped in a Trinomial Tree algorithm for American interest-rate derivatives, mapping directly against the Bloomberg **BVAL 3-Step** structural bond pricing cascade.
 
+## 2026 Roadmap: Next Features
+
+The following roadmap is intentionally split into **implemented core trading capabilities** and **optional commercialization/payment features**. The Stripe items below were reviewed against the official Stripe docs on **2026-06-08** and are not yet implemented in this repository.
+
+### Trading Platform Features to Add Next
+
+1. **Execution fills as first-class data**
+   * Replace temporary daemon fill estimates with executor-returned fill reports containing venue, side, size, price, slippage, fee, and confirmation status.
+   * Persist fills separately from strategy signals so TCA, PnL, risk, OMS, and compliance all consume the same source of truth.
+2. **RPC failover-aware executor client cache**
+   * Keep the low-allocation `RpcClient` cache, but key it by selected RPC endpoint and rotate on circuit-breaker failures.
+   * Emit per-endpoint latency, failure, and failover counters into the metrics crate.
+3. **End-to-end replay tests**
+   * Add deterministic fixture-based tests for ingestion → parser → feature → strategy → risk → executor dry-run → persistence.
+   * Include regression fixtures for BUY, SELL, HALT, reconnect, shutdown, and multi-symbol mark-to-market flows.
+4. **Benchmark CI gates**
+   * Run `cargo bench -p benchmarks --no-run` on every PR.
+   * Run full Criterion benchmarks on scheduled CI and compare against `benchmarks/ci_regression.json`.
+5. **Real exchange/FIX conformance tests**
+   * Add FIX message golden vectors for Logon, Heartbeat, ExecutionReport, ResendRequest, SequenceReset, and Logout.
+   * Add parser round-trip tests so every serialized message can be parsed back into the same tags.
+6. **TUI production controls**
+   * Add guarded UI commands for pause/resume trading, reset kill switch, trigger circuit-breaker open/close, and export audit logs.
+   * Gate destructive actions behind typed confirmation prompts.
+7. **Risk/compliance audit exports**
+   * Produce immutable JSONL or Parquet audit streams for orders, fills, kill-switch transitions, SEBI counters, and operator commands.
+
+### Optional Stripe-Powered Commercialization Layer
+
+If RustForge is packaged as a hosted trading analytics or backtesting product, these Stripe capabilities are the best next fit:
+
+| Feature | Why it fits RustForge | 2026 Stripe doc note |
+| :--- | :--- | :--- |
+| **Usage-based billing for backtests and AI analysis** | Bill for expensive backtest runs, benchmark jobs, AI analyst calls, or premium market-data usage. | Stripe API v2 supports billing meter event streams for higher-throughput meter ingestion via `POST /v2/billing/meter_event_session` and `POST /v2/billing/meter_event_stream`. See [Stripe Meter Event Streams](https://docs.stripe.com/api/v2/meter-event-streams). |
+| **Idempotent billing ledger** | Prevent duplicate charges when jobs retry or webhooks are delivered more than once. | Stripe API v2 idempotency accepts idempotency keys for `POST` and `DELETE`; replay matching is scoped to the same API/account/sandbox and can apply within 30 days. See [Stripe API v2 idempotency](https://docs.stripe.com/api-v2-overview#idempotency). |
+| **Webhook/event destination ingestion** | Sync subscription state, invoice state, metering validation errors, and entitlement changes into RustForge persistence. | Stripe recommends signed webhook verification, raw-body preservation, and event destinations; 2026 examples include `Stripe-Version: 2026-05-27.preview`. See [Stripe webhooks](https://docs.stripe.com/webhooks). |
+| **Sandbox-first integration tests** | Verify subscription, payment, refund, dispute, payout, and failed-payment flows before live launch. | Stripe sandboxes simulate objects without moving real money, and Stripe documents QA use cases plus test cards/payment methods. See [Stripe testing use cases](https://docs.stripe.com/testing-use-cases) and [Stripe testing](https://docs.stripe.com/testing). |
+| **Organization/Connect event routing** | If RustForge supports multiple desks/funds/customers, route Stripe context/account events into tenant-specific ledgers. | API v2/webhook docs describe thin events, context headers, and connected-account event collection via event destinations. See [Stripe API v2 overview](https://docs.stripe.com/api-v2-overview) and [Stripe events](https://docs.stripe.com/api/events). |
+
+### Proposed Stripe Integration Architecture
+
+```mermaid
+graph TD;
+    HostedUI[Hosted RustForge Web/TUI Plans] --> BillingAPI[Billing API Facade]
+    BillingAPI --> StripeCheckout[Stripe Checkout / Customer Portal]
+    BillingAPI --> UsageLedger[(Internal Usage Ledger)]
+    UsageLedger --> MeterEvents[Stripe v2 Meter Event Stream]
+    StripeWebhook[Stripe Webhook / Event Destination] --> WebhookVerifier[Raw Body + Signature Verification]
+    WebhookVerifier --> Idempotency[(Processed Event IDs + Idempotency Keys)]
+    Idempotency --> Entitlements[(Tenant Entitlements)]
+    Entitlements --> Daemon[Daemon Feature Gates]
+    Entitlements --> Backtest[Backtest Quotas]
+    Entitlements --> AI[AI Analyst Quotas]
+```
+
+**Implementation guardrails:** keep Stripe keys in environment variables or a secrets vault; never commit live keys; persist processed event IDs; make webhook handlers idempotent; reconcile subscription state periodically from Stripe; and do not load-test against Stripe test APIs because Stripe documents rate-limit considerations for test integrations.
+
+## Validation Matrix
+
+Use this checklist before marking a release as “100% working.” If any command is blocked by missing dependencies or network restrictions, the release should be marked **not fully validated** until CI completes it successfully.
+
+| Area | Command |
+| :--- | :--- |
+| Workspace compile | `cargo check --workspace` |
+| Unit/integration tests | `cargo test --workspace` |
+| Benchmark compile | `cargo bench -p benchmarks --no-run` |
+| Formatting | `cargo fmt --all --check` |
+| Lints | `cargo clippy --workspace --all-targets -- -D warnings` |
+| Security/dependency review | `cargo audit` |
+| Daemon smoke test | `USE_MOCK=1 EXECUTION_MODE=dry_run cargo run -p daemon` |
+| TUI smoke test | `cargo run -p tui` |
+
+
 ## Detailed Documentation
 
 For a deep dive into the system's internal workings, component integration details, and deployment guides, please refer to the inner documentation:

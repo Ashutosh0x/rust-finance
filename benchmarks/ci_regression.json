@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "description": "RustForge benchmark baselines — verified 2026 industry targets",
+    "last_updated": "2026-03-15",
+    "units": "nanoseconds (P50 mean unless noted)"
+  },
+  "benchmarks": {
+    "01_tick_pipeline": {
+      "order_book_update": { "target_p50_ns": 200, "target_p99_ns": 1000, "target_p999_ns": 5000, "regression_threshold_multiplier": 1.10 },
+      "full_tick_pipeline": { "target_p50_ns": 500, "target_p99_ns": 2000, "target_p999_ns": 10000, "regression_threshold_multiplier": 1.10 }
+    },
+    "03_risk_checks": {
+      "kill_switch_atomic_read": { "target_p50_ns": 5, "target_p99_ns": 10, "regression_threshold_multiplier": 1.20 },
+      "branchless_risk_check": { "target_p50_ns": 50, "target_p99_ns": 100, "regression_threshold_multiplier": 1.10 }
+    },
+    "05_fix_serializer": {
+      "fix_new_order_single_encode": { "target_p50_ns": 500, "target_p99_ns": 1000, "regression_threshold_multiplier": 1.10 }
+    },
+    "09_memory_layout": {
+      "spsc_push_pop_roundtrip": { "target_p50_ns": 50, "target_p99_ns": 200, "regression_threshold_multiplier": 1.10 }
+    }
+  }
+}

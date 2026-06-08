@@ -83,6 +83,7 @@ pub struct BacktestEngine {
     equity_curve: Vec<(i64, f64)>,
     fills: Vec<SimulatedFill>,
     pending_signals: Vec<StrategySignal>,
+    last_prices: std::collections::HashMap<String, f64>,
 }
 
 impl BacktestEngine {
@@ -96,6 +97,7 @@ impl BacktestEngine {
             equity_curve: Vec::new(),
             fills: Vec::new(),
             pending_signals: Vec::new(),
+            last_prices: Default::default(),
         }
     }
 
@@ -109,6 +111,8 @@ impl BacktestEngine {
                     self.execute_signal(&signal, bar.open, bar.timestamp);
                 }
             }
+
+            self.last_prices.insert(bar.symbol.clone(), bar.close);
 
             // Feed bar to strategy
             let signals = strategy.on_bar(bar, &self.positions, self.cash);
@@ -187,9 +191,7 @@ impl BacktestEngine {
                 if sym == &bar.symbol {
                     qty * bar.close
                 } else {
-                    // Use last known price from cost_basis as fallback for other symbols.
-                    // In a real multi-symbol backtest you'd feed multiple bars per timestep.
-                    let last_price = self.cost_basis.get(sym).copied().unwrap_or(0.0);
+                    let last_price = self.last_prices.get(sym).copied().unwrap_or_else(|| self.cost_basis.get(sym).copied().unwrap_or(0.0));
                     qty * last_price
                 }
             })

@@ -6,6 +6,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{error, info, warn};
@@ -76,7 +77,7 @@ impl Default for RiskConfig {
 
 #[derive(Debug)]
 struct KillSwitchState {
-    active: bool,
+    active: AtomicBool,
     reason: Option<String>,
     activated_at: Option<Instant>,
 }
@@ -159,7 +160,7 @@ impl RiskEngine {
         let engine = Self {
             cfg: cfg.clone(),
             kill_switch: Arc::new(RwLock::new(KillSwitchState {
-                active: false,
+                active: AtomicBool::new(false),
                 reason: None,
                 activated_at: None,
             })),
@@ -283,9 +284,9 @@ impl RiskEngine {
 
     async fn activate_kill_switch(&self, reason: String) -> Result<(), String> {
         let mut ks = self.kill_switch.write().await;
-        if !ks.active {
+        if !ks.active.load(Ordering::Relaxed) {
             error!(reason = %reason, "🔴 KILL SWITCH ACTIVATED");
-            ks.active = true;
+            ks.active.store(true, Ordering::Relaxed);
             ks.reason = Some(reason.clone());
             ks.activated_at = Some(Instant::now());
             let _ = self.event_tx.send(RiskEvent::KillSwitchActivated {
@@ -297,7 +298,7 @@ impl RiskEngine {
 
     pub async fn reset_kill_switch(&self) {
         let mut ks = self.kill_switch.write().await;
-        ks.active = false;
+        ks.active.store(false, Ordering::Relaxed);
         ks.reason = None;
         ks.activated_at = None;
         info!("🟢 Kill switch reset — trading resumed");
@@ -305,7 +306,7 @@ impl RiskEngine {
     }
 
     pub async fn is_kill_switch_active(&self) -> bool {
-        self.kill_switch.read().await.active
+        self.kill_switch.read().await.active.load(Ordering::Relaxed)
     }
 }
 
@@ -322,7 +323,7 @@ impl OrderGuard {
 
     pub async fn check(&self) -> Result<(), String> {
         let ks = self.kill_switch.read().await;
-        if ks.active {
+        if ks.active.load(Ordering::Relaxed) {
             let reason = ks.reason.clone().unwrap_or_else(|| "Kill switch active".to_string());
             Err(format!("Order blocked by kill switch: {reason}"))
         } else {

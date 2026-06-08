@@ -21,13 +21,16 @@ use dry_run::DryRunExecutor;
 pub struct ExecutorService {
     selector: Arc<relay::NodeSelector>,
     signer: Option<Arc<LocalSigner>>,
+    rpc_client: Arc<RpcClient>,
 }
 
 impl ExecutorService {
     pub fn new(selector: Arc<relay::NodeSelector>, signer: Option<LocalSigner>) -> Self {
+        let rpc_url = "https://api.mainnet-beta.solana.com".to_string();
         Self { 
             selector,
             signer: signer.map(Arc::new),
+            rpc_client: Arc::new(RpcClient::new(rpc_url)),
         }
     }
 
@@ -35,8 +38,7 @@ impl ExecutorService {
         let signer = self.signer.as_ref().context("No signer configured for execution")?;
         
         // --- 1. PRE-TRADE BALANCE CHECK ---
-        let rpc_url = self.selector.get_best().await;
-        let rpc_client = RpcClient::new(rpc_url.clone());
+        let rpc_client = self.rpc_client.clone();
         
         let pubkey = signer.pubkey();
         match timeout(Duration::from_secs(3), rpc_client.get_balance(&pubkey)).await {
@@ -107,9 +109,7 @@ impl ExecutorService {
         }
 
         // 1. Fetch blockhash (In production, subscribe to slot updates for zero-latency hash)
-        let rpc_url = self.selector.get_best().await;
-        let rpc_client = RpcClient::new(rpc_url);
-        let recent_blockhash = rpc_client.get_latest_blockhash().await?;
+        let recent_blockhash = self.rpc_client.get_latest_blockhash().await?;
         
         // 2. Build & Sign
         let mut tx = Transaction::new_with_payer(&instructions, Some(&signer.pubkey()));
@@ -117,7 +117,7 @@ impl ExecutorService {
         signer.sign_transaction(&mut tx);
         
         // 3. Send (Use send_transaction for signed transactions)
-        let signature = rpc_client.send_transaction(&tx).await
+        let signature = self.rpc_client.send_transaction(&tx).await
             .context("Failed to send transaction")?;
         
         info!("Transaction sent: {}", signature);
