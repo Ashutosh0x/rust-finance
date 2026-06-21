@@ -7,6 +7,18 @@
   <img src="https://img.shields.io/badge/Anthropic-FF7F50?style=for-the-badge&logo=Anthropic&logoColor=white" alt="Anthropic" />
   <img src="https://img.shields.io/badge/WebSocket-010101?style=for-the-badge&logo=socket.io&logoColor=white" alt="WebSocket" />
   <br />
+  <img src="https://img.shields.io/badge/Rayon-FF4500?style=for-the-badge&logo=rust&logoColor=white" alt="Rayon" />
+  <img src="https://img.shields.io/badge/Serde-2C2D72?style=for-the-badge&logo=rust&logoColor=white" alt="Serde" />
+  <img src="https://img.shields.io/badge/Petgraph-228B22?style=for-the-badge&logo=rust&logoColor=white" alt="Petgraph" />
+  <img src="https://img.shields.io/badge/Criterion-FF6B35?style=for-the-badge&logo=rust&logoColor=white" alt="Criterion" />
+  <img src="https://img.shields.io/badge/Postcard-4B0082?style=for-the-badge&logo=rust&logoColor=white" alt="Postcard" />
+  <br />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions" />
+  <img src="https://img.shields.io/badge/LaTeX-008080?style=for-the-badge&logo=latex&logoColor=white" alt="LaTeX" />
+  <br />
   <a href="https://github.com/Ashutosh0x/rust-finance/stargazers"><img src="https://img.shields.io/github/stars/Ashutosh0x/rust-finance?style=for-the-badge&logo=github&color=gold" alt="GitHub stars" /></a>
   <a href="https://github.com/Ashutosh0x/rust-finance/network/members"><img src="https://img.shields.io/github/forks/Ashutosh0x/rust-finance?style=for-the-badge&logo=github&color=silver" alt="GitHub forks" /></a>
   <a href="https://buymeacoffee.com/Ashutosh0x"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black" alt="Buy Me a Coffee" /></a>
@@ -45,6 +57,7 @@ RustFinance Terminal, also called RustForge, is an open-source Rust trading term
 - **Run the daemon:** `USE_MOCK=1 cargo run -p daemon --release`
 - **Demo:** https://github.com/user-attachments/assets/c769b2c2-cfa0-44bd-a261-99786ea653e1
 - **Community:** [Roadmap](ROADMAP.md), [Contributing](CONTRIBUTING.md), [good first issues](https://github.com/Ashutosh0x/rust-finance/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- **Research Paper:** [📄 RustFinance Research Paper 2026 (PDF)](rustfinance.pdf) — 1,400+ line LaTeX paper covering architecture, 18 research papers, quantitative models, and benchmarks
 - **Funding:** [GitHub Sponsors](https://github.com/sponsors/Ashutosh0x), [Buy Me a Coffee](https://buymeacoffee.com/Ashutosh0x), [funding.json](funding.json)
 - **Recognition:** [Listed in awesome-rust Finance applications](https://github.com/rust-unofficial/awesome-rust/pull/2447)
 

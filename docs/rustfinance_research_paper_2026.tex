@@ -1,0 +1,1475 @@
+% ============================================================================
+% RustFinance: A Modular, Memory-Safe Trading Terminal
+% for Institutional-Grade Quantitative Finance
+% ============================================================================
+% LaTeX Research Paper — June 2026
+% ============================================================================
+
+\documentclass[11pt]{article}
+
+% ─── Packages ───────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1.0in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{microtype}
+\usepackage{float}
+
+% ─── Code listing style ────────────────────────────────────────────────────
+\definecolor{rustbg}{RGB}{245,245,248}
+\definecolor{rustkw}{RGB}{0,92,197}
+\definecolor{rustcm}{RGB}{106,115,125}
+\definecolor{ruststr}{RGB}{3,47,98}
+
+\lstdefinelanguage{Rust}{
+  keywords={fn, let, mut, pub, struct, impl, enum, match, if, else, for, while, loop, return, use, mod, self, Self, trait, where, async, await, move, unsafe, const, static, type, true, false, Some, None, Ok, Err, Vec, Option, Result, f64, u64, usize, bool},
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+  sensitive=true,
+}
+
+\lstset{
+  language=Rust,
+  backgroundcolor=\color{rustbg},
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{rustkw}\bfseries,
+  commentstyle=\color{rustcm}\itshape,
+  stringstyle=\color{ruststr},
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  xleftmargin=1.5em,
+  framexleftmargin=1.5em,
+  captionpos=b,
+}
+
+% ─── Theorem environments ──────────────────────────────────────────────────
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{proposition}{Proposition}[section]
+
+% ─── Title ─────────────────────────────────────────────────────────────────
+\title{%
+  \textbf{RustFinance: A Modular, Memory-Safe Trading Terminal\\
+  for Institutional-Grade Quantitative Finance}\\[6pt]
+  \large Architecture, Quantitative Models, and Performance Analysis\\
+  of a 34-Crate Rust Workspace Implementing 18 Research Papers
+}
+
+\author{%
+  Ashutosh Kumar Singh\\
+  \texttt{github.com/Ashutosh0x/rust-finance}\\
+  MIT License
+}
+
+\date{June 2026}
+
+% ============================================================================
+\begin{document}
+\maketitle
+
+% ─── Abstract ──────────────────────────────────────────────────────────────
+\begin{abstract}
+We present \textbf{RustFinance} (also known as \emph{RustForge}), an open-source,
+institutional-grade trading terminal implemented entirely in Rust. The system
+comprises 34 modular crates spanning over 250 source files, encompassing
+real-time multi-exchange market data ingestion, algorithmic execution
+(Almgren--Chriss optimal execution, TWAP, VWAP, Iceberg, POV), quantitative
+risk management (GARCH(1,1), GJR-GARCH, VaR, CVaR, kill switches),
+derivatives pricing (Black--Scholes--Merton, Heston, SABR), market
+microstructure analytics (multi-level microprice, VPIN, OFI, adverse
+selection detection), AI-assisted analysis via large language models,
+100,000-agent swarm simulation, and a full terminal user interface.
+The 2026 Quant Alpha Library synthesises findings from 18 research
+papers (2008--2026) into a unified quoting engine combining
+Avellaneda--Stoikov reservation pricing with regime-conditioned risk
+aversion, VPIN-based spread widening, toxicity gating, OFI quote skewing,
+and Kelly-optimal position sizing with Bayesian shrinkage. Benchmarks
+demonstrate tick-pipeline latencies of $\sim$40\,ns, GARCH updates in
+$\sim$2.3\,ns, and BSM pricing in $\sim$34\,ns. We discuss the architectural
+advantages of Rust's ownership model for financial systems, the integration
+of compile-time safety guarantees with nanosecond-precision event ordering,
+and SEBI 2026 regulatory compliance for Indian algorithmic trading.
+82+ unit tests validate correctness across all quantitative modules.
+\end{abstract}
+
+\textbf{Keywords:} algorithmic trading, Rust, market microstructure,
+optimal execution, market making, quantitative risk, GARCH, VaR,
+systems programming, low-latency finance
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+The global transition from floor-based to fully electronic trading has
+created an insatiable demand for high-performance, low-latency systems
+that combine quantitative rigour with operational safety. Modern trading
+systems must simultaneously process multi-source market data at
+nanosecond granularity, execute complex algorithmic strategies with
+minimal market impact, enforce real-time risk constraints, satisfy
+evolving regulatory requirements, and maintain uptime under extreme
+market conditions~\cite{almgren2000,avellaneda2008}.
+
+Historically, such systems have been built in C++ to maximise raw
+performance. However, the prevalence of memory-safety vulnerabilities
+--- buffer overflows, use-after-free bugs, data races --- has led to
+catastrophic failures in production trading systems, including
+erroneous order floods and uncontrolled position accumulation.
+The Rust programming language, with its compile-time ownership model,
+borrow checker, and zero-cost abstractions, offers a paradigm shift:
+\emph{equivalent performance to C++ with guaranteed memory safety and
+data-race freedom}~\cite{klabnik2023}.
+
+RustFinance addresses this gap by providing an end-to-end trading
+terminal implemented entirely in safe Rust (\texttt{\#![forbid(unsafe\_code)]}
+across all crates), combining:
+
+\begin{enumerate}[leftmargin=*,topsep=3pt,itemsep=1pt]
+  \item A \textbf{34-crate modular workspace} with strict dependency
+        boundaries, compiling in $\sim$17\,s;
+  \item A \textbf{2026 Quant Alpha Library} synthesising 18 research
+        papers into production-ready signal and execution algorithms;
+  \item \textbf{Nanosecond-precision timestamps} (\texttt{UnixNanos})
+        with monotonic \texttt{SequenceId} ordering and deterministic
+        replay via swappable clocks;
+  \item \textbf{Multi-exchange data ingestion} (Alpaca, Binance,
+        Finnhub, Polymarket) with WebSocket reconnection and gap
+        detection;
+  \item \textbf{AI-assisted analysis} via Claude LLM integration
+        and 100K-agent swarm simulation;
+  \item \textbf{SEBI 2026 compliance} for Indian algorithmic trading
+        regulations (Algo-ID tagging, OPS thresholds, price bands).
+\end{enumerate}
+
+This paper provides a comprehensive technical audit of the RustFinance
+codebase, situates each quantitative module within its academic
+literature, analyses architectural decisions, and reports performance
+benchmarks.
+
+% ============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Optimal Execution}
+Almgren and Chriss~\cite{almgren2000} established the foundational
+framework for optimal execution of portfolio transactions, minimising
+a mean--variance objective:
+\begin{equation}
+  \min_{\{x_j\}} \; \mathbb{E}[\text{cost}] + \lambda \cdot
+  \text{Var}[\text{cost}],
+  \label{eq:ac-objective}
+\end{equation}
+where the cost includes permanent impact $g(v) = \gamma v$, temporary
+impact $h(v) = \varepsilon \operatorname{sgn}(v) + \eta v$, and timing
+risk $\sigma \sqrt{\sum x_j^2}$. The closed-form optimal trajectory is:
+\begin{equation}
+  x_j = X \cdot \frac{\sinh\bigl(\kappa(N-j)\bigr)}
+                       {\sinh(\kappa N)},
+  \quad \kappa = \sqrt{\frac{\lambda \sigma^2}{\eta}}.
+  \label{eq:ac-trajectory}
+\end{equation}
+Recent work by~\cite{ning2026} validates Almgren--Chriss as the
+baseline that reinforcement learning agents converge to.
+
+\subsection{Market Making}
+Avellaneda and Stoikov~\cite{avellaneda2008} derived optimal
+bid--ask quotes for a market maker in a limit order book:
+\begin{equation}
+  r = S - q \cdot \gamma \cdot \sigma^2 \cdot \tau,
+  \label{eq:as-reservation}
+\end{equation}
+\begin{equation}
+  \delta = \frac{\gamma \sigma^2 \tau}{2} +
+  \frac{1}{\gamma} \ln\!\left(1 + \frac{\gamma}{\kappa}\right),
+  \label{eq:as-spread}
+\end{equation}
+where $r$ is the reservation price, $q$ the normalised inventory,
+$\gamma$ the risk aversion, $\sigma$ the volatility, $\tau$ the
+remaining session fraction, and $\kappa$ the order arrival intensity.
+
+\subsection{Microstructure}
+Cont, Kukanov, and Stoikov~\cite{cont2014} demonstrated that
+order flow imbalance (OFI) explains short-term price changes beyond
+the midprice. Xu, Gould, and Howison~\cite{xu2019} extended this to
+multi-level OFI (MLOFI), showing that each additional limit order
+book level adds explanatory power ($R^2$) for price prediction.
+Easley, L\'opez de Prado, and O'Hara~\cite{easley2012} introduced
+VPIN (Volume-Synchronized Probability of Informed Trading) as a
+real-time toxicity metric that presaged the 2010 Flash Crash.
+
+\subsection{Volatility Modelling}
+Bollerslev~\cite{bollerslev1986} introduced GARCH(1,1) for
+conditional heteroskedasticity modelling. Glosten, Jagannathan,
+and Runkle~\cite{glosten1993} added asymmetric leverage effects
+via the GJR-GARCH specification.
+
+\subsection{Position Sizing}
+Kelly~\cite{kelly1956} derived the optimal fraction of capital
+to wager for geometric growth maximisation. Thorp~\cite{thorp2008}
+demonstrated that quarter-Kelly ($f^*/4$) captures 56\% of maximum
+growth with 75\% less volatility, now the 2026 industry standard
+per~\cite{polyswarm2026}.
+
+\subsection{Adverse Selection}
+Barzykin et al.~\cite{barzykin2025} formalised optimal quoting under
+adverse selection with price-reading agents. The Glosten--Milgrom
+model~\cite{glosten1985} provides the foundational framework for
+informed vs.\ uninformed trading classification.
+
+\subsection{Rust in Finance}
+As of 2026, Rust and C++ offer comparable raw performance within a
+few percentage points. Rust's compile-time memory safety, fearless
+concurrency, and predictable performance make it increasingly adopted
+for greenfield trading systems and digital asset platforms~\cite{rusttrading2026}.
+
+% ============================================================================
+\section{System Architecture}
+\label{sec:arch}
+
+\subsection{Workspace Organisation}
+
+RustFinance is structured as a Cargo workspace with 34 member crates
+and 5 excluded legacy crates. The workspace uses \texttt{resolver = "2"}
+and workspace-level dependency management for consistency:
+
+\begin{table}[H]
+\centering
+\caption{Crate taxonomy by functional layer.}
+\label{tab:crates}
+\small
+\begin{tabular}{@{}lp{10cm}@{}}
+\toprule
+\textbf{Layer} & \textbf{Crates} \\
+\midrule
+Core & \texttt{common}, \texttt{event\_bus} \\
+Data & \texttt{ingestion}, \texttt{signals}, \texttt{feature} \\
+Intelligence & \texttt{ai}, \texttt{swarm\_sim}, \texttt{knowledge\_graph}, \texttt{ml} \\
+Strategy & \texttt{strategy}, \texttt{pricing}, \texttt{backtest} \\
+Execution & \texttt{execution}, \texttt{oms}, \texttt{polymarket}, \texttt{fix} \\
+Risk & \texttt{risk}, \texttt{compliance}, \texttt{alerts} \\
+Interface & \texttt{tui}, \texttt{daemon}, \texttt{cli}, \texttt{web}, \texttt{web-dashboard}, \texttt{dashboard} \\
+Infrastructure & \texttt{persistence}, \texttt{metrics}, \texttt{model}, \texttt{tests}, \texttt{benchmarks} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Event-Driven Architecture}
+
+The system employs an event-driven architecture with typed
+\texttt{Envelope<T>} wrapping every system event. Events flow
+through a postcard-serialised TCP event bus connecting the daemon
+to the TUI on port 7001. Nanosecond timestamps
+(\texttt{UnixNanos} = \texttt{u64}) and monotonic
+\texttt{SequenceId} (atomic \texttt{u64}) ensure strict causal
+ordering across all components.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  block/.style={draw, rounded corners=4pt, fill=blue!8, minimum width=2.8cm, minimum height=0.9cm, font=\small\sffamily, align=center, thick},
+  data/.style={draw, rounded corners=4pt, fill=green!8, minimum width=2.8cm, minimum height=0.9cm, font=\small\sffamily, align=center, thick},
+  risk/.style={draw, rounded corners=4pt, fill=red!8, minimum width=2.8cm, minimum height=0.9cm, font=\small\sffamily, align=center, thick},
+  ai/.style={draw, rounded corners=4pt, fill=orange!10, minimum width=2.8cm, minimum height=0.9cm, font=\small\sffamily, align=center, thick},
+  iface/.style={draw, rounded corners=4pt, fill=purple!8, minimum width=2.8cm, minimum height=0.9cm, font=\small\sffamily, align=center, thick},
+  arr/.style={-{Stealth[length=5pt]}, thick, gray!70},
+  bigarr/.style={-{Stealth[length=6pt]}, very thick, blue!50},
+  node distance=0.6cm and 1.2cm,
+  layer/.style={draw, dashed, rounded corners=6pt, inner sep=8pt, gray!40}
+]
+  % Data Layer
+  \node[data] (alpaca) {Alpaca\\WebSocket};
+  \node[data, right=of alpaca] (binance) {Binance\\WebSocket};
+  \node[data, right=of binance] (finnhub) {Finnhub\\WebSocket};
+  \node[data, right=of finnhub] (poly) {Polymarket\\CLOB API};
+  \node[data, right=of poly] (mock) {Mock\\Replay};
+
+  % Ingestion
+  \node[block, below=1.0cm of binance, minimum width=12cm] (ingest) {\textbf{Ingestion Layer} --- MarketDataSource trait + SelectAll Multiplexer + Gap Detector};
+
+  % Processing
+  \node[block, below=0.8cm of ingest, xshift=-4cm, minimum width=5.2cm] (signals) {\textbf{Signals Crate}\\MLOFI, OFI, VPIN, Regime,\\Kelly, Alpha Health, Composite};
+  \node[risk, below=0.8cm of ingest, xshift=4cm, minimum width=5.2cm] (riskmod) {\textbf{Risk Crate}\\GARCH, VaR, Kill Switch,\\SMP, Safety Gate};
+
+  % AI Layer
+  \node[ai, below=0.8cm of signals, xshift=-0.5cm] (dexter) {Dexter AI\\(Claude LLM)};
+  \node[ai, right=of dexter] (swarm) {Swarm Sim\\(100K agents)};
+  \node[ai, right=of swarm] (kg) {Knowledge\\Graph RAG};
+
+  % Daemon
+  \node[block, below=0.8cm of swarm, minimum width=12cm, fill=yellow!10] (daemon) {\textbf{Daemon} --- Hybrid Intelligence Pipeline + Strategy Registry + Execution Gateway};
+
+  % Execution
+  \node[block, below=0.8cm of daemon, xshift=-4cm, minimum width=5.2cm] (exec) {\textbf{Execution Crate}\\Almgren-Chriss, TWAP,\\VWAP, Iceberg, POV, SOR};
+  \node[block, below=0.8cm of daemon, xshift=4cm, minimum width=5.2cm] (oms) {\textbf{OMS + Compliance}\\Order Mgmt, SEBI 2026,\\Audit Trail, FIX 4.4};
+
+  % Interface
+  \node[iface, below=0.8cm of exec] (tui) {TUI Dashboard\\(Ratatui, 6 screens)};
+  \node[iface, below=0.8cm of oms] (eventbus) {Event Bus\\(TCP + Postcard)};
+
+  % Arrows
+  \draw[arr] (alpaca) -- (ingest);
+  \draw[arr] (binance) -- (ingest);
+  \draw[arr] (finnhub) -- (ingest);
+  \draw[arr] (poly) -- (ingest);
+  \draw[arr] (mock) -- (ingest);
+  \draw[bigarr] (ingest) -- (signals);
+  \draw[bigarr] (ingest) -- (riskmod);
+  \draw[arr] (signals) -- (dexter);
+  \draw[arr] (signals) -- (swarm);
+  \draw[arr] (signals) -- (kg);
+  \draw[arr] (riskmod) -- (daemon);
+  \draw[arr] (dexter) -- (daemon);
+  \draw[arr] (swarm) -- (daemon);
+  \draw[arr] (kg) -- (daemon);
+  \draw[bigarr] (daemon) -- (exec);
+  \draw[bigarr] (daemon) -- (oms);
+  \draw[arr] (daemon) -- (eventbus);
+  \draw[arr] (eventbus) -- (tui);
+  \draw[arr] (exec) -- (tui);
+\end{tikzpicture}
+\caption{\textbf{RustFinance system architecture.} Market data flows from five exchange sources through the ingestion layer into parallel signal processing and risk assessment. AI modules (Dexter, Swarm, Knowledge Graph) fuse with quantitative signals in the daemon's hybrid intelligence pipeline before routing to execution algorithms and the order management system. The TUI receives real-time updates via the postcard-serialised event bus.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Deterministic Replay}
+
+The \texttt{DeterministicClock} trait allows swapping between
+real-time and replay modes, enabling exact reproduction of
+historical trading sessions. This is critical for regulatory
+audit trails and strategy backtesting.
+
+\subsection{Safety Guarantees}
+
+Every crate in RustFinance uses \texttt{\#![forbid(unsafe\_code)]},
+ensuring that the entire system benefits from Rust's compile-time
+guarantees:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item No null pointer dereferences
+  \item No buffer overflows
+  \item No data races (ownership + borrow checker)
+  \item No use-after-free
+  \item No undefined behaviour
+\end{itemize}
+
+The release profile uses \texttt{opt-level=3}, \texttt{lto=fat},
+\texttt{codegen-units=1}, and \texttt{strip=true} for maximum
+performance and minimal binary size.
+
+% ============================================================================
+\section{Quantitative Models}
+\label{sec:quant}
+
+\subsection{Multi-Level Microprice (MLOFI)}
+\label{sec:microprice}
+
+Following Xu, Gould, and Howison~\cite{xu2019}, RustFinance
+implements depth-decayed multi-level microprice estimation.
+
+\begin{definition}[Single-Level Microprice]
+Given best bid $(P_b, V_b)$ and best ask $(P_a, V_a)$:
+\begin{equation}
+  P_{\mu}^{(1)} = \frac{P_a \cdot V_b + P_b \cdot V_a}{V_b + V_a}.
+  \label{eq:microprice-l1}
+\end{equation}
+\end{definition}
+
+\begin{definition}[Multi-Level Microprice]
+For $L$ order book levels with decay factor $\alpha \in (0,1)$:
+\begin{equation}
+  P_{\mu}^{(L)} = \frac{\sum_{i=0}^{L-1} \alpha^i \cdot P_{\mu,i}}
+                        {\sum_{i=0}^{L-1} \alpha^i},
+  \label{eq:microprice-ml}
+\end{equation}
+where $P_{\mu,i}$ is the microprice at level $i$.
+The recommended parameters are $L=5$, $\alpha=0.7$.
+\end{definition}
+
+The implementation additionally provides a multi-level OFI vector:
+\begin{equation}
+  \text{OFI}_i = \frac{V_{b,i} - V_{a,i}}{V_{b,i} + V_{a,i}}
+  \in [-1, +1],
+  \label{eq:mlofi}
+\end{equation}
+enabling regression-based price prediction:
+$\Delta \hat{P} = \beta_0 + \sum_i \beta_i \cdot \text{OFI}_i$.
+
+A Bayesian fair value combiner fuses the microprice with fast
+and slow EMA anchors:
+\begin{equation}
+  \text{FV} = \frac{w_\mu P_\mu + w_f \text{EMA}_f + w_s \text{EMA}_s}
+              {w_\mu + w_f + w_s}.
+  \label{eq:bayesian-fv}
+\end{equation}
+
+\subsection{Volatility Regime Detection}
+\label{sec:regime}
+
+Based on RegimeFolio~\cite{regimefolio2025}, RustFinance implements
+a two-state EMA-ratio volatility classifier:
+\begin{equation}
+  R = \frac{\sigma_{\text{fast}}}{\sigma_{\text{slow}}},
+  \label{eq:vol-ratio}
+\end{equation}
+with the classification rule:
+\[
+\text{Regime} = \begin{cases}
+  \text{\textsc{Crisis}}   & R > 2.5 \\
+  \text{\textsc{HighVol}}  & R > 1.4 \\
+  \text{\textsc{LowVol}}   & R < 0.7 \\
+  \text{\textsc{Normal}}   & \text{otherwise}.
+\end{cases}
+\]
+
+Each regime maps to concrete trading parameters via a calibrated
+parameter table (\Cref{tab:regime-params}).
+
+\begin{table}[H]
+\centering
+\caption{Regime-conditioned trading parameters.}
+\label{tab:regime-params}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Param} & \textbf{LowVol} & \textbf{Normal} & \textbf{HighVol} & \textbf{Crisis} \\
+\midrule
+$\gamma$         & 0.05 & 0.10 & 0.20 & 0.40 \\
+Spread mult.     & 0.6  & 1.0  & 2.0  & 4.0  \\
+Size mult.       & 1.2  & 1.0  & 0.6  & 0.2  \\
+Urgency mult.    & 0.8  & 1.0  & 1.3  & 0.3  \\
+MR threshold     & 1.2  & 0.8  & 0.6  & 2.0  \\
+Max inv. mult.   & 1.5  & 1.0  & 0.7  & 0.3  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A debounce mechanism (minimum 5 ticks in current regime) prevents
+flip-flopping, with a safety override allowing immediate Crisis
+detection.
+
+\subsection{Adverse Selection Detection}
+\label{sec:adverse}
+
+Following Barzykin et al.~\cite{barzykin2025} and the
+Glosten--Milgrom framework~\cite{glosten1985}, RustFinance
+implements real-time toxicity monitoring. For each passive fill at
+price $P$ at time $t$:
+\begin{equation}
+  \text{post\_move} = \begin{cases}
+    \text{FV}(t+N) - P & \text{(bid fill, we bought)} \\
+    P - \text{FV}(t+N) & \text{(ask fill, we sold)}.
+  \end{cases}
+  \label{eq:toxicity-move}
+\end{equation}
+
+A fill is classified as toxic if
+$\text{post\_move} < -\theta_{\text{adverse}}$. The toxicity
+signal is exponentially smoothed:
+\begin{equation}
+  \tau_t = \alpha \cdot \mathbb{1}_{\text{toxic}} +
+           (1-\alpha) \cdot \tau_{t-1}.
+  \label{eq:toxicity-ema}
+\end{equation}
+
+The response protocol has three tiers:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item $\tau < 0.35$: \textsc{Normal} --- quote normally
+  \item $0.35 \leq \tau < 0.65$: \textsc{Widen} --- spread $\times
+        (2 + 5(\tau - 0.35))$, size $\times (0.5 - (\tau - 0.35))$
+  \item $\tau \geq 0.65$: \textsc{HaltPassive} --- cease passive quoting
+\end{itemize}
+
+Additionally, 5 consecutive toxic fills trigger an immediate halt
+regardless of the EMA level.
+
+\subsection{Kelly Criterion with Bayesian Shrinkage}
+\label{sec:kelly}
+
+Based on Kelly~\cite{kelly1956}, Thorp~\cite{thorp2008}, and
+PolySwarm~\cite{polyswarm2026}:
+
+\begin{definition}[Discrete Kelly Fraction]
+For win probability $p$, win/loss ratio $b$, and fractional
+multiplier $m$ (quarter-Kelly: $m = 0.25$):
+\begin{equation}
+  f^* = m \cdot \max\!\left(0,\;
+    \frac{p \cdot b - (1-p)}{b}\right).
+  \label{eq:kelly-discrete}
+\end{equation}
+\end{definition}
+
+\begin{definition}[Continuous Kelly]
+For expected PnL $\mu$, PnL volatility $\sigma$, and risk aversion
+$\gamma$:
+\begin{equation}
+  f^* = m \cdot \frac{\mu}{\gamma \sigma^2}.
+  \label{eq:kelly-continuous}
+\end{equation}
+\end{definition}
+
+Bayesian shrinkage addresses small-sample overfitting:
+\begin{equation}
+  f_{\text{shrunk}} = f^* \cdot m \cdot
+  \frac{n}{n + n_{\text{prior}}},
+  \label{eq:kelly-bayesian}
+\end{equation}
+where $n$ is the number of observed trades and $n_{\text{prior}} = 30$
+(moderate prior strength). This ensures that with few trades, sizing
+converges toward zero, preventing over-betting on limited data.
+
+The master 2026 sizing formula integrates all modules:
+\begin{equation}
+  \text{qty} = f_{\text{Kelly}} \cdot L_{\max} \cdot c_{\text{signal}}
+  \cdot m_{\text{regime}} \cdot (1 - 2\tau_{\text{tox}})^+,
+  \label{eq:master-sizing}
+\end{equation}
+where $L_{\max}$ is the position limit, $c_{\text{signal}}$ is signal
+conviction, $m_{\text{regime}}$ is the regime size multiplier, and
+$\tau_{\text{tox}}$ is the toxicity EMA.
+
+\subsection{Alpha Health Monitoring}
+\label{sec:alpha-health}
+
+Following AlphaForgeBench~\cite{alphaforge2026} and
+Chain-of-Alpha~\cite{chainofalpha2025}, each signal's predictive
+power is tracked via:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Information Coefficient (IC):} Sign-agreement proxy
+        computed as $\text{IC}_t = \text{sgn}(s_t) \cdot
+        \text{sgn}(r_{t+1})$, rolling-averaged over a configurable
+        window (default: 50 ticks).
+  \item \textbf{Hit Rate:} EMA-smoothed directional accuracy
+        ($\alpha = 0.05$).
+\end{itemize}
+
+Health classification:
+\[
+H = \begin{cases}
+  \text{\textsc{Healthy}}  & \text{IC} > 0.03 \;\wedge\; \text{HR} > 0.52 \\
+  \text{\textsc{Decayed}}  & \text{IC} < 0.01 \;\wedge\; \text{HR} < 0.48 \\
+  \text{\textsc{Degraded}} & \text{otherwise},
+\end{cases}
+\]
+with weight multipliers: Healthy $= 1.0$, Degraded $= 0.4$,
+Decayed $= 0.0$ (signal disabled).
+
+\subsection{IC-Weighted Composite Signal}
+\label{sec:composite}
+
+The composite signal generator~\cite{chainofalpha2025} combines
+$N$ alpha signals using IC-proportional weighting:
+\begin{equation}
+  s_{\text{comp}} = \frac{\sum_{i=1}^{N}
+    \max(0, \text{IC}_i) \cdot H_i \cdot s_i}
+  {\sum_{i=1}^{N} \max(0, \text{IC}_i) \cdot H_i},
+  \label{eq:composite}
+\end{equation}
+where $H_i$ is the health weight and $s_i \in [-1, +1]$ is the
+normalised signal value. The final score undergoes regime scaling
+$m_R \in \{0.7, 1.0, 0.8, 0.1\}$ and toxicity discounting
+$(1 - 1.5\tau)^+$:
+\begin{equation}
+  s_{\text{final}} = \text{clamp}\!\left(
+    s_{\text{comp}} \cdot m_R \cdot (1 - 1.5\tau)^+,\;
+    -1, +1\right).
+  \label{eq:composite-final}
+\end{equation}
+Conviction is derived as $c = \min(1, 2|s_{\text{final}}|)$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  sig/.style={draw, rounded corners=3pt, fill=green!10, minimum width=2.0cm, minimum height=0.7cm, font=\small\sffamily, align=center, thick},
+  proc/.style={draw, rounded corners=3pt, fill=blue!10, minimum width=2.5cm, minimum height=0.7cm, font=\small\sffamily, align=center, thick},
+  gate/.style={draw, diamond, fill=red!10, minimum width=1.2cm, minimum height=0.7cm, font=\scriptsize\sffamily, align=center, thick, aspect=1.8},
+  out/.style={draw, rounded corners=3pt, fill=yellow!15, minimum width=2.5cm, minimum height=0.7cm, font=\small\sffamily\bfseries, align=center, thick},
+  arr/.style={-{Stealth[length=4pt]}, thick, gray!60},
+  node distance=0.5cm and 0.8cm
+]
+  % Input signals
+  \node[sig] (ofi) {OFI\\(Cont 2014)};
+  \node[sig, right=of ofi] (mlofi) {MLOFI\\(Oxford 2019)};
+  \node[sig, right=of mlofi] (mr) {Mean-Rev\\Z-Score};
+  \node[sig, right=of mr] (macd) {MACD\\Momentum};
+  \node[sig, right=of macd] (vpin) {VPIN\\(Easley 2012)};
+
+  % Alpha Health
+  \node[proc, below=0.8cm of ofi, xshift=1.2cm] (health) {Alpha Health Monitor\\IC + Hit Rate Tracking};
+  \node[gate, below=0.8cm of mr] (hgate) {Health\\Gate};
+  \node[proc, below=0.8cm of macd, xshift=0.8cm] (regime) {Regime Detector\\Fast/Slow EMA Ratio};
+
+  % Composite
+  \node[proc, below=1.0cm of hgate, minimum width=4cm] (comp) {IC-Weighted Composite\\$s = \sum w_i H_i s_i / \sum w_i H_i$};
+
+  % Gates
+  \node[gate, below=0.8cm of comp, xshift=-2cm] (rgate) {Regime\\Scale};
+  \node[gate, below=0.8cm of comp, xshift=2cm] (tgate) {Toxicity\\Discount};
+
+  % Output
+  \node[out, below=0.8cm of comp, yshift=-1.2cm] (output) {(Score, Conviction)\\$\rightarrow$ Kelly Sizing};
+
+  % Arrows
+  \draw[arr] (ofi) -- (health);
+  \draw[arr] (mlofi) -- (hgate);
+  \draw[arr] (mr) -- (hgate);
+  \draw[arr] (macd) -- (regime);
+  \draw[arr] (vpin) -- (regime);
+  \draw[arr] (health) -- (hgate);
+  \draw[arr] (hgate) -- (comp);
+  \draw[arr] (regime) -- (comp);
+  \draw[arr] (comp) -- (rgate);
+  \draw[arr] (comp) -- (tgate);
+  \draw[arr] (rgate) -- (output);
+  \draw[arr] (tgate) -- (output);
+\end{tikzpicture}
+\caption{\textbf{Signal processing pipeline.} Raw alpha signals (OFI, MLOFI, mean-reversion, MACD, VPIN) are filtered through the Alpha Health Monitor, which gates decayed signals. Surviving signals are combined via IC-weighted aggregation in the Composite Signal Generator, then regime-scaled and toxicity-discounted to produce the final (score, conviction) tuple that drives Kelly position sizing.}
+\label{fig:signal-pipeline}
+\end{figure}
+
+\subsection{Enhanced Avellaneda--Stoikov Quoting Engine}
+\label{sec:quoting}
+
+The 2026 quoting engine integrates all preceding modules into a
+single decision function. Given state
+$(S, q, \sigma, \tau, \text{OFI}, \text{VPIN}, \gamma_R, m_s, m_z,
+\tau_{\text{tox}}, f_K)$:
+
+\begin{algorithm}[H]
+\caption{Enhanced Avellaneda--Stoikov Quoting}
+\label{alg:quoting}
+\begin{algorithmic}[1]
+\Require $\tau_{\text{tox}} \leq 0.65$, $\text{VPIN} \leq 0.85$
+\State $\bar{q} \gets q / L_{\max}$
+  \Comment{Normalised inventory}
+\State $r \gets S - \bar{q} \cdot \gamma_R \cdot \sigma^2 \cdot \tau$
+  \Comment{Reservation price}
+\State $\delta \gets \frac{\gamma_R \sigma^2 \tau}{2} +
+  \frac{1}{\gamma_R} \ln\!\left(1 + \frac{\gamma_R}{\kappa}\right)$
+\State $\delta \gets \max(\delta, \delta_{\min})$
+  \Comment{Floor}
+\State $m \gets m_s$
+  \Comment{Regime spread mult.}
+\If{$\text{VPIN} > 0.5$}
+  \State $m \gets m \cdot [1 + 2(\text{VPIN} - 0.5)]$
+    \Comment{VPIN widening}
+\EndIf
+\If{$\tau_{\text{tox}} > 0.35$}
+  \State $m \gets m \cdot [2 + 5(\tau_{\text{tox}} - 0.35)]$
+    \Comment{Toxicity widening}
+\EndIf
+\State $\Delta_{\text{OFI}} \gets \lambda_{\text{ofi}} \cdot \text{OFI}$
+  \Comment{Quote skew}
+\State $\text{bid} \gets r - \delta \cdot m + \Delta_{\text{OFI}}$
+\State $\text{ask} \gets r + \delta \cdot m + \Delta_{\text{OFI}}$
+\State Compute Kelly-scaled bid/ask sizes with toxicity discount
+  and inventory skew
+\State \Return $(\text{bid}, \text{ask}, \text{bid\_size},
+  \text{ask\_size})$
+\end{algorithmic}
+\end{algorithm}
+
+Unit tests verify: (i) quotes bracket fair value, (ii) inventory
+skews reservation price, (iii) higher volatility widens spread,
+(iv) toxicity $> 0.65$ halts quoting, (v) VPIN widens spread,
+(vi) OFI skews quotes, (vii) crisis regime reduces size.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  input/.style={draw, rounded corners=3pt, fill=green!10, minimum width=2.2cm, minimum height=0.65cm, font=\scriptsize\sffamily, align=center, thick},
+  check/.style={draw, diamond, fill=red!10, minimum width=1.5cm, minimum height=0.65cm, font=\scriptsize\sffamily, align=center, thick, aspect=2.2},
+  calc/.style={draw, rounded corners=3pt, fill=blue!10, minimum width=3.0cm, minimum height=0.65cm, font=\scriptsize\sffamily, align=center, thick},
+  result/.style={draw, rounded corners=3pt, fill=yellow!15, minimum width=2.5cm, minimum height=0.65cm, font=\scriptsize\sffamily\bfseries, align=center, thick},
+  halt/.style={draw, rounded corners=3pt, fill=red!20, minimum width=2.0cm, minimum height=0.65cm, font=\scriptsize\sffamily\bfseries, align=center, thick},
+  arr/.style={-{Stealth[length=4pt]}, thick, gray!60},
+  node distance=0.45cm and 1.0cm
+]
+  % Inputs
+  \node[input] (fv) {Fair Value\\(MLOFI)};
+  \node[input, right=of fv] (inv) {Inventory\\$q$};
+  \node[input, right=of inv] (vol) {Volatility\\$\sigma$ (GARCH)};
+  \node[input, right=of vol] (vpinin) {VPIN};
+  \node[input, right=of vpinin] (toxin) {Toxicity\\$\tau_{\text{tox}}$};
+
+  % Safety checks
+  \node[check, below=0.8cm of vol] (safetychk) {$\tau > 0.65$\\or VPIN $> 0.85$?};
+
+  % Halt path
+  \node[halt, right=2.5cm of safetychk] (haltout) {HALT\\Passive Quoting};
+
+  % Reservation price
+  \node[calc, below=0.8cm of safetychk, xshift=-2.5cm] (res) {Reservation Price\\$r = S - q\gamma\sigma^2\tau$};
+  \node[calc, below=0.8cm of safetychk, xshift=2.5cm] (spread) {Optimal Half-Spread\\$\delta = \frac{\gamma\sigma^2\tau}{2} + \frac{1}{\gamma}\ln(1+\gamma/\kappa)$};
+
+  % Adjustments
+  \node[calc, below=0.7cm of res] (adj) {Spread Adjustments\\Regime $\times$ VPIN $\times$ Toxicity};
+  \node[calc, below=0.7cm of spread] (ofi) {OFI Skew\\$\Delta = \lambda \cdot$ OFI};
+
+  % Final quotes
+  \node[result, below=0.8cm of adj, xshift=2.5cm] (quotes) {Bid = $r - \delta \cdot m + \Delta$\\Ask = $r + \delta \cdot m + \Delta$};
+
+  % Sizing
+  \node[result, below=0.6cm of quotes] (sizing) {Kelly-Scaled Sizes\\+ Inventory Skew};
+
+  % Arrows
+  \draw[arr] (fv) -- (safetychk);
+  \draw[arr] (inv) -- (safetychk);
+  \draw[arr] (vol) -- (safetychk);
+  \draw[arr] (vpinin) -- (safetychk);
+  \draw[arr] (toxin) -- (safetychk);
+  \draw[arr] (safetychk) -- node[above, font=\scriptsize] {Yes} (haltout);
+  \draw[arr] (safetychk) -- node[left, font=\scriptsize] {No} (res);
+  \draw[arr] (safetychk) -- (spread);
+  \draw[arr] (res) -- (adj);
+  \draw[arr] (spread) -- (ofi);
+  \draw[arr] (adj) -- (quotes);
+  \draw[arr] (ofi) -- (quotes);
+  \draw[arr] (quotes) -- (sizing);
+\end{tikzpicture}
+\caption{\textbf{Quoting engine decision flow.} Inputs (fair value, inventory, volatility, VPIN, toxicity) are first checked against safety thresholds. If toxicity $> 0.65$ or VPIN $> 0.85$, quoting halts immediately. Otherwise, the Avellaneda--Stoikov reservation price and optimal half-spread are computed, adjusted for regime, VPIN widening, toxicity widening, and OFI skew, before producing final bid/ask quotes with Kelly-scaled position sizes.}
+\label{fig:quoting-flow}
+\end{figure}
+
+% ============================================================================
+\section{Execution Algorithms}
+\label{sec:execution}
+
+\subsection{Almgren--Chriss Optimal Execution}
+
+RustFinance implements the closed-form Almgren--Chriss
+trajectory~\cite{almgren2000} per \Cref{eq:ac-trajectory}.
+The engine provides three presets:
+
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Liquid Default:} $\lambda = 10^{-5}$,
+        $\gamma = 0.1$, $\eta = 0.05$
+  \item \textbf{Aggressive:} $\lambda = 10^{-3}$ (front-loaded)
+  \item \textbf{Passive:} $\lambda = 10^{-7}$ (converges to TWAP)
+\end{itemize}
+
+The urgency parameter $\kappa = \sqrt{\lambda\sigma^2/\eta}$ governs
+the trajectory shape: higher $\kappa$ front-loads execution, while
+$\kappa \to 0$ recovers TWAP. The square-root impact model provides
+empirically-validated cost estimation:
+\begin{equation}
+  \text{impact} = \sigma \cdot \eta \cdot
+  \sqrt{\frac{|q|}{\text{ADV}}}.
+  \label{eq:sqrt-impact}
+\end{equation}
+
+Seven unit tests validate: TWAP convergence ($\lambda = 0$),
+front-loading ($\lambda \gg 0$), quantity conservation
+($\sum x_j = X$), sell-order sign, $\sqrt{\cdot}$-impact
+scaling, positive expected cost, and $\kappa$ monotonicity.
+
+\subsection{Additional Algorithms}
+
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{TWAP:} Time-weighted slicing with configurable
+        horizon and interval
+  \item \textbf{VWAP:} Volume-weighted with U-shaped intraday profile
+  \item \textbf{Iceberg:} Hidden liquidity with auto-replenishment
+  \item \textbf{POV:} Percentage-of-volume adaptive participation
+  \item \textbf{Smart Order Router:} Multi-venue scoring (fill rate,
+        latency, fees, impact) with dark pool preference for large
+        orders and MiFID II best execution reporting
+  \item \textbf{Bracket Orders:} OCO/OTO stop-loss + take-profit
+  \item \textbf{Trailing Stops:} Dynamic stop-loss tracking price
+\end{itemize}
+
+% ============================================================================
+\section{Risk Management}
+\label{sec:risk}
+
+\subsection{GARCH Volatility Modelling}
+
+RustFinance implements both symmetric GARCH(1,1) and asymmetric
+GJR-GARCH:
+\begin{equation}
+  \sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 +
+  \beta \sigma_{t-1}^2,
+  \label{eq:garch}
+\end{equation}
+\begin{equation}
+  \sigma_t^2 = \omega + (\alpha + \gamma \mathbb{1}_{\varepsilon < 0})
+  \varepsilon_{t-1}^2 + \beta \sigma_{t-1}^2.
+  \label{eq:gjr-garch}
+\end{equation}
+
+Stationarity is enforced via $\alpha + \beta < 1$ (GARCH) and
+$\alpha + \beta + \gamma/2 < 1$ (GJR-GARCH). The long-run
+variance $\bar{\sigma}^2 = \omega/(1 - \alpha - \beta)$ is
+annualised as $\sigma_{\text{ann}} = \sqrt{252 \bar{\sigma}^2}$.
+
+A grid-search estimator with gradient refinement (200 iterations)
+fits parameters to return series with $\geq$50 observations.
+Tests verify convergence, shock response, half-life, non-stationarity
+guards, parameter recovery from synthetic data, forecast accuracy,
+and GJR leverage effects.
+
+\subsection{Value at Risk}
+
+Three VaR methodologies are implemented:
+\begin{enumerate}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Historical VaR:} Non-parametric, sorts actual
+        portfolio P\&L. Captures fat tails and skewness.
+  \item \textbf{Parametric (Delta-Normal):} $\text{VaR}_\alpha =
+        z_\alpha \cdot \sigma_P$, using $z_{95\%} = 1.645$ and
+        $z_{99\%} = 2.326$.
+  \item \textbf{Student-$t$ VaR:} Fat-tailed parametric VaR with
+        configurable degrees of freedom ($\nu = 5$ for equities,
+        $\nu = 3.5$ for crypto).
+\end{enumerate}
+
+All methods compute 10-day Basel VaR via $\sqrt{10}$ scaling,
+CVaR (Expected Shortfall), and component VaR for per-position
+risk attribution.
+
+\subsection{Risk Controls}
+
+The \texttt{RiskInterceptorChain} implements composable pre-trade
+checks:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Kill Switch:} Emergency circuit breaker (hotkey K)
+  \item \textbf{Self-Match Prevention (SMP):} Three modes ---
+        CancelResting (CME), CancelAggressive (NASDAQ), CancelBoth
+  \item \textbf{Deterministic Safety Gate:} Zero-AI verification
+        detecting agent confirmation bias ($>$85\% agreement),
+        concentration, and correlation exposure
+  \item \textbf{Max Position Size, Drawdown, Open Orders, Daily Loss
+        Limit}
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  step/.style={draw, rounded corners=3pt, fill=blue!8, minimum width=3.2cm, minimum height=0.7cm, font=\small\sffamily, align=center, thick},
+  gate/.style={draw, diamond, fill=red!10, minimum width=1.5cm, minimum height=0.7cm, font=\scriptsize\sffamily, align=center, thick, aspect=2.0},
+  rej/.style={draw, rounded corners=3pt, fill=red!20, minimum width=2.0cm, minimum height=0.6cm, font=\scriptsize\sffamily\bfseries, align=center, thick},
+  ok/.style={draw, rounded corners=3pt, fill=green!15, minimum width=2.5cm, minimum height=0.7cm, font=\small\sffamily\bfseries, align=center, thick},
+  arr/.style={-{Stealth[length=4pt]}, thick, gray!60},
+  node distance=0.5cm and 1.5cm
+]
+  \node[step] (order) {Incoming Order};
+  \node[gate, below=of order] (kill) {Kill Switch\\Active?};
+  \node[rej, right=2.0cm of kill] (rej1) {REJECT};
+  \node[gate, below=of kill] (smp) {Self-Match\\Detected?};
+  \node[rej, right=2.0cm of smp] (rej2) {Cancel per\\SMP Mode};
+  \node[gate, below=of smp] (pos) {Max Position\\Exceeded?};
+  \node[rej, right=2.0cm of pos] (rej3) {REJECT};
+  \node[gate, below=of pos] (dd) {Max Drawdown\\Exceeded?};
+  \node[rej, right=2.0cm of dd] (rej4) {REJECT};
+  \node[gate, below=of dd] (loss) {Daily Loss\\Limit Hit?};
+  \node[rej, right=2.0cm of loss] (rej5) {REJECT};
+  \node[gate, below=of loss] (safety) {Safety Gate\\Bias > 85\%?};
+  \node[rej, right=2.0cm of safety] (rej6) {REJECT};
+  \node[ok, below=of safety] (pass) {ORDER APPROVED\\$\rightarrow$ Execution Gateway};
+
+  \draw[arr] (order) -- (kill);
+  \draw[arr] (kill) -- node[above, font=\scriptsize] {Yes} (rej1);
+  \draw[arr] (kill) -- node[left, font=\scriptsize] {No} (smp);
+  \draw[arr] (smp) -- node[above, font=\scriptsize] {Yes} (rej2);
+  \draw[arr] (smp) -- node[left, font=\scriptsize] {No} (pos);
+  \draw[arr] (pos) -- node[above, font=\scriptsize] {Yes} (rej3);
+  \draw[arr] (pos) -- node[left, font=\scriptsize] {No} (dd);
+  \draw[arr] (dd) -- node[above, font=\scriptsize] {Yes} (rej4);
+  \draw[arr] (dd) -- node[left, font=\scriptsize] {No} (loss);
+  \draw[arr] (loss) -- node[above, font=\scriptsize] {Yes} (rej5);
+  \draw[arr] (loss) -- node[left, font=\scriptsize] {No} (safety);
+  \draw[arr] (safety) -- node[above, font=\scriptsize] {Yes} (rej6);
+  \draw[arr] (safety) -- node[left, font=\scriptsize] {No} (pass);
+\end{tikzpicture}
+\caption{\textbf{Risk interceptor chain.} Every order passes through a sequential chain of 6 pre-trade risk checks. Failure at any stage immediately rejects or cancels the order. Only orders passing all gates reach the execution gateway. The chain is composable --- new interceptors can be inserted without modifying existing logic.}
+\label{fig:risk-chain}
+\end{figure}
+
+% ============================================================================
+\section{Derivatives Pricing}
+\label{sec:pricing}
+
+\subsection{Black--Scholes--Merton}
+
+The BSM implementation provides full pricing with 8 Greeks:
+\begin{equation}
+  C = S e^{-qT} N(d_1) - K e^{-rT} N(d_2),
+  \label{eq:bsm}
+\end{equation}
+where $d_1 = [\ln(S/K) + (r - q + \sigma^2/2)T] / (\sigma\sqrt{T})$
+and $d_2 = d_1 - \sigma\sqrt{T}$.
+
+Greeks computed: $\Delta$, $\Gamma$, $\Theta$, $\mathcal{V}$,
+$\rho$, charm ($\partial\Delta/\partial T$), and vanna
+($\partial\Delta/\partial\sigma$). Newton--Raphson implied
+volatility solver achieves $10^{-10}$ tolerance.
+
+Unit tests cross-check against Hull's reference tables (S=42,
+K=40, $r$=0.10, $\sigma$=0.20, T=0.50) for call price
+($\approx$4.76), delta ($\approx$0.7791), gamma ($\approx$0.0497),
+put--call parity, delta bounds, gamma positivity, vega positivity,
+ATM delta $\approx$0.5, and implied vol round-trip accuracy.
+
+\subsection{Additional Models}
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Heston:} Stochastic volatility via Monte Carlo,
+        capturing volatility smile
+  \item \textbf{SABR:} Stochastic $\alpha$-$\beta$-$\rho$ for
+        FX/rates vol surfaces
+  \item \textbf{Hull--White:} Short-rate model for fixed income
+  \item \textbf{Bond Pricer:} YTM, duration, convexity
+  \item \textbf{Fundamental:} DCF, Graham, PEG valuation
+\end{itemize}
+
+% ============================================================================
+\section{AI and Simulation}
+\label{sec:ai}
+
+\subsection{Dexter AI Analyst}
+
+RustFinance integrates Anthropic's Claude LLM as the ``Dexter''
+analyst. Market context (quant signals, swarm consensus,
+knowledge graph entities) is fused into a structured prompt,
+and the LLM returns a \texttt{BUY/SELL/HOLD} recommendation
+with structured signal output.
+
+\subsection{100K-Agent Swarm Simulation}
+
+The \texttt{swarm\_sim} crate implements a Rayon-parallel
+agent-based model:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Architecture:} AgentPool $\to$ ActionLog
+        $\to$ SwarmSignal $\to$ price impact feedback loop
+  \item \textbf{Agent Types:} Momentum, Mean-Reversion,
+        Noise, Informed
+  \item \textbf{Market Model:} Order book with price levels
+        and market state
+  \item \textbf{Scenario Engine:} Rally, sideways, dip
+        probability distributions
+  \item \textbf{Scale:} 100,000 agents per simulation step
+        via Rayon parallel iterators
+\end{itemize}
+
+\subsection{Knowledge Graph RAG}
+
+A \texttt{petgraph}-backed knowledge graph provides entity
+linking and context fusion for the AI pipeline, enabling
+retrieval-augmented generation from structured financial
+knowledge.
+
+% ============================================================================
+\section{Market Data and Connectivity}
+\label{sec:data}
+
+\subsection{Multi-Source Ingestion}
+
+RustFinance supports four live data sources via a unified
+\texttt{MarketDataSource} trait:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Alpaca:} US equities via WebSocket (IEX, SIP feeds)
+  \item \textbf{Binance:} Crypto streams (trades, bookTicker,
+        kline, depth5) via combined WebSocket
+  \item \textbf{Finnhub:} Global market data including NSE/BSE
+  \item \textbf{Polymarket:} Prediction market CLOB + arbitrage
+  \item \textbf{Mock:} Deterministic replay for backtesting
+\end{itemize}
+
+A \texttt{SelectAll} multiplexer unifies all sources into a
+single async stream. Auto-reconnect with exponential backoff
+ensures resilience. A 500 msg/frame cap prevents TUI freeze
+during high-volume events.
+
+\subsection{WebSocket Gap Detection}
+
+A sequence-based gap detector with configurable thresholds:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item Small gap ($< 10$ messages): request retransmission
+  \item Medium gap ($10$--$100$): snapshot recovery
+  \item Large gap ($> 100$): failover to backup source
+\end{itemize}
+
+\subsection{FIX 4.4 Protocol}
+
+A hand-rolled, zero-dependency FIX 4.4 parser supports:
+length-delimited framing (tag 9), checksum validation,
+streaming \texttt{push\_bytes()/next\_message()} API,
+and session management (Logon, Heartbeat, ResendRequest,
+SequenceReset, ExecutionReport, NewOrderSingle).
+
+% ============================================================================
+\section{Regulatory Compliance}
+\label{sec:compliance}
+
+\subsection{SEBI 2026 Algorithmic Trading Framework}
+
+India's Securities and Exchange Board (SEBI) mandated
+Algo-ID tagging on every order to NSE/BSE effective
+April 1, 2026. RustFinance implements:
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Algo-ID tagging:} Unique identifier on every order
+  \item \textbf{OPS threshold monitoring:} Orders Per Second $>$ 10
+        triggers registration requirement
+  \item \textbf{Order variety classification:} Market, Limit, SL
+  \item \textbf{Price band checks:} Circuit filter enforcement
+  \item \textbf{Uptick rule:} Short-selling restrictions
+  \item \textbf{Squareoff time:} MIS position auto-close
+  \item \textbf{Full audit trail:} Every state transition logged
+        with \texttt{AuditTick}
+\end{itemize}
+
+% ============================================================================
+\section{Performance Benchmarks}
+\label{sec:bench}
+
+\begin{table}[H]
+\centering
+\caption{Performance benchmarks (release profile).}
+\label{tab:bench}
+\small
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Component} & \textbf{Operation} & \textbf{Latency} \\
+\midrule
+Tick Pipeline       & Order book mutation    & $\sim$40\,ns \\
+Pricing             & BSM European Call      & $\sim$34\,ns \\
+Risk                & GARCH(1,1) update      & $\sim$2.3\,ns \\
+Risk                & Branchless safety check & $\sim$1.6\,ns \\
+Event Bus           & Postcard serialisation & Zero-copy \\
+Swarm Sim           & 100K agents/step       & Rayon parallel \\
+Timestamps          & UnixNanos precision    & Nanosecond \\
+Event Ordering      & AtomicU64 sequence     & Lock-free \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These benchmarks demonstrate that RustFinance achieves latencies
+comparable to optimised C++ implementations while providing
+compile-time safety guarantees. The GARCH update at 2.3\,ns
+is particularly notable, as it enables real-time volatility
+estimation at tick-by-tick frequencies without any pipeline
+bottleneck.
+
+% ============================================================================
+\section{Testing and Verification}
+\label{sec:testing}
+
+\subsection{Unit Test Coverage}
+
+The system includes 82+ unit tests across all quantitative modules:
+
+\begin{table}[H]
+\centering
+\caption{Unit test distribution by module.}
+\label{tab:tests}
+\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Module} & \textbf{Tests} \\
+\midrule
+GARCH / GJR-GARCH        & 13 \\
+VaR (Historical, Parametric, Student-$t$) & 10 \\
+BSM Pricing + Greeks      & 9 \\
+Quoting Engine            & 7 \\
+Almgren--Chriss           & 7 \\
+Kelly Criterion           & 7 \\
+Microprice MLOFI          & 5 \\
+Regime Detection          & 5 \\
+Adverse Selection         & 4 \\
+Alpha Health Monitor      & 4 \\
+Composite Signal          & 7 \\
+Other (OMS, Compliance, etc.) & 4+ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{CI/CD Security Pipeline}
+
+An 8-job GitHub Actions pipeline enforces:
+\begin{enumerate}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \texttt{cargo-audit}: CVE vulnerability scanning
+  \item \texttt{cargo-deny}: License/ban/advisory enforcement
+  \item \texttt{cargo-vet}: Supply chain verification
+  \item \texttt{clippy}: Pedantic + cargo lints
+  \item \texttt{rustfmt}: Formatting enforcement
+  \item SHA-pinned Actions (40-character commit hashes)
+  \item CodeQL SAST (static application security testing)
+  \item OpenSSF Scorecard compliance
+\end{enumerate}
+
+Cross-platform testing covers Ubuntu, macOS, and Windows.
+
+% ============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Architectural Advantages of Rust}
+
+The decision to implement the entire system in safe Rust
+(\texttt{\#![forbid(unsafe\_code)]}) provides several
+advantages over traditional C++ trading systems:
+
+\begin{enumerate}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{Fearless Concurrency:} The borrow checker
+        prevents data races at compile time, critical for
+        multi-threaded event processing and swarm simulation.
+  \item \textbf{Zero-Cost Abstractions:} Trait-based
+        polymorphism (\texttt{ExecutionGateway}, \texttt{MarketDataSource})
+        compiles to static dispatch with no virtual table overhead.
+  \item \textbf{Memory Safety:} No garbage collection pauses,
+        no use-after-free, no buffer overflows --- eliminating
+        entire classes of production failures.
+  \item \textbf{Predictable Performance:} No GC jitter enables
+        nanosecond-level timestamp precision and deterministic
+        replay.
+  \item \textbf{Ecosystem:} \texttt{tokio} for async I/O,
+        \texttt{rayon} for data parallelism, \texttt{ratatui}
+        for TUI, \texttt{postcard} for zero-copy serialisation.
+\end{enumerate}
+
+\subsection{Integration of Research Papers}
+
+A key contribution of RustFinance is the synthesis of 18 research
+papers (2008--2026) into a cohesive, production-grade system. The
+composite signal pipeline (\Cref{sec:composite}) demonstrates how
+academic alpha signals can be combined using IC-weighted aggregation
+with automatic decay detection, regime gating, and toxicity
+discounting --- addressing the alpha decay problem documented
+by~\cite{alphaforge2026}.
+
+\subsection{Limitations}
+
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item The GARCH estimator uses grid search with gradient refinement
+        rather than maximum likelihood via BFGS, which may produce
+        suboptimal parameter estimates for some return distributions.
+  \item The IC proxy in the alpha health monitor uses sign agreement
+        rather than full Spearman rank correlation, trading accuracy
+        for computational efficiency.
+  \item The system has not been validated with live capital; all
+        performance claims are based on paper trading and backtesting.
+  \item Correlation-adjusted VaR is not yet implemented; the
+        parametric method assumes zero cross-asset correlation
+        (conservative but imprecise for hedged portfolios).
+\end{itemize}
+
+\subsection{Future Work}
+
+\begin{itemize}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item BFGS-based GARCH estimation for improved parameter recovery
+  \item Full Spearman IC computation for alpha health monitoring
+  \item Copula-based portfolio VaR with dynamic correlation estimation
+  \item FPGA integration for sub-microsecond latency on the hot path
+  \item Reinforcement learning execution agents benchmarked against
+        the Almgren--Chriss baseline~\cite{ning2026}
+  \item WebAssembly compilation for browser-based dashboard
+\end{itemize}
+
+% ============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+RustFinance demonstrates that a complete, institutional-grade trading
+terminal can be implemented in safe Rust without sacrificing
+performance. The 34-crate architecture provides strict modularity
+while achieving tick-pipeline latencies of $\sim$40\,ns and
+GARCH updates in $\sim$2.3\,ns. The 2026 Quant Alpha Library
+synthesises 18 research papers into a production-ready system
+combining Avellaneda--Stoikov market making, Almgren--Chriss optimal
+execution, GARCH-driven regime detection, VPIN toxicity monitoring,
+multi-level microprice estimation, adverse selection gating, and
+Kelly-optimal position sizing with Bayesian shrinkage.
+
+By leveraging Rust's ownership model, RustFinance eliminates entire
+classes of memory-safety and concurrency bugs that have historically
+plagued C++ trading systems, while maintaining equivalent raw
+performance. The system's compliance with SEBI 2026 regulations,
+comprehensive CI/CD security pipeline, and 82+ unit tests demonstrate
+production readiness for research and paper-trading applications.
+
+The open-source release under MIT license aims to democratise access
+to institutional-grade quantitative trading infrastructure, enabling
+researchers and practitioners to build upon a verified, safe, and
+performant foundation.
+
+% ============================================================================
+% Bibliography
+% ============================================================================
+\begin{thebibliography}{99}
+
+\bibitem{almgren2000}
+R.~Almgren and N.~Chriss,
+``Optimal execution of portfolio transactions,''
+\textit{Journal of Risk}, vol.~3, no.~2, pp.~5--39, 2000.
+
+\bibitem{avellaneda2008}
+M.~Avellaneda and S.~Stoikov,
+``High-frequency trading in a limit order book,''
+\textit{Quantitative Finance}, vol.~8, no.~3, pp.~217--224, 2008.
+
+\bibitem{cont2014}
+R.~Cont, A.~Kukanov, and S.~Stoikov,
+``The price impact of order book events,''
+\textit{Journal of Financial Econometrics}, vol.~12, no.~1,
+pp.~47--88, 2014.
+
+\bibitem{xu2019}
+F.~Xu, M.~D.~Gould, and S.~D.~Howison,
+``Multi-level order-flow imbalance in a limit order book,''
+Working paper, Oxford University, 2019.
+
+\bibitem{easley2012}
+D.~Easley, M.~M.~L\'opez de Prado, and M.~O'Hara,
+``Flow toxicity and liquidity in a high-frequency world,''
+\textit{The Review of Financial Studies}, vol.~25, no.~5,
+pp.~1457--1493, 2012.
+
+\bibitem{bollerslev1986}
+T.~Bollerslev,
+``Generalized autoregressive conditional heteroskedasticity,''
+\textit{Journal of Econometrics}, vol.~31, no.~3, pp.~307--327, 1986.
+
+\bibitem{glosten1993}
+L.~R.~Glosten, R.~Jagannathan, and D.~E.~Runkle,
+``On the relation between the expected value and the volatility of
+the nominal excess return on stocks,''
+\textit{The Journal of Finance}, vol.~48, no.~5, pp.~1779--1801, 1993.
+
+\bibitem{glosten1985}
+L.~R.~Glosten and P.~R.~Milgrom,
+``Bid, ask and transaction prices in a specialist market with
+heterogeneously informed traders,''
+\textit{Journal of Financial Economics}, vol.~14, no.~1,
+pp.~71--100, 1985.
+
+\bibitem{kelly1956}
+J.~L.~Kelly,
+``A new interpretation of information rate,''
+\textit{The Bell System Technical Journal}, vol.~35, no.~4,
+pp.~917--926, 1956.
+
+\bibitem{thorp2008}
+E.~O.~Thorp,
+``The Kelly criterion in blackjack, sports betting, and the stock
+market,''
+in \textit{Handbook of Asset and Liability Management}, Elsevier,
+2008, pp.~385--428.
+
+\bibitem{barzykin2025}
+A.~Barzykin, R.~Cant, and F.~Sherrill,
+``Optimal quoting under adverse selection and price reading,''
+arXiv preprint arXiv:2508.20225, Nov.~2025.
+
+\bibitem{regimefolio2025}
+RegimeFolio Consortium,
+``VIX-based regime segmentation for portfolio allocation,''
+arXiv preprint, 2025.
+
+\bibitem{polyswarm2026}
+PolySwarm Research,
+``Quarter-Kelly position sizing for prediction markets,''
+arXiv preprint arXiv:2604.03888, Apr.~2026.
+
+\bibitem{alphaforge2026}
+AlphaForgeBench Consortium,
+``Benchmarking alpha signal generation and decay,''
+arXiv preprint arXiv:2602.18481, Feb.~2026.
+
+\bibitem{chainofalpha2025}
+Chain-of-Alpha Research Group,
+``IC-proportional alpha signal composition,''
+arXiv preprint arXiv:2508.06312, Aug.~2025.
+
+\bibitem{ning2026}
+B.~Ning et al.,
+``Reinforcement learning for trade execution: convergence to
+Almgren--Chriss baselines,''
+arXiv preprint arXiv:2507.06345, Jan.~2026 (updated).
+
+\bibitem{kyle1985}
+A.~S.~Kyle,
+``Continuous auctions and insider trading,''
+\textit{Econometrica}, vol.~53, no.~6, pp.~1315--1336, 1985.
+
+\bibitem{klabnik2023}
+S.~Klabnik and C.~Nichols,
+\textit{The Rust Programming Language}, 2nd~ed.,
+No Starch Press, 2023.
+
+\bibitem{rusttrading2026}
+Industry consensus report,
+``Rust vs.\ C++ for low-latency trading systems: a 2026 benchmark
+survey,''
+Internal industry whitepaper, 2026.
+
+\bibitem{heston1993}
+S.~L.~Heston,
+``A closed-form solution for options with stochastic volatility
+with applications to bond and currency options,''
+\textit{The Review of Financial Studies}, vol.~6, no.~2,
+pp.~327--343, 1993.
+
+\bibitem{bsm1973}
+F.~Black and M.~Scholes,
+``The pricing of options and corporate liabilities,''
+\textit{Journal of Political Economy}, vol.~81, no.~3,
+pp.~637--654, 1973.
+
+\bibitem{crypto2026}
+Cryptocurrency Microstructure Research Consortium,
+``SHAP analysis of order flow features in large-tick crypto
+instruments,''
+arXiv preprint arXiv:2602.00776, Jan.~2026.
+
+\end{thebibliography}
+
+% ============================================================================
+\appendix
+\section{Crate Dependency Graph}
+\label{app:deps}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  crate/.style={draw, rounded corners=4pt, fill=blue!8,
+    minimum height=0.7cm, minimum width=2.2cm, font=\small\ttfamily,
+    inner sep=3pt, thick},
+  core/.style={crate, fill=yellow!12},
+  data/.style={crate, fill=green!10},
+  intel/.style={crate, fill=orange!10},
+  exec/.style={crate, fill=red!8},
+  iface/.style={crate, fill=purple!10},
+  infra/.style={crate, fill=gray!10},
+  arr/.style={-{Stealth[length=4pt]}, gray!50, thick},
+  node distance=0.6cm and 0.9cm,
+  layer/.style={draw, dashed, rounded corners=8pt, inner sep=10pt, gray!30, thick}
+]
+  % Core layer
+  \node[core] (common) {common};
+  \node[core, right=of common] (eventbus) {event\_bus};
+
+  % Data layer
+  \node[data, below=1.0cm of common, xshift=-1.5cm] (ingestion) {ingestion};
+  \node[data, right=of ingestion] (signals) {signals};
+  \node[data, right=of signals] (feature) {feature};
+  \node[data, right=of feature] (pricing) {pricing};
+
+  % Intelligence layer
+  \node[intel, below=1.0cm of ingestion] (ai) {ai};
+  \node[intel, right=of ai] (swarm) {swarm\_sim};
+  \node[intel, right=of swarm] (kg) {knowledge\_graph};
+  \node[intel, right=of kg] (ml) {ml};
+
+  % Strategy/Risk layer
+  \node[exec, below=1.0cm of ai, xshift=-0.5cm] (strategy) {strategy};
+  \node[exec, right=of strategy] (risk) {risk};
+  \node[exec, right=of risk] (backtest) {backtest};
+  \node[exec, right=of backtest] (compliance) {compliance};
+
+  % Execution layer
+  \node[exec, below=1.0cm of strategy, xshift=0.5cm] (execution) {execution};
+  \node[exec, right=of execution] (oms) {oms};
+  \node[exec, right=of oms] (polymarket) {polymarket};
+  \node[exec, right=of polymarket] (fix) {fix};
+
+  % Interface layer
+  \node[iface, below=1.0cm of execution, xshift=1.5cm] (daemon) {daemon};
+  \node[iface, right=2.0cm of daemon] (tui) {tui};
+  \node[iface, left=of daemon] (cli) {cli};
+
+  % Infrastructure
+  \node[infra, below=0.8cm of daemon, xshift=-1.5cm] (persistence) {persistence};
+  \node[infra, right=of persistence] (metrics) {metrics};
+  \node[infra, right=of metrics] (tests) {tests};
+  \node[infra, right=of tests] (benchmarks) {benchmarks};
+
+  % Layer labels
+  \node[left=0.3cm of common, font=\scriptsize\sffamily\bfseries, text=gray] {Core};
+  \node[left=0.3cm of ingestion, font=\scriptsize\sffamily\bfseries, text=gray] {Data};
+  \node[left=0.3cm of ai, font=\scriptsize\sffamily\bfseries, text=gray] {Intelligence};
+  \node[left=0.3cm of strategy, font=\scriptsize\sffamily\bfseries, text=gray] {Strategy/Risk};
+  \node[left=0.3cm of execution, font=\scriptsize\sffamily\bfseries, text=gray] {Execution};
+  \node[left=0.3cm of cli, font=\scriptsize\sffamily\bfseries, text=gray] {Interface};
+  \node[left=0.3cm of persistence, font=\scriptsize\sffamily\bfseries, text=gray] {Infra};
+
+  % Key dependency arrows
+  \draw[arr] (common) -- (ingestion);
+  \draw[arr] (common) -- (signals);
+  \draw[arr] (common) -- (eventbus);
+  \draw[arr] (ingestion) -- (daemon);
+  \draw[arr] (signals) -- (risk);
+  \draw[arr] (signals) -- (strategy);
+  \draw[arr] (ai) -- (daemon);
+  \draw[arr] (swarm) -- (daemon);
+  \draw[arr] (kg) -- (daemon);
+  \draw[arr] (risk) -- (daemon);
+  \draw[arr] (strategy) -- (daemon);
+  \draw[arr] (execution) -- (daemon);
+  \draw[arr] (oms) -- (daemon);
+  \draw[arr] (compliance) -- (oms);
+  \draw[arr] (eventbus) -- (daemon);
+  \draw[arr] (eventbus) -- (tui);
+  \draw[arr] (daemon) -- (tui);
+  \draw[arr] (daemon) -- (persistence);
+  \draw[arr] (daemon) -- (metrics);
+  \draw[arr] (pricing) -- (strategy);
+  \draw[arr] (ml) -- (signals);
+\end{tikzpicture}
+\caption{\textbf{Full 34-crate dependency graph} organised by functional layer.
+Colour coding: \colorbox{yellow!12}{Core}, \colorbox{green!10}{Data},
+\colorbox{orange!10}{Intelligence}, \colorbox{red!8}{Strategy/Execution},
+\colorbox{purple!10}{Interface}, \colorbox{gray!10}{Infrastructure}.
+Arrows indicate compile-time dependencies. The \texttt{daemon} crate serves
+as the central orchestrator, depending on all functional layers and exposing
+its state to the \texttt{tui} via the \texttt{event\_bus}.}
+\label{fig:deps}
+\end{figure}
+
+\section{Mathematical Notation Reference}
+\label{app:notation}
+
+\begin{table}[H]
+\centering
+\caption{Symbol reference table.}
+\label{tab:notation}
+\small
+\begin{tabular}{@{}cl@{}}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$S$ & Current asset price / fair value \\
+$q$ & Current inventory position \\
+$\sigma$ & Realised volatility \\
+$\tau$ & Remaining session fraction $\in [0,1]$ \\
+$\gamma$ & Risk aversion parameter \\
+$\kappa$ & Order arrival intensity / urgency \\
+$\lambda$ & Almgren--Chriss risk aversion \\
+$\eta$ & Temporary impact coefficient \\
+$\varepsilon$ & Fixed spread cost \\
+$\text{OFI}$ & Order flow imbalance $\in [-1,+1]$ \\
+$\text{VPIN}$ & Volume-sync.\ probability of informed trading \\
+$f^*$ & Kelly-optimal fraction \\
+$\text{IC}$ & Information coefficient \\
+$\text{HR}$ & Hit rate (directional accuracy) \\
+$H$ & Alpha health weight $\in \{0, 0.4, 1.0\}$ \\
+$\tau_{\text{tox}}$ & Adverse selection toxicity EMA \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
