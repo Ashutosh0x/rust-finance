@@ -64,7 +64,7 @@ uuid = { version = "1.8.0", features = ["v4", "serde"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
-thiserror = "1.0.58"
+thiserror = "2.0.18"
 async-trait = "0.1.80"
 
 [profile.release]
