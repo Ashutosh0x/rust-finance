@@ -1,4 +1,4 @@
-# RustForge v1.0.0 — Production Release
+# RustForge v1.0.0 -- Production Release
 
 ## RustForge v1.0.0
 ### Institutional-Grade AI Trading Terminal in Rust
@@ -93,7 +93,7 @@ swarm_sim        100,000-agent market microstructure simulator
 knowledge_graph  petgraph-backed RAG knowledge engine
 polymarket       Polymarket CLOB client + EIP-712 signing
 daemon           Hybrid intelligence pipeline, engine orchestration
-event_bus        Postcard-serialized TCP event bus (daemon ↔ TUI)
+event_bus        Postcard-serialized TCP event bus (daemon <-> TUI)
 tui              Ratatui-powered 6-screen trading dashboard
 oms              Order Management System (netting + hedging)
 alerts           Rule-based alert engine
@@ -118,80 +118,80 @@ benchmarks       Criterion performance benchmarks
 ## What's Included
 
 ### Core Engine
-- **Hybrid Intelligence Pipeline** — Quant, Swarm, Knowledge Graph, Dexter AI, Risk Gate, Execution
+- **Hybrid Intelligence Pipeline** -- Quant, Swarm, Knowledge Graph, Dexter AI, Risk Gate, Execution
 - **Nanosecond-precision timestamps** (`UnixNanos`) with monotonic `SequenceId` ordering
-- **Swappable clock** — `RealtimeClock` for live, `DeterministicClock` for backtesting
+- **Swappable clock** -- `RealtimeClock` for live, `DeterministicClock` for backtesting
 - **Event-driven architecture** with typed `Envelope<T>` wrapping every event
-- **Deterministic Safety Gate** — Zero-AI verification layer preventing agent confirmation bias
+- **Deterministic Safety Gate** -- Zero-AI verification layer preventing agent confirmation bias
 - **30-crate workspace** compiles in ~17s with zero `unsafe` code
 
 ### Market Data
-- **Alpaca** — Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
-- **Binance** — Crypto WebSocket streams (trades, bookTicker, depth5)
-- **Finnhub** — Global market data (incl. NSE/BSE) and live trades via WebSocket
-- **Polymarket** — Prediction market CLOB (order book, trades, EIP-712 signing)
-- **Mock source** — Deterministic replay for backtesting
+- **Alpaca** -- Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
+- **Binance** -- Crypto WebSocket streams (trades, bookTicker, depth5)
+- **Finnhub** -- Global market data (incl. NSE/BSE) and live trades via WebSocket
+- **Polymarket** -- Prediction market CLOB (order book, trades, EIP-712 signing)
+- **Mock source** -- Deterministic replay for backtesting
 - **Auto-reconnect** with exponential backoff on all sources
-- **Source Multiplexer** — Unified `SelectAll` stream from any combination
+- **Source Multiplexer** -- Unified `SelectAll` stream from any combination
 
 ### AI Intelligence
-- **Dexter AI Analyst** — Claude-powered market analysis with structured signal output
-- **100K Agent Swarm Simulation** — Rayon-parallel microstructure Monte Carlo
-- **Knowledge Graph** — petgraph RAG with entity linking and context fusion
-- **Fused Context** — Quant + Swarm + Graph consensus into Dexter prompt
-- **Impact Analysis Engine** — AI-driven market impact estimation
-- **Mirofish** — 5,000-agent scenario simulator (rally/sideways/dip probabilities)
+- **Dexter AI Analyst** -- Claude-powered market analysis with structured signal output
+- **100K Agent Swarm Simulation** -- Rayon-parallel microstructure Monte Carlo
+- **Knowledge Graph** -- petgraph RAG with entity linking and context fusion
+- **Fused Context** -- Quant + Swarm + Graph consensus into Dexter prompt
+- **Impact Analysis Engine** -- AI-driven market impact estimation
+- **Mirofish** -- 5,000-agent scenario simulator (rally/sideways/dip probabilities)
 
 ### Execution
-- **ExecutionGateway trait** — Plug-and-play execution backends
-- **Alpaca Executor** — Full REST integration (25+ endpoints: orders, positions, assets, historical data)
-- **Polymarket CLOB** — Full order lifecycle (limit/market/FOK/GTC/GTD)
-- **Paper trading** — MockExecutor for risk-free strategy testing
-- **Bracket orders** — OCO/OTO stop-loss + take-profit combos
-- **Trailing stops** — Dynamic stop-loss that follows price
+- **ExecutionGateway trait** -- Plug-and-play execution backends
+- **Alpaca Executor** -- Full REST integration (25+ endpoints: orders, positions, assets, historical data)
+- **Polymarket CLOB** -- Full order lifecycle (limit/market/FOK/GTC/GTD)
+- **Paper trading** -- MockExecutor for risk-free strategy testing
+- **Bracket orders** -- OCO/OTO stop-loss + take-profit combos
+- **Trailing stops** -- Dynamic stop-loss that follows price
 
 ### Risk Management
-- **Deterministic Safety Gate** — Zero-AI verification layer that detects agent confirmation bias (>85% agreement), checks concentration, drawdown, and correlation exposure
-- **Kill Switch** — Emergency circuit breaker (hotkey `K` in TUI)
-- **GARCH(1,1) Volatility** — Real-time volatility estimation
-- **Value at Risk (VaR)** — Parametric + historical VaR calculation
-- **PnL Attribution** — Component-level profit/loss decomposition
-- **Risk Interceptor Chain** — Composable pre-trade risk checks
-- **Kelly Criterion Sizing** — Optimal position sizing
-- **Max Drawdown / Daily Loss Limit** — Automated trading guardrails
+- **Deterministic Safety Gate** -- Zero-AI verification layer that detects agent confirmation bias (>85% agreement), checks concentration, drawdown, and correlation exposure
+- **Kill Switch** -- Emergency circuit breaker (hotkey `K` in TUI)
+- **GARCH(1,1) Volatility** -- Real-time volatility estimation
+- **Value at Risk (VaR)** -- Parametric + historical VaR calculation
+- **PnL Attribution** -- Component-level profit/loss decomposition
+- **Risk Interceptor Chain** -- Composable pre-trade risk checks
+- **Kelly Criterion Sizing** -- Optimal position sizing
+- **Max Drawdown / Daily Loss Limit** -- Automated trading guardrails
 
 ### Quantitative Models
-- **Black-Scholes-Merton** — Options pricing with Greeks
-- **Heston Stochastic Volatility** — Smile-calibrated pricing
-- **GARCH(1,1)** — Volatility forecasting
-- **Monte Carlo Engine** — Path simulation for derivative pricing
-- **Walk-Forward Backtesting** — Out-of-sample validation
-- **Latency Queue** — Priority-queue latency simulation
+- **Black-Scholes-Merton** -- Options pricing with Greeks
+- **Heston Stochastic Volatility** -- Smile-calibrated pricing
+- **GARCH(1,1)** -- Volatility forecasting
+- **Monte Carlo Engine** -- Path simulation for derivative pricing
+- **Walk-Forward Backtesting** -- Out-of-sample validation
+- **Latency Queue** -- Priority-queue latency simulation
 
 ### TUI Trading Dashboard
-- **6-screen navigation** — Dashboard, Charts, Orderbook, Positions, AI, Settings
+- **6-screen navigation** -- Dashboard, Charts, Orderbook, Positions, AI, Settings
 - **Real-time sparkline charts** with zoom, scroll, and time range cycling
-- **Live order book visualization** — L2 depth with cumulative volume
-- **13-symbol watchlist** — Auto-updating from market data feed
-- **Exchange heartbeat monitor** — NYSE, NASDAQ, CME, CBOE, LSE, CRYPTO, NSE, BSE
-- **Dexter AI panel** — Live analysis output with BUY/SELL/HOLD recommendation
-- **Mirofish simulation widget** — Rally/Sideways/Dip probability bars
-- **Trading dialogs** — Buy/Sell order entry with qty/price inputs
-- **Emergency controls** — Kill switch (`K`), paper/live toggle (`M`), risk adjust (`+`/`-`)
+- **Live order book visualization** -- L2 depth with cumulative volume
+- **13-symbol watchlist** -- Auto-updating from market data feed
+- **Exchange heartbeat monitor** -- NYSE, NASDAQ, CME, CBOE, LSE, CRYPTO, NSE, BSE
+- **Dexter AI panel** -- Live analysis output with BUY/SELL/HOLD recommendation
+- **Mirofish simulation widget** -- Rally/Sideways/Dip probability bars
+- **Trading dialogs** -- Buy/Sell order entry with qty/price inputs
+- **Emergency controls** -- Kill switch (`K`), paper/live toggle (`M`), risk adjust (`+`/`-`)
 
 ### Compliance and Audit
-- **Full audit trail** — Every state transition logged with `AuditTick`
-- **Pre-trade compliance** — Rule-based order validation
-- **Deterministic replay** — Reproduce any historical trading session
+- **Full audit trail** -- Every state transition logged with `AuditTick`
+- **Pre-trade compliance** -- Rule-based order validation
+- **Deterministic replay** -- Reproduce any historical trading session
 
 ### News Feed Sources
-- **Finnhub News API** — General market news, company-specific news, sector news
-- **Alpaca News API** — US equities breaking news, earnings, SEC filings
-- **NewsAPI.org** — Aggregates Reuters, Bloomberg, CNBC, WSJ, Financial Times, BBC Business
-- **Polygon.io** — SEC filings, earnings reports, company reference data
-- **BSE/NSE RSS** — Indian market news from Bombay and National Stock Exchanges
-- **CoinGecko** — Cryptocurrency market news and sentiment
-- **SEC EDGAR** — Real-time regulatory filings (10-K, 10-Q, 8-K)
+- **Finnhub News API** -- General market news, company-specific news, sector news
+- **Alpaca News API** -- US equities breaking news, earnings, SEC filings
+- **NewsAPI.org** -- Aggregates Reuters, Bloomberg, CNBC, WSJ, Financial Times, BBC Business
+- **Polygon.io** -- SEC filings, earnings reports, company reference data
+- **BSE/NSE RSS** -- Indian market news from Bombay and National Stock Exchanges
+- **CoinGecko** -- Cryptocurrency market news and sentiment
+- **SEC EDGAR** -- Real-time regulatory filings (10-K, 10-Q, 8-K)
 
 ---
 
@@ -254,13 +254,13 @@ cargo check --workspace
 | `S` | Open SELL dialog |
 | `Enter` | Confirm order |
 | `Esc` | Dismiss dialog |
-| `K` | KILL SWITCH — Emergency halt all trading |
+| `K` | KILL SWITCH -- Emergency halt all trading |
 | `M` | Toggle paper/live mode |
 | `+` / `-` | Adjust risk threshold |
 | `D` | Trigger Dexter AI analysis |
 | `F` | Run Mirofish simulation |
 | `Z` / `X` | Chart zoom in/out |
-| `←` / `→` | Chart scroll |
+| `<-` / `->` | Chart scroll |
 | `T` | Cycle chart time range |
 | `E` | Export data to CSV |
 | `R` | Refresh portfolio |
@@ -285,13 +285,13 @@ cargo check --workspace
 
 ## Security
 
-- **Risk interceptor chain** — Every order passes through composable risk checks
-- **Kill switch** — Instant emergency halt with hotkey or programmatic trigger
-- **Paper/live mode isolation** — Separate execution paths prevent accidental live trades
-- **Environment secret management** — `.env` + `dotenvy` with key validation
-- **Audit trail** — Full deterministic replay of every state transition
-- **Pre-trade compliance** — Rule-based order validation before execution
-- **Zeroize** — Sensitive key material zeroized on drop
+- **Risk interceptor chain** -- Every order passes through composable risk checks
+- **Kill switch** -- Instant emergency halt with hotkey or programmatic trigger
+- **Paper/live mode isolation** -- Separate execution paths prevent accidental live trades
+- **Environment secret management** -- `.env` + `dotenvy` with key validation
+- **Audit trail** -- Full deterministic replay of every state transition
+- **Pre-trade compliance** -- Rule-based order validation before execution
+- **Zeroize** -- Sensitive key material zeroized on drop
 
 Report vulnerabilities via [SECURITY.md](SECURITY.md).
 

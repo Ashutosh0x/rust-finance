@@ -15,7 +15,7 @@ Instead, please report them through GitHub's private security advisory feature:
 1. Go to the [Security Advisories page](https://github.com/Ashutosh0x/rust-finance/security/advisories/new)
 2. Click **"New draft security advisory"**
 3. Fill in the details of the vulnerability
-4. Submit — only repository maintainers can see this
+4. Submit -- only repository maintainers can see this
 
 Alternatively, email **security@ashutosh0x.dev** with:
 - Description of the vulnerability
