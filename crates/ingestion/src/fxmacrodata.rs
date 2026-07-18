@@ -5,9 +5,11 @@
 //! Base URL: `https://fxmacrodata.com/api/v1`
 
 use anyhow::{Context, Result};
+use reqwest::header::{HeaderValue, InvalidHeaderValue};
 use reqwest::{Client, Url};
 use serde::Serialize;
 use serde_json::Value;
+use std::fmt;
 use tracing::debug;
 
 const DEFAULT_BASE_URL: &str = "https://fxmacrodata.com/api/v1/";
@@ -17,11 +19,22 @@ const DEFAULT_BASE_URL: &str = "https://fxmacrodata.com/api/v1/";
 /// Methods return `serde_json::Value` so strategies can use the full upstream
 /// response shape without this ingestion crate needing endpoint-specific
 /// schema structs for every macro data family.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FxMacroDataClient {
     client: Client,
     api_key: String,
     base_url: Url,
+}
+
+impl fmt::Debug for FxMacroDataClient {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FxMacroDataClient")
+            .field("client", &self.client)
+            .field("api_key", &"<redacted>")
+            .field("base_url", &self.base_url)
+            .finish()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -195,8 +208,7 @@ impl FxMacroDataClient {
         let url = self.build_url("graphql", &[])?;
         let body = GraphQlRequest { query, variables };
         let response = self
-            .client
-            .post(url.clone())
+            .with_api_key(self.client.post(url.clone()))?
             .json(&body)
             .send()
             .await
@@ -210,8 +222,7 @@ impl FxMacroDataClient {
         debug!(url = %url, "FXMacroData REST request");
 
         let response = self
-            .client
-            .get(url.clone())
+            .with_api_key(self.client.get(url.clone()))?
             .send()
             .await
             .context("FXMacroData request failed")?;
@@ -231,10 +242,17 @@ impl FxMacroDataClient {
             for (key, value) in params {
                 query.append_pair(key, value);
             }
-            query.append_pair("api_key", &self.api_key);
         }
 
         Ok(url)
+    }
+
+    fn with_api_key(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<reqwest::RequestBuilder, InvalidHeaderValue> {
+        let value = HeaderValue::from_str(&self.api_key)?;
+        Ok(request.header("X-API-Key", value))
     }
 
     async fn parse_response(response: reqwest::Response, url: &str) -> Result<Value> {
@@ -256,7 +274,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builds_forex_url_with_api_key() {
+    fn builds_forex_url_without_api_key_query() {
         let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
             .expect("valid URL");
         let url = client
@@ -265,8 +283,40 @@ mod tests {
 
         assert_eq!(
             url.as_str(),
-            "https://example.com/api/v1/forex/eur/usd?limit=1&api_key=test-key"
+            "https://example.com/api/v1/forex/eur/usd?limit=1"
         );
+    }
+
+    #[test]
+    fn sends_api_key_in_header() {
+        let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
+            .expect("valid URL");
+        let url = client
+            .build_url("forex/eur/usd", &[("limit", "1".to_string())])
+            .expect("URL should build");
+        let request = client
+            .with_api_key(client.client.get(url))
+            .expect("header should be valid")
+            .build()
+            .expect("request should build");
+
+        assert_eq!(
+            request
+                .headers()
+                .get("X-API-Key")
+                .and_then(|value| value.to_str().ok()),
+            Some("test-key")
+        );
+    }
+
+    #[test]
+    fn debug_redacts_api_key() {
+        let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
+            .expect("valid URL");
+        let rendered = format!("{client:?}");
+
+        assert!(rendered.contains("<redacted>"), "{rendered}");
+        assert!(!rendered.contains("test-key"), "{rendered}");
     }
 
     #[test]
@@ -300,7 +350,7 @@ mod tests {
                 url.as_str().starts_with("https://example.com/api/v1/"),
                 "{url}"
             );
-            assert!(url.as_str().contains("api_key=test-key"), "{url}");
+            assert!(!url.as_str().contains("api_key"), "{url}");
         }
     }
 }
