@@ -2,6 +2,10 @@
 resolver = "2"
 members = [
   "crates/common",
+  "crates/exchange-core",
+  "crates/nasdaq",
+  "crates/nyse",
+  "crates/exchange",
   "crates/ingestion",
   "crates/feature",
   "crates/strategy",

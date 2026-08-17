@@ -1,0 +1,14 @@
+[package]
+name = "exchange-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Shared wire primitives, fixed-point prices, L3 order book and gap tracking for direct exchange feeds"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+thiserror = "1.0"

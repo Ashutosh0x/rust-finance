@@ -1,0 +1,20 @@
+[package]
+name = "nasdaq"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Nasdaq direct connectivity: TotalView-ITCH 5.0, OUCH 4.2, SoupBinTCP 3.00 and MoldUDP64"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+exchange-core = { path = "../exchange-core" }
+tokio = { version = "1.35", features = ["net", "io-util", "sync", "time", "rt", "macros"] }
+tracing = "0.1"
+thiserror = "1.0"
+
+[dev-dependencies]
+tokio = { version = "1.35", features = ["full", "test-util"] }

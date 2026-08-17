@@ -3,8 +3,60 @@
 
 use crate::time::{SequenceId, UnixNanos};
 use compact_str::CompactString;
+use serde::{Deserialize, Serialize};
 
 // ─── Event Envelope ──────────────────────────────────────────────────────────
+
+/// Compact identifier for a trading venue, resolved from the venue registry.
+///
+/// Integer rather than a string so it costs nothing to carry on every event. The mapping
+/// back to a MIC, a name and a set of capabilities lives in configuration, never in code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct VenueId(pub u16);
+
+/// Compact identifier for one feed of one venue (a product plus a channel).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct FeedId(pub u16);
+
+/// Compact identifier for the wire protocol a feed speaks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[repr(transparent)]
+pub struct ProtocolId(pub u16);
+
+/// Where an event came from, preserved intact through normalization.
+///
+/// Normalization exists to make venues comparable, not to erase which venue an observation
+/// came from. Every field here answers a question an auditor will eventually ask — which
+/// venue, which feed, which protocol, which sequence number, what the exchange said the time
+/// was, and when we actually received it — and none of it can be reconstructed after the
+/// fact. It is plain integers, so carrying it costs memory bandwidth and no allocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Provenance {
+    pub venue: VenueId,
+    pub feed: FeedId,
+    pub protocol: ProtocolId,
+    /// The venue's own sequence number for this message.
+    pub sequence: u64,
+    /// The timestamp the exchange stamped on the event.
+    pub exchange_ts: UnixNanos,
+    /// When the bytes arrived locally. The difference from `exchange_ts` is wire latency.
+    pub receive_ts: UnixNanos,
+    /// Version of the normalization that produced the payload, so a downstream consumer can
+    /// tell whether two events were derived by the same rules.
+    pub schema_version: u16,
+}
+
+impl Provenance {
+    /// Wire latency implied by the two timestamps, or `None` when the exchange timestamp is
+    /// absent or ahead of local time (unsynchronised clocks — a real condition, not an error
+    /// to paper over).
+    pub fn wire_latency_nanos(&self) -> Option<u64> {
+        let (ex, rx) = (self.exchange_ts.as_u64(), self.receive_ts.as_u64());
+        (ex != 0 && rx > ex).then(|| rx - ex)
+    }
+}
 
 /// Universal envelope wrapping every event in the system.
 /// Provides total ordering via (ts_event, sequence_id).
@@ -16,11 +68,18 @@ pub struct Envelope<T> {
     pub ts_init: UnixNanos,
     /// Monotonic sequence for deterministic ordering.
     pub sequence_id: SequenceId,
+    /// Source lineage, where the producing source can supply it.
+    ///
+    /// `None` is honest rather than lazy: a vendor WebSocket feed genuinely has no venue
+    /// sequence number to record, and inventing one would make an unauditable event look
+    /// auditable. Direct exchange feeds always populate it.
+    pub provenance: Option<Provenance>,
     /// The actual payload.
     pub payload: T,
 }
 
 impl<T> Envelope<T> {
+    /// Build an envelope with no source lineage. For sources that genuinely cannot supply it.
     pub fn new(
         ts_event: UnixNanos,
         ts_init: UnixNanos,
@@ -31,8 +90,31 @@ impl<T> Envelope<T> {
             ts_event,
             ts_init,
             sequence_id,
+            provenance: None,
             payload,
         }
+    }
+
+    /// Build an envelope carrying full source lineage.
+    pub fn with_provenance(
+        ts_event: UnixNanos,
+        ts_init: UnixNanos,
+        sequence_id: SequenceId,
+        provenance: Provenance,
+        payload: T,
+    ) -> Self {
+        Self {
+            ts_event,
+            ts_init,
+            sequence_id,
+            provenance: Some(provenance),
+            payload,
+        }
+    }
+
+    /// True when this event can be traced back to an authoritative source.
+    pub fn is_traceable(&self) -> bool {
+        self.provenance.is_some()
     }
 }
 

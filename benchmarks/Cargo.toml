@@ -14,6 +14,9 @@ publish = false
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+exchange-core = { path = "../crates/exchange-core" }
+nasdaq = { path = "../crates/nasdaq" }
+nyse = { path = "../crates/nyse" }
 hdrhistogram = "7.5"
 iai = "0.1"
 dhat = "0.3"
@@ -44,4 +47,9 @@ harness = false
 [[bench]]
 name = "05_institutional_benchmark"
 path = "benches/05_institutional_benchmark.rs"
+harness = false
+
+[[bench]]
+name = "06_direct_exchange_feeds"
+path = "benches/06_direct_exchange_feeds.rs"
 harness = false

@@ -242,6 +242,7 @@ fn parse_price_change(
         .unwrap_or(ts_init);
 
     Some(Ok(Envelope {
+        provenance: None,
         ts_event,
         ts_init,
         sequence_id: seq_gen.next_id(),
@@ -309,6 +310,7 @@ fn parse_poly_trade(
         .unwrap_or(ts_init);
 
     Some(Ok(Envelope {
+        provenance: None,
         ts_event,
         ts_init,
         sequence_id: seq_gen.next_id(),

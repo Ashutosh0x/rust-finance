@@ -1,0 +1,341 @@
+//! Latency recording for the feed-handler hot path.
+//!
+//! Direct-feed work is judged in microseconds, and an average is the wrong statistic — what
+//! matters is the tail. This is a fixed-bucket log-linear histogram: constant memory, no
+//! allocation on record, and no sorting at query time.
+//!
+//! Bucketing: each power-of-two magnitude is split into [`SUB_BUCKETS`] linear sub-buckets,
+//! giving ~3% worst-case relative error over the whole range — the same scheme HdrHistogram
+//! uses, minus the auto-resizing.
+
+/// Sub-buckets per power of two. 16 → ≤ 1/32 ≈ 3.1% relative error.
+const SUB_BUCKETS: usize = 16;
+/// Powers of two covered: 1 ns … ~2^40 ns (≈ 18 minutes).
+const MAGNITUDES: usize = 40;
+const BUCKET_COUNT: usize = SUB_BUCKETS * MAGNITUDES;
+
+/// A latency histogram over nanosecond samples.
+#[derive(Debug, Clone)]
+pub struct LatencyHistogram {
+    label: &'static str,
+    buckets: [u64; BUCKET_COUNT],
+    count: u64,
+    sum: u128,
+    min: u64,
+    max: u64,
+}
+
+impl LatencyHistogram {
+    pub fn new(label: &'static str) -> Self {
+        Self {
+            label,
+            buckets: [0; BUCKET_COUNT],
+            count: 0,
+            sum: 0,
+            min: u64::MAX,
+            max: 0,
+        }
+    }
+
+    #[inline]
+    pub fn label(&self) -> &'static str {
+        self.label
+    }
+
+    #[inline]
+    pub fn count(&self) -> u64 {
+        self.count
+    }
+
+    #[inline]
+    pub fn min(&self) -> Option<u64> {
+        (self.count > 0).then_some(self.min)
+    }
+
+    #[inline]
+    pub fn max(&self) -> Option<u64> {
+        (self.count > 0).then_some(self.max)
+    }
+
+    pub fn mean(&self) -> Option<f64> {
+        (self.count > 0).then(|| self.sum as f64 / self.count as f64)
+    }
+
+    /// Record one sample, in nanoseconds.
+    #[inline]
+    pub fn record(&mut self, nanos: u64) {
+        let idx = Self::bucket_index(nanos);
+        self.buckets[idx] += 1;
+        self.count += 1;
+        self.sum += nanos as u128;
+        self.min = self.min.min(nanos);
+        self.max = self.max.max(nanos);
+    }
+
+    /// Record the interval between two monotonic readings, ignoring the sample if the
+    /// second reading is not after the first (clock adjustment, or reordered timestamps).
+    #[inline]
+    pub fn record_span(&mut self, start_ns: u64, end_ns: u64) {
+        if end_ns > start_ns {
+            self.record(end_ns - start_ns);
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.buckets = [0; BUCKET_COUNT];
+        self.count = 0;
+        self.sum = 0;
+        self.min = u64::MAX;
+        self.max = 0;
+    }
+
+    /// Value at the given quantile (0.0 … 1.0), in nanoseconds.
+    ///
+    /// Returns the upper edge of the containing bucket, so the reported value is an upper
+    /// bound on the true quantile — the conservative direction for a latency budget.
+    pub fn quantile(&self, q: f64) -> Option<u64> {
+        if self.count == 0 {
+            return None;
+        }
+        let q = q.clamp(0.0, 1.0);
+        let target = ((self.count as f64) * q).ceil().max(1.0) as u64;
+        let mut seen = 0u64;
+        for (idx, &n) in self.buckets.iter().enumerate() {
+            seen += n;
+            if seen >= target {
+                return Some(Self::bucket_upper_bound(idx).min(self.max));
+            }
+        }
+        Some(self.max)
+    }
+
+    pub fn p50(&self) -> Option<u64> {
+        self.quantile(0.50)
+    }
+    pub fn p99(&self) -> Option<u64> {
+        self.quantile(0.99)
+    }
+    pub fn p999(&self) -> Option<u64> {
+        self.quantile(0.999)
+    }
+
+    /// A one-line summary suitable for a log or a metrics scrape.
+    pub fn summary(&self) -> LatencySummary {
+        LatencySummary {
+            label: self.label,
+            count: self.count,
+            min_ns: self.min().unwrap_or(0),
+            p50_ns: self.p50().unwrap_or(0),
+            p99_ns: self.p99().unwrap_or(0),
+            p999_ns: self.p999().unwrap_or(0),
+            max_ns: self.max().unwrap_or(0),
+            mean_ns: self.mean().unwrap_or(0.0),
+        }
+    }
+
+    /// Sub-bucket width in bits: `SUB_BUCKETS == 1 << SUB_BITS`.
+    const SUB_BITS: usize = SUB_BUCKETS.trailing_zeros() as usize;
+
+    /// Bucket layout: values below [`SUB_BUCKETS`] are stored exactly, one per bucket.
+    /// Above that, a value of magnitude `m = floor(log2(v))` is right-shifted by `m -
+    /// SUB_BITS` so its top bits land in `[SUB_BUCKETS, 2*SUB_BUCKETS)`, and the offset
+    /// within that window selects the sub-bucket.
+    fn bucket_index(v: u64) -> usize {
+        if v < SUB_BUCKETS as u64 {
+            return v as usize;
+        }
+        let magnitude = 63 - v.leading_zeros() as usize; // floor(log2(v))
+        let shift = magnitude - Self::SUB_BITS;
+        let sub = ((v >> shift) as usize) - SUB_BUCKETS;
+        let group = magnitude - Self::SUB_BITS + 1;
+        (group * SUB_BUCKETS + sub).min(BUCKET_COUNT - 1)
+    }
+
+    /// Largest value that maps to `idx` — the inverse of [`Self::bucket_index`].
+    fn bucket_upper_bound(idx: usize) -> u64 {
+        if idx < SUB_BUCKETS {
+            return idx as u64;
+        }
+        let group = idx / SUB_BUCKETS;
+        let sub = idx % SUB_BUCKETS;
+        let shift = group - 1;
+        (((SUB_BUCKETS + sub + 1) as u64) << shift) - 1
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LatencySummary {
+    pub label: &'static str,
+    pub count: u64,
+    pub min_ns: u64,
+    pub p50_ns: u64,
+    pub p99_ns: u64,
+    pub p999_ns: u64,
+    pub max_ns: u64,
+    pub mean_ns: f64,
+}
+
+impl std::fmt::Display for LatencySummary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} n={} min={:.1}us p50={:.1}us p99={:.1}us p99.9={:.1}us max={:.1}us",
+            self.label,
+            self.count,
+            self.min_ns as f64 / 1000.0,
+            self.p50_ns as f64 / 1000.0,
+            self.p99_ns as f64 / 1000.0,
+            self.p999_ns as f64 / 1000.0,
+            self.max_ns as f64 / 1000.0,
+        )
+    }
+}
+
+/// The three latencies worth separating on a direct feed.
+#[derive(Debug, Clone)]
+pub struct FeedLatency {
+    /// Exchange source timestamp → local receive timestamp (wire + stack).
+    pub wire: LatencyHistogram,
+    /// Local receive → message decoded.
+    pub decode: LatencyHistogram,
+    /// Local receive → book updated and downstream notified.
+    pub book: LatencyHistogram,
+}
+
+impl Default for FeedLatency {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FeedLatency {
+    pub fn new() -> Self {
+        Self {
+            wire: LatencyHistogram::new("wire"),
+            decode: LatencyHistogram::new("decode"),
+            book: LatencyHistogram::new("book"),
+        }
+    }
+
+    pub fn summaries(&self) -> [LatencySummary; 3] {
+        [
+            self.wire.summary(),
+            self.decode.summary(),
+            self.book.summary(),
+        ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_histogram_reports_nothing_rather_than_zero() {
+        let h = LatencyHistogram::new("t");
+        assert_eq!(h.p50(), None);
+        assert_eq!(h.mean(), None);
+        assert_eq!(h.min(), None);
+    }
+
+    #[test]
+    fn small_values_land_in_exact_buckets() {
+        let mut h = LatencyHistogram::new("t");
+        for v in 0..16 {
+            h.record(v);
+        }
+        assert_eq!(h.min(), Some(0));
+        assert_eq!(h.max(), Some(15));
+    }
+
+    #[test]
+    fn quantiles_are_within_the_documented_error_band() {
+        let mut h = LatencyHistogram::new("t");
+        for v in 1..=10_000u64 {
+            h.record(v * 100); // 100ns .. 1ms
+        }
+        let p50 = h.p50().unwrap();
+        let expected = 500_000u64;
+        let err = (p50 as f64 - expected as f64).abs() / expected as f64;
+        assert!(err < 0.05, "p50 {p50} too far from {expected} (err {err})");
+        assert!(h.p99().unwrap() >= h.p50().unwrap());
+        assert!(h.p999().unwrap() >= h.p99().unwrap());
+    }
+
+    #[test]
+    fn quantile_never_exceeds_the_observed_maximum() {
+        let mut h = LatencyHistogram::new("t");
+        h.record(1_234);
+        h.record(45_678);
+        assert_eq!(h.max(), Some(45_678));
+        assert!(h.quantile(1.0).unwrap() <= 45_678);
+    }
+
+    #[test]
+    fn tail_is_visible_where_a_mean_would_hide_it() {
+        let mut h = LatencyHistogram::new("t");
+        for _ in 0..9_900 {
+            h.record(5_000); // 5us
+        }
+        for _ in 0..100 {
+            h.record(2_000_000); // 2ms
+        }
+        // The mean (~25us) is two orders of magnitude below the tail it is averaging in.
+        let mean = h.mean().unwrap();
+        let p999 = h.p999().unwrap();
+        assert!(mean < 50_000.0, "mean {mean} should stay near the body");
+        assert!(p999 > 1_000_000, "p99.9 {p999} should expose the 2ms tail");
+        assert!(p999 as f64 > mean * 20.0, "tail must dominate the mean");
+    }
+
+    #[test]
+    fn record_span_ignores_non_positive_intervals() {
+        let mut h = LatencyHistogram::new("t");
+        h.record_span(100, 50);
+        h.record_span(100, 100);
+        assert_eq!(h.count(), 0);
+        h.record_span(100, 150);
+        assert_eq!(h.count(), 1);
+    }
+
+    #[test]
+    fn every_value_lands_at_or_below_its_bucket_upper_bound() {
+        for v in [
+            0u64,
+            1,
+            15,
+            16,
+            17,
+            31,
+            32,
+            33,
+            1_000,
+            100_000,
+            1_000_000,
+            1 << 30,
+        ] {
+            let idx = LatencyHistogram::bucket_index(v);
+            let upper = LatencyHistogram::bucket_upper_bound(idx);
+            assert!(
+                upper >= v,
+                "value {v} exceeds its bucket upper bound {upper}"
+            );
+            // And the error stays inside the documented ~3% band above the exact region.
+            if v >= SUB_BUCKETS as u64 {
+                let err = (upper - v) as f64 / v as f64;
+                assert!(err < 0.07, "value {v} bucket error {err} too wide");
+            }
+        }
+    }
+
+    #[test]
+    fn bucket_indices_are_monotonic_in_value() {
+        let mut last = 0;
+        for shift in 0..40 {
+            let v = 1u64 << shift;
+            let idx = LatencyHistogram::bucket_index(v);
+            assert!(idx >= last, "bucket index went backwards at 2^{shift}");
+            last = idx;
+        }
+    }
+}

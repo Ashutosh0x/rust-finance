@@ -45,32 +45,106 @@ const TEXT_SECONDARY: Color = theme::TEXT_DIM;
 const YELLOW: Color = theme::YELLOW;
 
 
-/// Force 24-bit colour on before anything is rendered, and report the result.
+/// Why the interface might render without colour, decided before anything is
+/// drawn.
 ///
-/// crossterm decides once, lazily, whether the terminal understands ANSI. On
-/// Windows that decision is `enable_vt_processing()`, i.e. setting
-/// `ENABLE_VIRTUAL_TERMINAL_PROCESSING` on the console output handle. If it is
-/// never called early, or if it fails, crossterm falls back to the legacy
-/// WinAPI path — which has only 16 colours, so every `Color::Rgb` in the theme
-/// collapses to the default foreground and the whole UI renders monochrome.
+/// There are two independent ways every `Color::Rgb` in [`theme`] can be
+/// thrown away before it reaches the screen, and they need different fixes:
 ///
-/// Calling it here forces the attempt up front, and writes the outcome to
-/// `tui-diagnostics.txt` next to the working directory so a "why is it all
-/// white?" report can be answered from a file instead of a guess.
-fn init_colour_support() -> bool {
-    #[cfg(windows)]
-    let supported = crossterm::ansi_support::supports_ansi();
-    #[cfg(not(windows))]
-    let supported = true;
+/// 1. **`NO_COLOR` is set.** crossterm implements <https://no-color.org/>: if
+///    `NO_COLOR` is set to any non-empty value it drops colour on the legacy
+///    WinAPI path and emits no SGR sequences at all. This is easy to hit
+///    without knowing it — many tool harnesses and CI runners export it for
+///    their own child processes, so the app inherits it and renders white
+///    through a terminal that is perfectly capable of true colour.
+/// 2. **No virtual-terminal processing.** On Windows crossterm must set
+///    `ENABLE_VIRTUAL_TERMINAL_PROCESSING` on the console handle. If that
+///    fails it falls back to a 16-colour WinAPI path and the palette
+///    collapses.
+///
+/// `NO_COLOR` is deliberately *honoured*, not overridden — it is a user
+/// preference and silently ignoring it would be user-hostile. Set
+/// `RUSTFORGE_FORCE_COLOR=1` to override it for this process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ColourSupport {
+    /// True colour is available; the palette renders as designed.
+    Full,
+    /// Suppressed by `NO_COLOR`, and not overridden.
+    DisabledByNoColor,
+    /// The console refused virtual-terminal processing.
+    NoVirtualTerminal,
+}
+
+impl ColourSupport {
+    fn detect() -> Self {
+        let no_color = std::env::var("NO_COLOR").is_ok_and(|v| !v.is_empty());
+        let forced = std::env::var("RUSTFORGE_FORCE_COLOR").is_ok_and(|v| !v.is_empty());
+
+        if no_color && !forced {
+            return Self::DisabledByNoColor;
+        }
+        if forced {
+            // Overrides NO_COLOR for *this* process only. Sets a static inside
+            // crossterm, which is why `tui` must depend on the same crossterm
+            // version as ratatui — see crates/tui/Cargo.toml.
+            crossterm::style::force_color_output(true);
+        }
+
+        #[cfg(windows)]
+        let vt = crossterm::ansi_support::supports_ansi();
+        #[cfg(not(windows))]
+        let vt = true;
+
+        if vt {
+            Self::Full
+        } else {
+            Self::NoVirtualTerminal
+        }
+    }
+
+    /// The actionable message, or `None` when colour is working.
+    fn advice(self) -> Option<&'static str> {
+        match self {
+            Self::Full => None,
+            Self::DisabledByNoColor => Some(
+                "NO_COLOR is set, so the interface is rendering without colour.\n\
+                 This is often inherited from a parent process rather than set by you.\n\
+                 Fix: run rustforge from a normal terminal, or override it with\n\
+                 \x20 RUSTFORGE_FORCE_COLOR=1",
+            ),
+            Self::NoVirtualTerminal => Some(
+                "This console does not support 24-bit colour, so the interface is\n\
+                 rendering without colour.\n\
+                 Fix: run inside Windows Terminal, or enable VT processing once with\n\
+                 \x20 reg add HKCU\\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f",
+            ),
+        }
+    }
+}
+
+/// Decide colour support up front and leave a written trace of the decision.
+///
+/// The report goes to `tui-diagnostics.txt` in the working directory so a
+/// "why is it all white?" report can be answered from a file instead of a
+/// guess.
+fn init_colour_support() -> ColourSupport {
+    let support = ColourSupport::detect();
 
     let report = format!(
-        "supports_ansi        = {supported}\n\
-         TERM                 = {:?}\n\
-         COLORTERM            = {:?}\n\
-         WT_SESSION           = {:?}\n\
-         stdout_is_tty        = {}\n\
-         note: supports_ansi=false means crossterm is using the legacy 16-colour\n\
-         WinAPI path and every Color::Rgb in the theme is being discarded.\n",
+        "colour_support        = {support:?}\n\
+         NO_COLOR              = {:?}\n\
+         RUSTFORGE_FORCE_COLOR = {:?}\n\
+         TERM                  = {:?}\n\
+         COLORTERM             = {:?}\n\
+         WT_SESSION            = {:?}\n\
+         stdout_is_tty         = {}\n\
+         \n\
+         DisabledByNoColor -> crossterm is honouring https://no-color.org/ and\n\
+         emitting no SGR sequences; override with RUSTFORGE_FORCE_COLOR=1.\n\
+         NoVirtualTerminal -> crossterm is using the legacy 16-colour WinAPI\n\
+         path and every Color::Rgb in the theme is being discarded.\n",
+        std::env::var("NO_COLOR").ok(),
+        std::env::var("RUSTFORGE_FORCE_COLOR").ok(),
         std::env::var("TERM").ok(),
         std::env::var("COLORTERM").ok(),
         std::env::var("WT_SESSION").ok(),
@@ -78,15 +152,10 @@ fn init_colour_support() -> bool {
     );
     let _ = std::fs::write("tui-diagnostics.txt", &report);
 
-    if !supported {
-        eprintln!(
-            "\n[rustforge] This terminal does not support 24-bit colour, so the \
-             interface will render without colour.\n\
-             Fix: run inside Windows Terminal, or enable VT processing once with\n\
-             \x20 reg add HKCU\\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f\n"
-        );
+    if let Some(advice) = support.advice() {
+        eprintln!("\n[rustforge] {advice}\n");
     }
-    supported
+    support
 }
 
 #[tokio::main]

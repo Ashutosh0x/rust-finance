@@ -12,7 +12,12 @@ categories.workspace = true
 
 [dependencies]
 ratatui = "0.29"
-crossterm = "0.27"
+# Must stay in lockstep with the crossterm that `ratatui` depends on.
+# ratatui 0.29 uses crossterm 0.28, and colour output is controlled by a
+# process-global static *inside* crossterm. Two copies of the crate mean two
+# independent statics, so `force_color_output` called here would silently fail
+# to affect the copy ratatui actually renders through.
+crossterm = "0.28"
 anyhow = "1.0"
 tokio = { version = "1.35", features = ["full"] }
 common = { path = "../common" }

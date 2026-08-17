@@ -224,6 +224,7 @@ fn parse_binance_combined(
             });
 
             Some(Ok(Envelope {
+                provenance: None,
                 ts_event: UnixNanos::from_millis(trade_time_ms),
                 ts_init,
                 sequence_id: seq_gen.next_id(),
@@ -273,6 +274,7 @@ fn parse_binance_combined(
             });
 
             Some(Ok(Envelope {
+                provenance: None,
                 ts_event: UnixNanos::from_millis(event_time_ms),
                 ts_init,
                 sequence_id: seq_gen.next_id(),
@@ -293,6 +295,7 @@ fn parse_binance_combined(
             let event = MarketEvent::BookUpdate(BookUpdateEvent { symbol, bids, asks });
 
             Some(Ok(Envelope {
+                provenance: None,
                 ts_event: UnixNanos::from_millis(event_time_ms),
                 ts_init,
                 sequence_id: seq_gen.next_id(),
@@ -313,6 +316,7 @@ fn parse_binance_combined(
             let event = MarketEvent::BookUpdate(BookUpdateEvent { symbol, bids, asks });
 
             Some(Ok(Envelope {
+                provenance: None,
                 ts_event: ts_init,
                 ts_init,
                 sequence_id: seq_gen.next_id(),
@@ -382,6 +386,7 @@ fn parse_book_ticker(
     });
 
     Some(Ok(Envelope {
+        provenance: None,
         ts_event,
         ts_init,
         sequence_id: seq_gen.next_id(),

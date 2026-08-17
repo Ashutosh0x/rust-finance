@@ -1,0 +1,33 @@
+[package]
+name = "exchange"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Direct exchange connectivity wired into the RustForge ingestion and execution traits"
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+common = { path = "../common" }
+ingestion = { path = "../ingestion" }
+execution = { path = "../execution" }
+exchange-core = { path = "../exchange-core" }
+nasdaq = { path = "../nasdaq" }
+nyse = { path = "../nyse" }
+
+tokio = { version = "1.35", features = ["full"] }
+tokio-stream = "0.1"
+async-trait = "0.1"
+futures = "0.3"
+async-stream = "0.3"
+compact_str = "0.8"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["clock"] }
+
+[dev-dependencies]
+tokio = { version = "1.35", features = ["full", "test-util"] }

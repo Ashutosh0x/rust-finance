@@ -36,6 +36,17 @@
   <img src="https://img.shields.io/badge/BSE-004C8F?style=for-the-badge" alt="BSE" />
   <img src="https://img.shields.io/badge/CRYPTO-F7931A?style=for-the-badge" alt="CRYPTO" />
   <br />
+  <img src="https://img.shields.io/badge/ITCH_5.0-0090F7?style=for-the-badge&logo=nasdaq&logoColor=white" alt="Nasdaq TotalView-ITCH 5.0" />
+  <img src="https://img.shields.io/badge/OUCH_4.2-0090F7?style=for-the-badge&logo=nasdaq&logoColor=white" alt="Nasdaq OUCH 4.2" />
+  <img src="https://img.shields.io/badge/SoupBinTCP-1E6FBA?style=for-the-badge&logo=databricks&logoColor=white" alt="SoupBinTCP 3.00" />
+  <img src="https://img.shields.io/badge/MoldUDP64-1E6FBA?style=for-the-badge&logo=wireshark&logoColor=white" alt="MoldUDP64" />
+  <br />
+  <img src="https://img.shields.io/badge/XDP_Integrated-092140?style=for-the-badge&logo=new-york-stock-exchange&logoColor=white" alt="NYSE XDP Integrated Feed" />
+  <img src="https://img.shields.io/badge/Pillar_Binary-092140?style=for-the-badge&logo=new-york-stock-exchange&logoColor=white" alt="NYSE Pillar Binary Gateway" />
+  <img src="https://img.shields.io/badge/FIX_4.2%2F4.4-005571?style=for-the-badge&logo=fastapi&logoColor=white" alt="FIX 4.2 / 4.4" />
+  <img src="https://img.shields.io/badge/UDP_Multicast-6A5ACD?style=for-the-badge&logo=cisco&logoColor=white" alt="UDP Multicast" />
+  <img src="https://img.shields.io/badge/Co--location-2F4F4F?style=for-the-badge&logo=serverfault&logoColor=white" alt="Co-location" />
+  <br />
   <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS" />
   <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux" />
@@ -57,6 +68,7 @@ RustFinance Terminal, also called RustForge, is an open-source Rust trading term
 - **Run the daemon:** `USE_MOCK=1 cargo run -p daemon --release`
 - **Demo:** https://github.com/user-attachments/assets/c769b2c2-cfa0-44bd-a261-99786ea653e1
 - **Community:** [Roadmap](ROADMAP.md), [Contributing](CONTRIBUTING.md), [good first issues](https://github.com/Ashutosh0x/rust-finance/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- **Direct exchange connectivity:** [Nasdaq ITCH/OUCH + NYSE Pillar](docs/DIRECT_EXCHANGE_CONNECTIVITY.md) — native binary protocols, 294 tests
 - **Research Paper:** [📄 RustFinance Research Paper 2026 (PDF)](rustfinance.pdf) — 1,400+ line LaTeX paper covering architecture, 18 research papers, quantitative models, and benchmarks
 - **Funding:** [GitHub Sponsors](https://github.com/sponsors/Ashutosh0x), [Buy Me a Coffee](https://buymeacoffee.com/Ashutosh0x), [funding.json](funding.json)
 - **Recognition:** [Listed in awesome-rust Finance applications](https://github.com/rust-unofficial/awesome-rust/pull/2447)
@@ -96,9 +108,13 @@ RustForge is an institutional-grade AI trading terminal built in pure Rust. It c
 | Regulatory Compliance | SEBI 2026 Algo-ID + OPS threshold + pre-trade checks |
 | Fill Simulation | Almgren-Chriss √-impact model + fixed slippage |
 | Alpha Monitoring | Rolling IC, Sharpe, hit rate with auto-decay detection |
-| FIX Protocol | Production FIX 4.4 parser with checksum validation |
-| Market Sources | Alpaca, Binance, Finnhub, Polymarket, Mock |
-| Execution | Alpaca REST, Polymarket CLOB, Paper Trading |
+| FIX Protocol | Production FIX 4.4 parser + NYSE Pillar FIX 4.2 profile |
+| Direct Feeds | Nasdaq TotalView-ITCH 5.0 (MoldUDP64/SoupBinTCP), NYSE XDP Integrated (A/B multicast) |
+| Native Order Entry | Nasdaq OUCH 4.2, NYSE Pillar Binary Gateway, NYSE Pillar FIX 4.2 |
+| Order Book | Level 3 order-by-order, exact integer prices (1e-9 USD), venue-neutral |
+| Feed Recovery | MoldUDP64 re-request, Pillar retransmit + refresh, A/B line arbitration, GLIMPSE |
+| Market Sources | Nasdaq ITCH, NYSE XDP, Alpaca, Binance, Finnhub, Polymarket, Mock |
+| Execution | Nasdaq OUCH, NYSE Pillar (binary + FIX), Alpaca REST, Polymarket CLOB, Paper Trading |
 | License | MIT |
 
 ![Rust Trading Terminal](assets/rust_terminal.png)
@@ -108,6 +124,7 @@ RustForge is an institutional-grade AI trading terminal built in pure Rust. It c
 ## Table of Contents
 - [Overview](#overview)
 - [Architecture](#architecture)
+- [Direct Exchange Connectivity](#direct-exchange-connectivity-nasdaq--nyse)
 - [Quick Start](#quick-start)
 - [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)
@@ -124,10 +141,16 @@ RustForge is an institutional-grade AI trading terminal built in pure Rust. It c
 
 ## Architecture
 
-34 modular crates, 250+ source files, strict dependency boundaries.
+38 modular crates, 260+ source files, strict dependency boundaries.
 
 ```mermaid
 graph TD;
+    subgraph "Direct Exchange Feeds"
+        ITCH(Nasdaq ITCH 5.0<br/>MoldUDP64 / SoupBinTCP) --> XCore(exchange-core<br/>L3 Book · Gap Tracker · Price)
+        XDP(NYSE XDP Integrated<br/>A/B multicast lines) --> XCore
+        XCore --> Ingest
+    end
+
     subgraph "External Feeds"
         ALP(Alpaca WS) --> Ingest
         BIN(Binance WS) --> Ingest
@@ -151,6 +174,8 @@ graph TD;
         Exec -.-> |Paper Mode| Mock(MockExecutor)
         Exec --> |Live Mode| AlpacaAPI(Alpaca REST)
         Exec --> |Prediction| PolyCLOB(Polymarket CLOB)
+        Exec --> |Nasdaq Native| OUCH(OUCH 4.2 / SoupBinTCP)
+        Exec --> |NYSE Native| PILLAR(Pillar Binary / Pillar FIX 4.2)
     end
 
     subgraph "Quantitative Models"
@@ -176,6 +201,10 @@ graph TD;
 
 ```
 common           Nanosecond timestamps, events, config, models
+exchange-core    Wire primitives, exact fixed-point Price, L3 order book, gap tracker, latency histogram
+nasdaq           TotalView-ITCH 5.0 + OUCH 4.2 + SoupBinTCP 3.00 + MoldUDP64
+nyse             XDP Integrated Feed + Pillar Request Server + Pillar Binary Gateway + Pillar FIX 4.2
+exchange         Direct-feed MarketDataSource/ExecutionGateway adapters, preflight, capture replay
 ingestion        Multi-source market data (Alpaca, Binance, Finnhub, Polymarket) + gap detector
 execution        ExecutionGateway + TWAP/VWAP/Iceberg/POV + Almgren-Chriss optimal execution
 strategy         Momentum, MeanReversion, Avellaneda-Stoikov (Welford O(1) variance)
@@ -235,6 +264,61 @@ Almgren-Chriss   Optimal trajectory: xⱼ = X × sinh(κ(N-j)) / sinh(κN)
 
 ---
 
+## Direct Exchange Connectivity (Nasdaq + NYSE)
+
+Native co-location-grade connectivity to both US primary listing venues — the exchanges' own
+binary protocols, implemented from the published specifications. No vendor SDK, no REST polling.
+**294 unit tests** across four crates.
+
+📄 **Full documentation: [docs/DIRECT_EXCHANGE_CONNECTIVITY.md](docs/DIRECT_EXCHANGE_CONNECTIVITY.md)**
+
+| | Nasdaq (Carteret, NJ) | NYSE / ICE Pillar (Mahwah, NJ) |
+|---|---|---|
+| **Market data** | TotalView-ITCH 5.0 — all 22 message types | XDP Integrated Feed — types 100–114 + 223 |
+| **Transport** | MoldUDP64 multicast · SoupBinTCP 3.00 | UDP multicast, A/B line arbitration |
+| **Recovery** | Re-request server · GLIMPSE snapshot | Pillar Request Server — retransmit + refresh |
+| **Order entry** | OUCH 4.2 over SoupBinTCP | Pillar Binary Gateway · Pillar FIX 4.2 |
+| **Byte order** | Big endian, space-padded | Little endian, NUL-padded |
+
+```
+exchange-core   Wire primitives · exact fixed-point Price · L3 order book · gap tracker · latency histogram
+   ├─ nasdaq    ITCH 5.0 · OUCH 4.2 · SoupBinTCP · MoldUDP64
+   ├─ nyse      XDP packet/common/Integrated · Request Server · Pillar Binary · Pillar FIX 4.2
+   └─ exchange  MarketDataSource + ExecutionGateway adapters · config · colo preflight · replay
+```
+
+**Exact prices, never floats** — every venue scales prices differently (ITCH 4 decimals, Pillar
+gateway 8, XDP a per-symbol `PriceScaleCode`). All normalise to one `i64` at 1e-9 USD, so every
+conversion is an exact integer multiply and tick arithmetic stays associative.
+
+**Level 3 order book** — order-by-order, shared by both venues. An event referencing an unknown
+order id reports `UnknownOrder` and does *not* mutate the book: on a live feed that means a
+dropped packet, and the only correct response is state recovery, never a guess.
+
+**Gap detection that refuses to skip** — shared sequence tracker classifies every packet
+(in-order / duplicate / partial overlap / gap), splits wide gaps to respect the venue's request
+limit, and treats heartbeats as gap evidence since they carry the next-expected sequence. A gap
+with no configured recovery path ends the session rather than publishing a book with a hole in it.
+
+**A/B line arbitration** — NYSE's redundant multicast lines share one tracker, so the first copy
+wins and the second is a duplicate by construction. `ChannelStats` reports the first-arrival split
+between lines, which is how you find a consistently slower path.
+
+**Co-location preflight** — measures TCP RTT, multicast join on the intended NIC, monotonic clock
+resolution, and CPU budget against a `LatencyBudget`. A check that cannot run here reports
+`Skipped`, never `Pass`.
+
+**Capture replay** — recorded datagrams through the same decoders, book builders and normalisers
+as the live path, so a book builder can be validated and an incident reproduced without an
+entitlement.
+
+> **Fail-closed by design.** Nothing here fabricates market data, simulates a session, or defaults
+> a value only an exchange can issue. An unconfigured connector refuses to start and names what it
+> lacks. Encoders exist for round-trip tests and capture tooling only, and are never wired into a
+> feed path.
+
+---
+
 ## Quick Start
 
 ```bash
@@ -272,6 +356,14 @@ cargo run -p tui --release
 - 34-crate workspace compiling in ~17s
 
 ### Market Data
+- **Nasdaq TotalView-ITCH 5.0** — full order-by-order depth, all 22 message types, over MoldUDP64 multicast or SoupBinTCP
+  - Stock-locate filtering *before* field decode — a 20-symbol strategy discards >99% of the tape for free
+  - Symbol directory rebuilt per session (locate codes are reassigned daily), test/demo issues flagged non-production
+  - Non-printable executions excluded from volume, so cross prints are never double counted
+- **NYSE Pillar XDP Integrated Feed** — full depth, message types 100–114 plus Stock Summary, dual multicast lines
+  - Per-symbol `PriceScaleCode` applied before any price is interpreted — messages that arrive ahead of their mapping are counted and dropped, never decoded at a guessed scale
+  - Source Time Reference reassembly (data messages carry only nanoseconds; the seconds arrive once a second per matching-engine partition)
+  - Symbol Clear + refresh sequences handled, resuming the live channel at the snapshot's `LastSeqNum`
 - **Alpaca** — Real-time US equities via WebSocket (5 feeds: IEX, SIP, BOATS, Delayed, Overnight)
 - **Binance** — Crypto streams (trades, bookTicker, kline, depth5) via combined WS endpoint
   - **Live Candlestick Feed** — Direct WebSocket kline_1m stream → real-time OHLCV candlestick rendering in TUI
@@ -383,6 +475,15 @@ cargo run -p tui --release
 - **SEBI 2026 Algo Framework** — Algo-ID tagging on every order to NSE/BSE, static IP whitelisting, OPS threshold monitoring (>10 OPS requires registration), order value caps, MIS squareoff time enforcement, uptick rule, price band circuit filters
 - Deterministic replay — reproduce any historical trading session
 
+### Native Exchange Order Entry
+- **Nasdaq OUCH 4.2** — inbound Enter/Replace/Cancel/Modify, outbound Accepted/Replaced/Canceled/AIQ/Executed/Broken/Rejected/Cancel-Pending/Cancel-Reject/Priority-Update/Modified
+  - Client-assigned 14-byte day-unique order tokens with a collision-free allocator — a reused token is *silently ignored* by Nasdaq, which is what makes resending an in-flight order after a socket failure the correct recovery
+  - Full cancel-reason, reject-reason (risk-control rejections separated) and liquidity-flag tables
+  - `submit_order` resolves on the exchange's acknowledgement, not on a successful write — OUCH inbound messages are explicitly not guaranteed
+- **NYSE Pillar Binary Gateway** — `SeqMsg` envelope, New Order / Cancel-Replace, Cancel Request, Order Ack, Execution Report, and all 17 fields of `BitfieldOrderInstructions` packed at the documented bit offsets
+- **NYSE Pillar FIX 4.2** — ordered-field encoder (header fields in FIX's required order, not hash-map order), computed `BodyLength`/`CheckSum`, session layer, plus the NYSE extension tags (`9303`, `9416`, `9483`, `9730`, `20004`, `20008`…)
+- **Order translation that refuses to guess** — `GTC` is rejected on both venues rather than downgraded to a day order; `FOK` becomes IOC with a full-size minimum; market orders use OUCH's `$214,748.3647` sentinel; per-market quantity ceilings applied locally before a round trip is spent
+
 ### FIX Protocol (v0.3)
 - **Production FIX 4.4 Parser** — length-delimited (`BodyLength` tag 9) message framing with checksum validation
 - **Tag-Value Extraction** — full field parsing into `HashMap<u32, String>` with `MsgType` derivation from tag 35
@@ -464,6 +565,29 @@ Release profile: `opt-level=3`, `lto=fat`, `codegen-units=1`, `strip=true`
 | Polymarket | `POLYMARKET_PRIVATE_KEY`, `POLYMARKET_FUNDER_ADDRESS` | Prediction market trading (EIP-712) | N/A (needs ETH wallet) |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Alert notifications | Yes |
 | Discord | `DISCORD_WEBHOOK_URL` | Alert notifications | Yes |
+
+### Direct Exchange Sessions
+
+These are not API keys — they are identifiers and endpoints issued under a market-data
+subscription and a connectivity agreement, and none of them can be guessed or defaulted.
+`VenueConfig::from_env()` names the missing variable instead of substituting a value.
+
+| Venue | Environment Variable | Purpose |
+|:---|:---|:---|
+| Nasdaq | `NASDAQ_ITCH_MOLD_GROUP` | ITCH MoldUDP64 multicast `host:port` (co-location path) |
+| Nasdaq | `NASDAQ_ITCH_INTERFACE` | Feed NIC IPv4 — set explicitly on a multi-homed host |
+| Nasdaq | `NASDAQ_MOLD_REREQUEST_SERVERS` | Comma-separated retransmission servers |
+| Nasdaq | `NASDAQ_ITCH_SOUP_ADDR` / `_USER` / `_PASS` | SoupBinTCP alternative to multicast |
+| Nasdaq | `NASDAQ_GLIMPSE_ADDR` / `_USER` / `_PASS` | GLIMPSE snapshot, for a mid-session start |
+| Nasdaq | `NASDAQ_OUCH_ADDR` / `_USER` / `_PASS` | OUCH order entry (opt-in) |
+| Nasdaq | `NASDAQ_OUCH_FIRM`, `NASDAQ_OUCH_TOKEN_PREFIX` | Firm identifier and order-token prefix |
+| NYSE | `NYSE_XDP_PRODUCT_ID`, `NYSE_XDP_CHANNEL_ID` | Feed and channel identifiers |
+| NYSE | `NYSE_XDP_GROUP_A`, `NYSE_XDP_GROUP_B` | Primary and redundant multicast lines |
+| NYSE | `NYSE_XDP_INTERFACE` | Feed NIC IPv4 |
+| NYSE | `NYSE_REQUEST_SERVER_ADDR` / `_SOURCE_ID` | Pillar Request Server for retransmit + refresh |
+
+Order entry is opt-in on top of market data, so a market-data-only deployment cannot accidentally
+acquire the ability to trade. See [docs/DIRECT_EXCHANGE_CONNECTIVITY.md](docs/DIRECT_EXCHANGE_CONNECTIVITY.md).
 
 ### Setup
 

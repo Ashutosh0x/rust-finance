@@ -541,6 +541,7 @@ mod tests {
         use common::events::{MarketEvent, QuoteEvent};
         use compact_str::CompactString;
         Envelope {
+            provenance: None,
             ts_event: UnixNanos::now(),
             ts_init: UnixNanos::now(),
             sequence_id: common::time::SequenceId::new(seq),

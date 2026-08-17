@@ -35,3 +35,6 @@ Thumbs.db
 *.tmp
 *.bak
 emoji_report.txt
+
+# Written by the TUI at startup to explain why colour is or isn't available
+tui-diagnostics.txt
