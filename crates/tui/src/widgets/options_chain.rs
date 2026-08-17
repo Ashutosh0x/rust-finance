@@ -3,10 +3,11 @@
 
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table},
     Frame,
 };
+use crate::theme;
 
 // We will mock the external structs here for pure UI widget separation
 #[derive(Clone, Debug)]
@@ -60,7 +61,7 @@ impl OptionsChainWidget {
         ])
         .style(
             Style::default()
-                .fg(Color::Gray)
+                .fg(theme::TEXT_DIM)
                 .add_modifier(Modifier::BOLD),
         )
         .bottom_margin(1);
@@ -70,18 +71,18 @@ impl OptionsChainWidget {
 
             // Highlight selected row
             if i == self.selected_index {
-                style = style.fg(Color::Yellow).add_modifier(Modifier::BOLD);
+                style = style.fg(theme::YELLOW).add_modifier(Modifier::BOLD);
             }
             // Highlight At-The-Money row
             if strike.is_spot {
-                style = style.bg(Color::DarkGray);
+                style = style.bg(theme::TEXT_FAINT);
             }
 
             let call_cell = Cell::from(format!("{:.1}", strike.call_gex / 1_000_000.0)).style(
                 Style::default().fg(if strike.call_gex > 0.0 {
-                    Color::Green
+                    theme::POSITIVE
                 } else {
-                    Color::White
+                    theme::TEXT
                 }),
             );
 
@@ -90,9 +91,9 @@ impl OptionsChainWidget {
 
             let put_cell = Cell::from(format!("{:.1}", strike.put_gex / 1_000_000.0)).style(
                 Style::default().fg(if strike.put_gex < 0.0 {
-                    Color::Red
+                    theme::NEGATIVE
                 } else {
-                    Color::White
+                    theme::TEXT
                 }),
             );
 

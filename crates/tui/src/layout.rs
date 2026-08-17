@@ -32,13 +32,17 @@ use ratatui::{
 };
 
 use crate::state::AppState;
+use crate::theme;
 
-const GREEN: Color = Color::Rgb(0, 220, 90);
-const RED: Color = Color::Rgb(220, 50, 50);
-const CYAN: Color = Color::Rgb(0, 210, 220);
-const AMBER: Color = Color::Rgb(240, 180, 0);
-const DIM: Color = Color::Rgb(100, 100, 100);
-const FG: Color = Color::Rgb(220, 220, 200);
+// Local palette aliases -> crate::theme (single source of truth).
+const AMBER: Color = theme::YELLOW;
+const CYAN: Color = theme::CYAN;
+const DIM: Color = theme::TEXT_FAINT;
+const FG: Color = theme::TEXT;
+const GREEN: Color = theme::POSITIVE;
+const RED: Color = theme::NEGATIVE;
+
+
 
 /// Root render — called every frame from the Tokio draw loop
 pub fn render(f: &mut Frame, state: &AppState) {
@@ -468,7 +472,7 @@ fn render_dexter_panel(f: &mut Frame, area: Rect, state: &AppState) {
         Span::styled(
             format!(" {:?} ", signal.recommendation),
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(rec_color)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -476,7 +480,7 @@ fn render_dexter_panel(f: &mut Frame, area: Rect, state: &AppState) {
         Span::styled(
             format!(" CONF {:.0}% ", signal.confidence * 100.0),
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(if signal.confidence > 0.70 {
                     GREEN
                 } else {
@@ -500,7 +504,7 @@ fn render_swarm_panel(f: &mut Frame, area: Rect, state: &AppState) {
             Paragraph::new("Swarm simulation loading…").block(Block::bordered().title(
                 Span::styled(
                     " ◉ MIROFISH — SWARM SIMULATION ",
-                    Style::default().fg(Color::Magenta),
+                    Style::default().fg(theme::PURPLE),
                 ),
             )),
             area,
@@ -564,7 +568,7 @@ fn render_swarm_panel(f: &mut Frame, area: Rect, state: &AppState) {
             Block::bordered().title(Span::styled(
                 " ◉ MIROFISH — SWARM SIMULATION ",
                 Style::default()
-                    .fg(Color::Magenta)
+                    .fg(theme::PURPLE)
                     .add_modifier(Modifier::BOLD),
             )),
         ),
@@ -663,7 +667,7 @@ fn render_order_entry(f: &mut Frame, area: Rect, order: &AppState) {
         Span::styled(
             " BUY ",
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(GREEN)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -671,7 +675,7 @@ fn render_order_entry(f: &mut Frame, area: Rect, order: &AppState) {
         Span::styled(
             " SELL ",
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(RED)
                 .add_modifier(Modifier::BOLD),
         ),

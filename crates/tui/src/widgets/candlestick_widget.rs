@@ -19,20 +19,24 @@ use ratatui::{
     },
     Frame,
 };
+use crate::theme;
+
+// Local palette aliases -> crate::theme (single source of truth).
+const BG: Color = theme::BG;
+const BORDER: Color = theme::BORDER;
+const CROSSHAIR: Color = theme::CROSSHAIR;
+const PRICE_TAG_BG: Color = theme::PRICE_TAG_BG;
+const TEXT_DIM: Color = theme::TEXT_FAINT;
+const TEXT_PRI: Color = theme::TEXT;
+const TEXT_SEC: Color = theme::TEXT_DIM;
+
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 
-const BG: Color = Color::Rgb(10, 12, 15);
-const BORDER: Color = Color::Rgb(30, 37, 48);
-const TEXT_PRI: Color = Color::Rgb(226, 232, 240);
-const TEXT_SEC: Color = Color::Rgb(148, 163, 184);
-const TEXT_DIM: Color = Color::Rgb(80, 90, 100);
-const BULL: Color = Color::Rgb(34, 197, 94); // Green candle
-const BEAR: Color = Color::Rgb(239, 68, 68); // Red candle
-const BULL_DIM: Color = Color::Rgb(22, 101, 52); // Green volume
-const BEAR_DIM: Color = Color::Rgb(127, 29, 29); // Red volume
-const CROSSHAIR: Color = Color::Rgb(100, 116, 139);
-const PRICE_TAG_BG: Color = Color::Rgb(59, 130, 246);
+const BULL: Color = theme::POSITIVE; // Green candle
+const BEAR: Color = theme::NEGATIVE; // Red candle
+const BULL_DIM: Color = theme::POSITIVE_DEEP; // Green volume
+const BEAR_DIM: Color = theme::NEGATIVE_DEEP; // Red volume
 
 // ── Data Structures ───────────────────────────────────────────────────────────
 
@@ -275,7 +279,7 @@ pub fn render_candlestick_chart(
                 Paragraph::new(Span::styled(
                     format!("{:>9.4}", current_price),
                     Style::default()
-                        .fg(Color::White)
+                        .fg(theme::TEXT)
                         .bg(PRICE_TAG_BG)
                         .add_modifier(Modifier::BOLD),
                 )),

@@ -11,22 +11,6 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
 // ── Color Palette (production-grade dark theme) ──────────────────────────────
-const BG: Color = Color::Rgb(10, 12, 15);
-const BG_ELEVATED: Color = Color::Rgb(18, 22, 28);
-const BORDER: Color = Color::Rgb(30, 37, 48);
-const BORDER_ACTIVE: Color = Color::Rgb(59, 130, 246);
-const TEXT_PRIMARY: Color = Color::Rgb(226, 232, 240);
-const TEXT_SECONDARY: Color = Color::Rgb(148, 163, 184);
-const TEXT_DIM: Color = Color::Rgb(80, 90, 100);
-const GREEN: Color = Color::Rgb(74, 222, 128);
-const RED: Color = Color::Rgb(248, 113, 113);
-const RED_KILL: Color = Color::Rgb(180, 0, 0);
-const ORANGE: Color = Color::Rgb(249, 115, 22);
-const BLUE: Color = Color::Rgb(96, 165, 250);
-const PURPLE: Color = Color::Rgb(167, 139, 250);
-const CYAN: Color = Color::Rgb(0, 210, 220);
-const AMBER: Color = Color::Rgb(240, 180, 0);
-const YELLOW: Color = Color::Rgb(250, 204, 21);
 
 mod app;
 mod event_handler;
@@ -35,14 +19,79 @@ mod live_feed;
 pub mod setup;
 pub mod state;
 pub mod widgets;
+pub mod theme;
 
 use app::App;
 use common::models::exchange::ExchangeStatus;
 use live_feed::{spawn_binance_feed, LiveFeedEvent};
 use widgets::candlestick_widget::render_candlestick_chart;
 
+// Local palette aliases -> crate::theme (single source of truth).
+const AMBER: Color = theme::YELLOW;
+const BG: Color = theme::BG;
+const BG_ELEVATED: Color = theme::PANEL;
+const BLUE: Color = theme::BLUE;
+const BORDER: Color = theme::BORDER;
+const BORDER_ACTIVE: Color = theme::BLUE;
+const CYAN: Color = theme::CYAN;
+const GREEN: Color = theme::POSITIVE;
+const ORANGE: Color = theme::ORANGE;
+const PURPLE: Color = theme::PURPLE;
+const RED: Color = theme::NEGATIVE;
+const RED_KILL: Color = theme::NEGATIVE;
+const TEXT_DIM: Color = theme::TEXT_FAINT;
+const TEXT_PRIMARY: Color = theme::TEXT;
+const TEXT_SECONDARY: Color = theme::TEXT_DIM;
+const YELLOW: Color = theme::YELLOW;
+
+
+/// Force 24-bit colour on before anything is rendered, and report the result.
+///
+/// crossterm decides once, lazily, whether the terminal understands ANSI. On
+/// Windows that decision is `enable_vt_processing()`, i.e. setting
+/// `ENABLE_VIRTUAL_TERMINAL_PROCESSING` on the console output handle. If it is
+/// never called early, or if it fails, crossterm falls back to the legacy
+/// WinAPI path — which has only 16 colours, so every `Color::Rgb` in the theme
+/// collapses to the default foreground and the whole UI renders monochrome.
+///
+/// Calling it here forces the attempt up front, and writes the outcome to
+/// `tui-diagnostics.txt` next to the working directory so a "why is it all
+/// white?" report can be answered from a file instead of a guess.
+fn init_colour_support() -> bool {
+    #[cfg(windows)]
+    let supported = crossterm::ansi_support::supports_ansi();
+    #[cfg(not(windows))]
+    let supported = true;
+
+    let report = format!(
+        "supports_ansi        = {supported}\n\
+         TERM                 = {:?}\n\
+         COLORTERM            = {:?}\n\
+         WT_SESSION           = {:?}\n\
+         stdout_is_tty        = {}\n\
+         note: supports_ansi=false means crossterm is using the legacy 16-colour\n\
+         WinAPI path and every Color::Rgb in the theme is being discarded.\n",
+        std::env::var("TERM").ok(),
+        std::env::var("COLORTERM").ok(),
+        std::env::var("WT_SESSION").ok(),
+        std::io::IsTerminal::is_terminal(&std::io::stdout()),
+    );
+    let _ = std::fs::write("tui-diagnostics.txt", &report);
+
+    if !supported {
+        eprintln!(
+            "\n[rustforge] This terminal does not support 24-bit colour, so the \
+             interface will render without colour.\n\
+             Fix: run inside Windows Terminal, or enable VT processing once with\n\
+             \x20 reg add HKCU\\Console /v VirtualTerminalLevel /t REG_DWORD /d 1 /f\n"
+        );
+    }
+    supported
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    init_colour_support();
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(
@@ -316,7 +365,7 @@ fn draw_kill_switch_overlay(f: &mut Frame, app: &App) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(RED).add_modifier(Modifier::BOLD))
         .border_type(BorderType::Double)
-        .style(Style::default().bg(Color::Rgb(30, 0, 0)));
+        .style(Style::default().bg(theme::NEGATIVE_DEEP));
 
     let inner = inner_block.inner(center);
     f.render_widget(inner_block, center);
@@ -399,7 +448,7 @@ fn draw_kill_switch_overlay(f: &mut Frame, app: &App) {
             Span::styled(
                 " HALTED ",
                 Style::default()
-                    .fg(Color::Black)
+                    .fg(theme::BG)
                     .bg(RED)
                     .add_modifier(Modifier::BOLD),
             ),
@@ -407,7 +456,7 @@ fn draw_kill_switch_overlay(f: &mut Frame, app: &App) {
             Span::styled(
                 " ALL VENUES DISCONNECTED ",
                 Style::default()
-                    .fg(Color::Black)
+                    .fg(theme::BG)
                     .bg(ORANGE)
                     .add_modifier(Modifier::BOLD),
             ),
@@ -421,7 +470,7 @@ fn draw_kill_switch_overlay(f: &mut Frame, app: &App) {
     ];
 
     f.render_widget(
-        Paragraph::new(text).style(Style::default().bg(Color::Rgb(30, 0, 0))),
+        Paragraph::new(text).style(Style::default().bg(theme::NEGATIVE_DEEP)),
         inner,
     );
 }
@@ -474,7 +523,7 @@ fn draw_dialog(f: &mut Frame, app: &App) {
             Span::styled(
                 format!(" {} ", t.label()),
                 Style::default()
-                    .fg(Color::Black)
+                    .fg(theme::BG)
                     .bg(border_color)
                     .add_modifier(Modifier::BOLD),
             )
@@ -1006,7 +1055,7 @@ fn draw_dexter_analyst(f: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             " BUY ",
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(GREEN)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -1014,7 +1063,7 @@ fn draw_dexter_analyst(f: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             " RISK ",
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(RED)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -1022,7 +1071,7 @@ fn draw_dexter_analyst(f: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             " NEUTRAL ",
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(AMBER)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -1214,7 +1263,7 @@ fn draw_order_entry(f: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             " BUY ",
             Style::default()
-                .fg(Color::Black)
+                .fg(theme::BG)
                 .bg(GREEN)
                 .add_modifier(Modifier::BOLD),
         ),
@@ -1222,7 +1271,7 @@ fn draw_order_entry(f: &mut Frame, area: Rect, app: &App) {
         Span::styled(
             " SELL ",
             Style::default()
-                .fg(Color::White)
+                .fg(theme::TEXT)
                 .bg(RED)
                 .add_modifier(Modifier::BOLD),
         ),

@@ -19,26 +19,29 @@ use ratatui::{
     },
     Frame,
 };
+use crate::theme;
+
+// Local palette aliases -> crate::theme (single source of truth).
+const BG: Color = theme::BG;
+const BORDER: Color = theme::BORDER;
+const GREEN: Color = theme::POSITIVE;
+const RED: Color = theme::NEGATIVE;
+const TEXT_DIM: Color = theme::TEXT_FAINT;
+const TEXT_PRIMARY: Color = theme::TEXT;
+const TEXT_SECONDARY: Color = theme::TEXT_DIM;
+
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 
-const BG: Color = Color::Rgb(10, 12, 15);
-const BORDER: Color = Color::Rgb(30, 37, 48);
-const TEXT_PRIMARY: Color = Color::Rgb(226, 232, 240);
-const TEXT_SECONDARY: Color = Color::Rgb(148, 163, 184);
-const TEXT_DIM: Color = Color::Rgb(80, 90, 100);
-const CHART_GREEN: Color = Color::Rgb(0, 200, 180); // Teal line
-const CHART_FILL_TOP: Color = Color::Rgb(0, 80, 70); // Area fill darker
+const CHART_GREEN: Color = theme::CYAN; // Teal line
+const CHART_FILL_TOP: Color = theme::POSITIVE_DEEP; // Area fill darker
 #[allow(dead_code)]
-const CHART_FILL_BOT: Color = Color::Rgb(0, 40, 35); // Area fill darkest
-const VOLUME_BAR: Color = Color::Rgb(60, 70, 80); // Volume bar gray
-const VOLUME_AVG: Color = Color::Rgb(74, 222, 128); // Volume SMAVG green
-const GREEN: Color = Color::Rgb(74, 222, 128);
-const RED: Color = Color::Rgb(248, 113, 113);
+const CHART_FILL_BOT: Color = theme::POSITIVE_DEEP; // Area fill darkest
+const VOLUME_BAR: Color = theme::BORDER; // Volume bar gray
+const VOLUME_AVG: Color = theme::POSITIVE_BRIGHT; // Volume SMAVG green
 #[allow(dead_code)]
-const BLUE_ACCENT: Color = Color::Rgb(0, 150, 220);
+const BLUE_ACCENT: Color = theme::BLUE;
 #[allow(dead_code)]
-const ORANGE: Color = Color::Rgb(249, 115, 22);
 
 // ── Time Ranges ───────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 use crate::app::{KeyField, SetupState};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
@@ -73,7 +73,7 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
     let block = Block::default()
         .title(" [ RustForge ] -> First Run Setup ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan));
+        .border_style(Style::default().fg(theme::CYAN));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -95,11 +95,11 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
     let header = Paragraph::new(vec![
         Line::from(Span::styled(
             "Enter your API keys below. Required fields marked with *",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(theme::TEXT_DIM),
         )),
         Line::from(Span::styled(
             "Tab/Up/Down = navigate  |  Enter = submit  |  Esc = skip optional",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(theme::TEXT_FAINT),
         )),
     ]);
     f.render_widget(header, chunks[0]);
@@ -133,19 +133,19 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
 
         let style = if is_active {
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme::YELLOW)
                 .add_modifier(Modifier::BOLD)
         } else if !field.required && field.value.is_empty() {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(theme::TEXT_FAINT)
         } else if field.required && field.value.is_empty() {
-            Style::default().fg(Color::Red)
+            Style::default().fg(theme::NEGATIVE)
         } else {
-            Style::default().fg(Color::Green)
+            Style::default().fg(theme::POSITIVE)
         };
 
         let value_style = if field.value.is_empty() {
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(theme::TEXT_FAINT)
                 .add_modifier(Modifier::ITALIC)
         } else {
             style
@@ -155,7 +155,7 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
             Span::styled(label, style),
             Span::styled(display_value, value_style),
             if is_active {
-                Span::styled("|", Style::default().fg(Color::Yellow)) // cursor
+                Span::styled("|", Style::default().fg(theme::YELLOW)) // cursor
             } else {
                 Span::raw("")
             },
@@ -168,9 +168,9 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
                 Borders::BOTTOM
             })
             .border_style(if is_active {
-                Style::default().fg(Color::Cyan)
+                Style::default().fg(theme::CYAN)
             } else {
-                Style::default().fg(Color::DarkGray)
+                Style::default().fg(theme::TEXT_FAINT)
             });
 
         let paragraph = Paragraph::new(line).block(input_block);
@@ -182,7 +182,7 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
     if let Some(ref err) = state.error_msg {
         let err_widget = Paragraph::new(Span::styled(
             format!("! {}", err),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            Style::default().fg(theme::NEGATIVE).add_modifier(Modifier::BOLD),
         ));
         f.render_widget(err_widget, chunks[error_idx]);
     }
@@ -209,6 +209,7 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 }
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crate::theme;
 
 pub enum SetupAction {
     Continue, // Stay on setup screen

@@ -1,14 +1,47 @@
 # .cargo/config.toml
-[build]
-# Deny all warnings at build level + optimize for native CPU
-rustflags = ["-D", "warnings", "-C", "target-cpu=native"]
+#
+# NOTE ON WHAT IS DELIBERATELY *NOT* HERE
+#
+# 1. `-D warnings` was removed from [build] rustflags.
+#    Committing it makes every contributor's build fail on any warning,
+#    including new lints introduced by future compiler releases, on code
+#    they did not touch. Warning-denial belongs in CI, where it already
+#    lives (.github/workflows/security.yml runs clippy with -D clippy::all).
+#
+# 2. `-C target-cpu=native` was removed.
+#    It bakes the *build* machine's instruction set into the binary. A
+#    release built on a machine with AVX-512 will fault with SIGILL on a
+#    machine without it, which breaks Docker images, CI artefacts and any
+#    binary a user downloads. Opt in locally via RUSTFLAGS if you are
+#    building for the machine you are running on:
+#        RUSTFLAGS="-C target-cpu=native" cargo build --release
+#    Or use the `native` profile below for a portable-by-default workflow.
 
-# Ensure release builds are optimized and stripped
+[build]
+rustflags = []
+
+# --- Release: correctness first ---------------------------------------------
+# This is a financial application. Silent wraparound in position sizing, PnL
+# accumulation or notional arithmetic is a money bug, not a performance
+# tuning knob, so overflow checks stay ON in release. The cost is a few
+# percent; the alternative is a wrong number with no diagnostic.
 [profile.release]
 opt-level = 3
-lto = "fat"
-codegen-units = 1
-panic = "abort"
+lto = "thin"
+codegen-units = 16
 debug = false
 incremental = false
+overflow-checks = true
+
+# `panic = "abort"` was removed: it prevents `catch_unwind`, which a
+# long-running daemon needs to isolate a panicking strategy/task from taking
+# down the whole process, and it forces a separate profile for test binaries.
+
+# --- Optional: maximum-performance local build ------------------------------
+# cargo build --profile maxperf
+# Not portable. Use only for benchmarking on the machine that built it.
+[profile.maxperf]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
 overflow-checks = false

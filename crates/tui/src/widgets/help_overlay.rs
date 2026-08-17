@@ -1,10 +1,11 @@
 use ratatui::{
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
+use crate::theme;
 
 pub fn render_help_overlay(f: &mut Frame) {
     let area = centered_rect(60, 80, f.area());
@@ -14,7 +15,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled(
             "  SYSTEM",
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme::YELLOW)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  [K]        Kill switch — halt all trading"),
@@ -24,7 +25,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled(
             "  NAVIGATION",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme::CYAN)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  [1-6]        Focus panel"),
@@ -36,7 +37,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled(
             "  TRADING",
             Style::default()
-                .fg(Color::Green)
+                .fg(theme::POSITIVE)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  [B]        Open buy dialog"),
@@ -50,7 +51,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled(
             "  AI ENGINE",
             Style::default()
-                .fg(Color::Magenta)
+                .fg(theme::PURPLE)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  [D]        Trigger Dexter AI analysis"),
@@ -61,7 +62,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled(
             "  CHART",
             Style::default()
-                .fg(Color::Blue)
+                .fg(theme::BLUE)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  [+/-]      Zoom in/out"),
@@ -72,7 +73,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled(
             "  DATA",
             Style::default()
-                .fg(Color::Blue)
+                .fg(theme::BLUE)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  [E]        Export CSV"),
@@ -81,7 +82,7 @@ pub fn render_help_overlay(f: &mut Frame) {
         Line::from(""),
         Line::from(vec![Span::styled(
             "  [Esc] or [?]  Dismiss this dialog",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(theme::TEXT_FAINT),
         )]),
     ];
 
@@ -89,16 +90,16 @@ pub fn render_help_overlay(f: &mut Frame) {
         .title(" COMMAND CHEAT SHEET — RustForge v0.5 ")
         .title_style(
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme::YELLOW)
                 .add_modifier(Modifier::BOLD),
         )
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow))
+        .border_style(Style::default().fg(theme::YELLOW))
         .border_type(BorderType::Rounded);
 
     let paragraph = Paragraph::new(lines)
         .block(block)
-        .style(Style::default().fg(Color::White).bg(Color::Rgb(10, 12, 15)));
+        .style(Style::default().fg(theme::TEXT).bg(theme::BG));
 
     f.render_widget(paragraph, area);
 }
