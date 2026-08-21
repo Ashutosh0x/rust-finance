@@ -226,9 +226,204 @@ impl FeedLatency {
     }
 }
 
+/// The execution half of the round trip.
+///
+/// [`FeedLatency`] stops once the book is updated, which is only half the number
+/// anyone cares about. A feed handler that decodes in 80ns is not fast if the
+/// order takes 4us to reach the wire, and until both halves are measured on the
+/// same clock there is no way to tell which side is the problem.
+#[derive(Debug, Clone)]
+pub struct TradeLatency {
+    /// Book updated → strategy produced a signal.
+    pub decide: LatencyHistogram,
+    /// Signal → order message encoded and risk-checked.
+    pub encode: LatencyHistogram,
+    /// Order encoded → handed to the transport.
+    pub send: LatencyHistogram,
+}
+
+impl Default for TradeLatency {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TradeLatency {
+    pub fn new() -> Self {
+        Self {
+            decide: LatencyHistogram::new("decide"),
+            encode: LatencyHistogram::new("encode"),
+            send: LatencyHistogram::new("send"),
+        }
+    }
+
+    pub fn summaries(&self) -> [LatencySummary; 3] {
+        [
+            self.decide.summary(),
+            self.encode.summary(),
+            self.send.summary(),
+        ]
+    }
+
+    pub fn reset(&mut self) {
+        self.decide.reset();
+        self.encode.reset();
+        self.send.reset();
+    }
+}
+
+/// Feed and execution together, plus the end-to-end span.
+///
+/// `total` is measured directly from the receive timestamp to the moment the
+/// order reaches the transport — it is NOT the sum of the stage percentiles.
+/// Adding p99s would overstate the tail badly, because the stages do not hit
+/// their worst case on the same message; the only honest end-to-end number is
+/// one measured end-to-end.
+#[derive(Debug, Clone)]
+pub struct TickToTrade {
+    pub feed: FeedLatency,
+    pub trade: TradeLatency,
+    /// Receive → order on the wire, measured as a single span.
+    pub total: LatencyHistogram,
+}
+
+impl Default for TickToTrade {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TickToTrade {
+    pub fn new() -> Self {
+        Self {
+            feed: FeedLatency::new(),
+            trade: TradeLatency::new(),
+            total: LatencyHistogram::new("tick-to-trade"),
+        }
+    }
+
+    /// Record one complete path from a market-data receive to an order send.
+    ///
+    /// Every argument is a monotonic reading in nanoseconds, in order. A
+    /// non-monotonic sequence is dropped rather than recorded: `record_span`
+    /// already ignores a negative interval, and a partially recorded path would
+    /// bias the stages that did make sense.
+    pub fn record_path(
+        &mut self,
+        recv_ns: u64,
+        decoded_ns: u64,
+        book_ns: u64,
+        signal_ns: u64,
+        encoded_ns: u64,
+        sent_ns: u64,
+    ) {
+        let ordered = recv_ns <= decoded_ns
+            && decoded_ns <= book_ns
+            && book_ns <= signal_ns
+            && signal_ns <= encoded_ns
+            && encoded_ns <= sent_ns;
+        if !ordered {
+            return;
+        }
+
+        self.feed.decode.record_span(recv_ns, decoded_ns);
+        self.feed.book.record_span(decoded_ns, book_ns);
+        self.trade.decide.record_span(book_ns, signal_ns);
+        self.trade.encode.record_span(signal_ns, encoded_ns);
+        self.trade.send.record_span(encoded_ns, sent_ns);
+        self.total.record_span(recv_ns, sent_ns);
+    }
+
+    /// Every stage in pipeline order, then the end-to-end span last.
+    pub fn summaries(&self) -> Vec<LatencySummary> {
+        let mut out = Vec::with_capacity(7);
+        out.extend(self.feed.summaries());
+        out.extend(self.trade.summaries());
+        out.push(self.total.summary());
+        out
+    }
+
+    pub fn reset(&mut self) {
+        self.feed.wire.reset();
+        self.feed.decode.reset();
+        self.feed.book.reset();
+        self.trade.reset();
+        self.total.reset();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tick_to_trade_records_every_stage_and_the_whole_path() {
+        let mut t = TickToTrade::new();
+        // recv, decoded, book, signal, encoded, sent
+        t.record_path(1_000, 1_080, 1_120, 1_240, 1_290, 1_380);
+
+        assert_eq!(t.feed.decode.count(), 1);
+        assert_eq!(t.feed.book.count(), 1);
+        assert_eq!(t.trade.decide.count(), 1);
+        assert_eq!(t.trade.encode.count(), 1);
+        assert_eq!(t.trade.send.count(), 1);
+        assert_eq!(t.total.count(), 1);
+    }
+
+    #[test]
+    fn end_to_end_is_measured_not_summed() {
+        // The whole point of recording `total` separately: summing stage
+        // percentiles overstates the tail, because stages do not peak together.
+        let mut t = TickToTrade::new();
+        t.record_path(0, 100, 200, 300, 400, 500);
+
+        let total = t.total.p50().expect("one sample recorded");
+        // 500ns end to end, within the histogram's ~3% bucket error.
+        assert!(
+            (450..=550).contains(&total),
+            "end-to-end span should be ~500ns, got {total}"
+        );
+    }
+
+    #[test]
+    fn out_of_order_timestamps_record_nothing() {
+        // A clock that went backwards must not silently bias the stages that
+        // happened to still make sense.
+        let mut t = TickToTrade::new();
+        t.record_path(1_000, 900, 1_120, 1_240, 1_290, 1_380);
+
+        assert_eq!(t.total.count(), 0);
+        assert_eq!(t.feed.decode.count(), 0, "no stage may be recorded");
+        assert_eq!(t.trade.send.count(), 0);
+    }
+
+    #[test]
+    fn summaries_are_in_pipeline_order_with_total_last() {
+        let t = TickToTrade::new();
+        let labels: Vec<&str> = t.summaries().iter().map(|s| s.label).collect();
+        assert_eq!(
+            labels,
+            vec![
+                "wire",
+                "decode",
+                "book",
+                "decide",
+                "encode",
+                "send",
+                "tick-to-trade"
+            ]
+        );
+    }
+
+    #[test]
+    fn reset_clears_both_halves() {
+        let mut t = TickToTrade::new();
+        t.record_path(0, 10, 20, 30, 40, 50);
+        t.reset();
+        assert_eq!(t.total.count(), 0);
+        assert_eq!(t.feed.decode.count(), 0);
+        assert_eq!(t.trade.decide.count(), 0);
+    }
 
     #[test]
     fn empty_histogram_reports_nothing_rather_than_zero() {
