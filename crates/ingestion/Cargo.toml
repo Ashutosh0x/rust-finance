@@ -34,6 +34,19 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 anyhow = "1.0"
 
+# Databento live market data. Optional: the client pulls its own TLS stack and
+# the DBN decoder, and a build that never touches Databento should not carry
+# them. Enable with `--features databento`.
+# `default-features = false, features = ["live"]` is load-bearing, not tidiness.
+# The default set enables `historical`, which pulls reqwest + zstd and turns on
+# `reqwest/default-tls` -> native-tls -> OpenSSL, and it flips rustls's crypto
+# backend from ring to aws-lc-rs, which needs cmake and a C toolchain. deny.toml
+# bans openssl and cmake precisely to keep the build pure Rust, and enabling the
+# defaults broke both. Live-only keeps the existing TLS stack untouched — and
+# this source does not make historical requests anyway, by design.
+databento = { version = "0.59", default-features = false, features = ["live"], optional = true }
+tokio-stream = { version = "0.1", optional = true }
+
 # Logging
 tracing = "0.1"
 
@@ -42,3 +55,13 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 
 [dev-dependencies]
 tokio = { version = "1.35", features = ["test-util"] }
+
+[features]
+default = []
+databento = ["dep:databento", "dep:tokio-stream"]
+
+[[example]]
+name = "databento_probe"
+# Without this a default `cargo test --workspace` tries to build the example
+# with the databento dependency absent, and fails.
+required-features = ["databento"]

@@ -35,6 +35,11 @@ allow = [
     "Zlib",
     "BSL-1.0",
     "CC0-1.0",
+    # Public-domain dedication, strictly more permissive than the MIT and
+    # Apache-2.0 already allowed above — it waives copyright rather than
+    # granting conditional permission. Reached via json-writer, a dependency
+    # of dbn (Databento's encoding crate).
+    "Unlicense",
     "CDLA-Permissive-2.0",
     "MIT-0",
     "OpenSSL",

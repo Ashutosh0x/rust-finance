@@ -72,6 +72,7 @@ RustFinance Terminal, also called RustForge, is an open-source Rust trading term
 - **Community:** [Roadmap](ROADMAP.md), [Contributing](CONTRIBUTING.md), [good first issues](https://github.com/Ashutosh0x/rust-finance/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - **Direct exchange connectivity:** [Nasdaq ITCH/OUCH + NYSE Pillar](docs/DIRECT_EXCHANGE_CONNECTIVITY.md) — native binary protocols, 294 tests
 - **Latency measurement:** [docs/latency.md](docs/latency.md) — the tick-to-trade model, what instrumentation costs, and which stages are still not wired
+- **Databento:** [docs/databento.md](docs/databento.md) — live source for Nasdaq/NYSE/CME/OPRA without exchange ports, plus measured latency and entitlement reality
 - **Research Paper:** [📄 RustFinance Research Paper 2026 (PDF)](rustfinance.pdf) — 1,400+ line LaTeX paper covering architecture, 18 research papers, quantitative models, and benchmarks
 - **Funding:** [GitHub Sponsors](https://github.com/sponsors/Ashutosh0x), [Buy Me a Coffee](https://buymeacoffee.com/Ashutosh0x), [funding.json](funding.json)
 - **Recognition:** [Listed in awesome-rust Finance applications](https://github.com/rust-unofficial/awesome-rust/pull/2447)
