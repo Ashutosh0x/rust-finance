@@ -109,12 +109,50 @@ like a quiet gap in measurement rather than an error.
 
 | Path | State |
 |---|---|
-| `decode` on the ITCH live path | **Recorded** |
-| `book` on the ITCH live path | **Recorded**, only when a book event was produced |
-| `wire` | **Not recorded** — needs the exchange source timestamp compared against local receive |
-| NYSE XDP, all stages | **Not recorded** — the handler builds a `FeedLatency` and never writes to it |
+| `decode`, NASDAQ ITCH live path | **Recorded** |
+| `book`, NASDAQ ITCH live path | **Recorded**, only when a book event was produced |
+| `decode`, NYSE XDP live path | **Recorded** |
+| `book`, NYSE XDP live path | **Recorded**, only when a book event was produced |
+| `wire`, either venue | **Not recorded** — needs a different clock; see below |
 | `TradeLatency` (decide/encode/send) | **Not recorded** — no execution path calls it yet |
 | Anything reading `.latency()` | **Nothing** — no TUI panel, no metrics export |
+
+Both feed handlers take `recv_ns` and record nothing when it is 0, which is
+what replay and capture tooling pass. `a_zero_receive_stamp_records_nothing`
+and `a_live_receive_stamp_records_decode_and_book` pin both halves of that on
+each venue.
+
+## Why `wire` is not just "subtract the packet's send time"
+
+The obvious implementation is wrong, and wrong in a way that fails silently.
+
+NYSE XDP packet headers carry `send_time_secs` / `send_time_nanos`, and NASDAQ
+ITCH carries nanoseconds since midnight ET. It is tempting to write:
+
+```rust
+let send_ns = header.send_time_secs as u64 * 1_000_000_000 + header.send_time_nanos as u64;
+if recv_ns >= send_ns {
+    latency.wire.record_span(send_ns, recv_ns);   // WRONG
+}
+```
+
+`send_ns` is **wall clock since the UNIX epoch** — around 1.79e18 in 2026.
+`recv_ns` is **monotonic since this process started** — a few billion at most.
+They have unrelated origins, so their difference is not a latency. The guard
+`recv_ns >= send_ns` is always false, so that code records nothing at all,
+forever, while looking like working instrumentation.
+
+Recording it correctly needs two things this repository does not yet have:
+
+1. **A wall-clock receive timestamp**, ideally a NIC hardware ingress stamp via
+   `SO_TIMESTAMPING`, taken on the same time base as the venue's.
+2. **A disciplined clock** — PTP (IEEE 1588) against a source traceable to the
+   venue's. Without it the measurement reports local clock offset, which on an
+   NTP-only host is comfortably larger than the latency being measured.
+
+Until both exist, `wire` stays empty and reports `None`, which is the honest
+answer. A number here that is really a clock offset is worse than no number,
+because it looks like a feed problem.
 
 ### The bug this replaced
 

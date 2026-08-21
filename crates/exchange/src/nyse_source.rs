@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::events::{Envelope, MarketEvent};
+use exchange_core::latency::now_monotonic_ns;
 use ingestion::source::{DataType, IngestionError, MarketDataSource, MarketStream, Subscription};
 use nyse::xdp::receiver::{ChannelEvent, ChannelReceiver};
 use nyse::xdp::request_server::{RequestServerClient, RequestStatus};
@@ -130,11 +131,14 @@ async fn run(
 
     loop {
         let event = receiver.recv().await.map_err(|e| e.to_string())?;
+        // Stamped before any decoding, so the span covers this process's whole share of
+        // the path rather than starting part way through it.
+        let recv_ns = now_monotonic_ns();
 
         match event {
             ChannelEvent::Data { skip, .. } => {
                 let datagram = receiver.datagram().to_vec();
-                if let Err(e) = handler.on_packet(&datagram, skip) {
+                if let Err(e) = handler.on_packet(&datagram, skip, recv_ns) {
                     tracing::warn!(target: "exchange::nyse", error = %e, "XDP packet decode failed");
                 }
                 publish(&mut handler, &mut normalizer, &tx).await?;
@@ -146,7 +150,7 @@ async fn run(
                 sequence, count, ..
             } => {
                 let datagram = receiver.datagram().to_vec();
-                if let Err(e) = handler.on_packet(&datagram, 0) {
+                if let Err(e) = handler.on_packet(&datagram, 0, recv_ns) {
                     tracing::warn!(target: "exchange::nyse", error = %e, "XDP recovery packet decode failed");
                 } else {
                     receiver.note_recovered(sequence, sequence + count.max(1) as u32 - 1);
@@ -390,7 +394,7 @@ mod tests {
             0,
             &[&mapping_bytes, &add],
         );
-        handler.on_packet(&pkt, 0).unwrap();
+        handler.on_packet(&pkt, 0, 0).unwrap();
         publish(&mut handler, &mut normalizer, &tx).await.unwrap();
         drop(tx);
 
@@ -440,7 +444,7 @@ mod tests {
         }
         .encode();
         let pkt = packet::encode_packet(packet::delivery_flag::ORIGINAL, 1, 0, 0, &[&add]);
-        handler.on_packet(&pkt, 0).unwrap();
+        handler.on_packet(&pkt, 0, 0).unwrap();
 
         let (tx, rx) = mpsc::channel(1);
         drop(rx);

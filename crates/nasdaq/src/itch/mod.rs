@@ -880,6 +880,64 @@ mod tests {
     }
 
     #[test]
+    fn a_live_receive_stamp_records_decode_and_book() {
+        let mut hd = ItchFeedHandler::new(SessionClock::raw());
+        hd.on_message(
+            &encode::add_order(
+                h(1, 1),
+                1,
+                'B',
+                100,
+                "AAPL",
+                Price::from_price4(1_000_000),
+                None,
+            ),
+            exchange_core::latency::now_monotonic_ns(),
+        )
+        .unwrap();
+
+        assert_eq!(hd.latency().decode.count(), 1, "decode must be recorded");
+        assert_eq!(hd.latency().book.count(), 1, "book must be recorded");
+    }
+
+    #[test]
+    fn a_zero_receive_stamp_records_nothing() {
+        // The live path used to pass 0 here, which silently disabled every
+        // histogram while the feature was still advertised.
+        let mut hd = ItchFeedHandler::new(SessionClock::raw());
+        hd.on_message(
+            &encode::add_order(
+                h(1, 1),
+                1,
+                'B',
+                100,
+                "AAPL",
+                Price::from_price4(1_000_000),
+                None,
+            ),
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(hd.latency().decode.count(), 0);
+        assert_eq!(hd.latency().book.count(), 0);
+    }
+
+    #[test]
+    fn a_message_that_never_reaches_the_book_is_not_charged_to_the_book_stage() {
+        // A system event decodes but produces no book event.
+        let mut hd = ItchFeedHandler::new(SessionClock::raw());
+        hd.on_message(
+            &encode::system_event(h(0, 1), 'Q'),
+            exchange_core::latency::now_monotonic_ns(),
+        )
+        .unwrap();
+
+        assert_eq!(hd.latency().decode.count(), 1, "decode still happened");
+        assert_eq!(hd.latency().book.count(), 0, "book must not be charged");
+    }
+
+    #[test]
     fn watch_list_discards_other_instruments_before_decoding() {
         let mut hd = ItchFeedHandler::new(SessionClock::raw());
         hd.watch_locates([1u16]);

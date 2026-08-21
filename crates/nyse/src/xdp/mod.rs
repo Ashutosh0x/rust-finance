@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use exchange_core::book::BookSet;
 use exchange_core::feed::{BookEvent, ImbalanceSide, Side, TradeCondition, TradingState};
-use exchange_core::latency::FeedLatency;
+use exchange_core::latency::{now_monotonic_ns, FeedLatency};
 use exchange_core::{InstrumentKey, Nanos, Price, WireResult};
 
 use common::{ControlMessage, SecurityStatusCode, SymbolIndexMapping};
@@ -411,7 +411,18 @@ impl XdpFeedHandler {
     ///
     /// `skip` discards messages at the front of the packet that were already applied — the
     /// partial-overlap case a redundant A/B feed pair produces constantly.
-    pub fn on_packet(&mut self, datagram: &[u8], skip: u32) -> WireResult<()> {
+    ///
+    /// `recv_ns` is the local monotonic reading taken when the datagram arrived, used for
+    /// the decode and book histograms; pass 0 when replaying a capture, where it is
+    /// meaningless.
+    ///
+    /// It is deliberately NOT compared against the packet header's `send_time_secs`. That
+    /// field is wall-clock seconds since the UNIX epoch while `recv_ns` is monotonic since
+    /// this process started, so subtracting one from the other is not a latency — it is two
+    /// unrelated origins differencing to nonsense. Wire latency needs a wall-clock receive
+    /// stamp (ideally a NIC hardware timestamp) and a clock disciplined against the venue;
+    /// see docs/latency.md.
+    pub fn on_packet(&mut self, datagram: &[u8], skip: u32, recv_ns: u64) -> WireResult<()> {
         let packet = Packet::parse(datagram)?;
         self.stats.packets += 1;
 
@@ -438,12 +449,12 @@ impl XdpFeedHandler {
         }
 
         for raw in packet.messages().skip(skip as usize) {
-            self.on_message(raw.msg_type, raw.bytes)?;
+            self.on_message(raw.msg_type, raw.bytes, recv_ns)?;
         }
         Ok(())
     }
 
-    fn on_message(&mut self, msg_type: u16, bytes: &[u8]) -> WireResult<()> {
+    fn on_message(&mut self, msg_type: u16, bytes: &[u8], recv_ns: u64) -> WireResult<()> {
         // Control messages first: they establish the state the data messages need.
         match common::decode_control(msg_type, bytes) {
             Ok(Some(control)) => {
@@ -491,8 +502,23 @@ impl XdpFeedHandler {
             None => self.clock.to_epoch_nanos(0, msg.source_time_nanos()),
         };
 
+        // Split so the two stages are attributable separately: decoding is this crate's
+        // parser, applying is the shared book. One combined number hides which regressed.
+        let decoded_ns = if recv_ns != 0 { now_monotonic_ns() } else { 0 };
+
         if let Some(event) = to_book_event(&msg, &self.directory, ts) {
             self.apply_event(&event, msg.symbol_index());
+            if recv_ns != 0 {
+                self.latency.decode.record_span(recv_ns, decoded_ns);
+                self.latency
+                    .book
+                    .record_span(decoded_ns, now_monotonic_ns());
+            }
+        } else if recv_ns != 0 {
+            // Decoded fine, produced no book event. The decode cost is real and is
+            // recorded; charging the book stage for it would dilute the very tail the
+            // histogram exists to expose.
+            self.latency.decode.record_span(recv_ns, decoded_ns);
         }
         Ok(())
     }
@@ -649,7 +675,7 @@ mod tests {
         ];
         let refs: Vec<&[u8]> = msgs.iter().map(|m| m.as_slice()).collect();
         let pkt = packet::encode_packet(packet::delivery_flag::ORIGINAL, 1, 0, 0, &refs);
-        h.on_packet(&pkt, 0).unwrap();
+        h.on_packet(&pkt, 0, 0).unwrap();
 
         let book = h.books().get(4242).unwrap();
         assert_eq!(book.symbol(), "IBM");
@@ -669,10 +695,69 @@ mod tests {
             0,
             &[&add(4242, 1, integrated::Side::Buy, 1_805_000, 500)],
         );
-        h.on_packet(&pkt, 0).unwrap();
+        h.on_packet(&pkt, 0, 0).unwrap();
         assert_eq!(h.stats().awaiting_symbol_mapping, 1);
         assert_eq!(h.stats().book_events, 0);
         assert!(h.books().get(4242).is_none());
+    }
+
+    #[test]
+    fn a_live_receive_stamp_records_decode_and_book() {
+        let mut h = XdpFeedHandler::new();
+        h.seed_directory([mapping(4242, "IBM", 4)]);
+        let pkt = packet::encode_packet(
+            packet::delivery_flag::ORIGINAL,
+            1,
+            0,
+            0,
+            &[&add(4242, 1, integrated::Side::Buy, 1_805_000, 500)],
+        );
+        // A real monotonic reading, as the live path now supplies.
+        h.on_packet(&pkt, 0, exchange_core::latency::now_monotonic_ns())
+            .unwrap();
+
+        assert_eq!(h.latency().decode.count(), 1, "decode must be recorded");
+        assert_eq!(h.latency().book.count(), 1, "book must be recorded");
+    }
+
+    #[test]
+    fn a_zero_receive_stamp_records_nothing() {
+        // Replay and capture tooling pass 0; recording against it would invent
+        // spans measured from an origin that does not exist.
+        let mut h = XdpFeedHandler::new();
+        h.seed_directory([mapping(4242, "IBM", 4)]);
+        let pkt = packet::encode_packet(
+            packet::delivery_flag::ORIGINAL,
+            1,
+            0,
+            0,
+            &[&add(4242, 1, integrated::Side::Buy, 1_805_000, 500)],
+        );
+        h.on_packet(&pkt, 0, 0).unwrap();
+
+        assert_eq!(h.latency().decode.count(), 0);
+        assert_eq!(h.latency().book.count(), 0);
+    }
+
+    #[test]
+    fn a_message_that_never_reaches_the_book_is_not_charged_to_the_book_stage() {
+        // No symbol mapping, so the price scale is unknown and the message is
+        // dropped before it can produce a book event. The decode still happened
+        // and is still counted; charging `book` for it would dilute the tail
+        // that histogram exists to expose.
+        let mut h = XdpFeedHandler::new();
+        let pkt = packet::encode_packet(
+            packet::delivery_flag::ORIGINAL,
+            1,
+            0,
+            0,
+            &[&add(4242, 1, integrated::Side::Buy, 1_805_000, 500)],
+        );
+        h.on_packet(&pkt, 0, exchange_core::latency::now_monotonic_ns())
+            .unwrap();
+
+        assert_eq!(h.stats().awaiting_symbol_mapping, 1);
+        assert_eq!(h.latency().book.count(), 0, "book must not be charged");
     }
 
     #[test]
@@ -682,7 +767,7 @@ mod tests {
         let a = add(4242, 1, integrated::Side::Buy, 1_805_000, 100);
         let b = add(4242, 2, integrated::Side::Buy, 1_805_100, 200);
         let pkt = packet::encode_packet(packet::delivery_flag::ORIGINAL, 1, 0, 0, &[&a, &b]);
-        h.on_packet(&pkt, 1).unwrap();
+        h.on_packet(&pkt, 1, 0).unwrap();
         assert!(h.books().get(4242).unwrap().order(1).is_none());
         assert!(h.books().get(4242).unwrap().order(2).is_some());
     }
@@ -698,7 +783,7 @@ mod tests {
             0,
             &[&add(4242, 1, integrated::Side::Buy, 1_805_000, 500)],
         );
-        h.on_packet(&pkt, 0).unwrap();
+        h.on_packet(&pkt, 0, 0).unwrap();
         assert_eq!(h.books().get(4242).unwrap().order_count(), 1);
 
         let clear = common::encode_symbol_clear(&common::SymbolClear {
@@ -708,7 +793,7 @@ mod tests {
             next_source_seq_num: 1,
         });
         let pkt = packet::encode_packet(packet::delivery_flag::ORIGINAL, 2, 0, 0, &[&clear]);
-        h.on_packet(&pkt, 0).unwrap();
+        h.on_packet(&pkt, 0, 0).unwrap();
         assert_eq!(h.books().get(4242).unwrap().order_count(), 0);
     }
 
@@ -725,7 +810,7 @@ mod tests {
         });
         let start =
             packet::encode_packet(packet::delivery_flag::REFRESH_START, 1, 0, 0, &[&header]);
-        h.on_packet(&start, 0).unwrap();
+        h.on_packet(&start, 0, 0).unwrap();
         assert!(h.in_refresh());
         assert_eq!(h.refresh_resume_sequence(), Some(500_000));
 
@@ -748,7 +833,7 @@ mod tests {
             0,
             &[&refresh_order],
         );
-        h.on_packet(&end, 0).unwrap();
+        h.on_packet(&end, 0, 0).unwrap();
         assert!(!h.in_refresh());
         assert_eq!(h.books().get(4242).unwrap().best_bid().unwrap().1, 900);
     }
@@ -765,6 +850,7 @@ mod tests {
                 0,
                 &[&add(4242, 1, integrated::Side::Buy, 1_805_000, 100)],
             ),
+            0,
             0,
         )
         .unwrap();
@@ -788,6 +874,7 @@ mod tests {
         h.on_packet(
             &packet::encode_packet(packet::delivery_flag::ORIGINAL, 2, 0, 0, &[&bytes]),
             0,
+            0,
         )
         .unwrap();
         assert_eq!(
@@ -799,6 +886,7 @@ mod tests {
         let ssr = common::encode_security_status(&status, 'A', '~');
         h.on_packet(
             &packet::encode_packet(packet::delivery_flag::ORIGINAL, 3, 0, 0, &[&ssr]),
+            0,
             0,
         )
         .unwrap();
@@ -841,6 +929,7 @@ mod tests {
         h.on_packet(
             &packet::encode_packet(packet::delivery_flag::ORIGINAL, 1, 0, 0, &refs),
             0,
+            0,
         )
         .unwrap();
 
@@ -865,6 +954,7 @@ mod tests {
         let b = add(2, 2, integrated::Side::Buy, 100, 10);
         h.on_packet(
             &packet::encode_packet(packet::delivery_flag::ORIGINAL, 1, 0, 0, &[&a, &b]),
+            0,
             0,
         )
         .unwrap();
@@ -910,6 +1000,7 @@ mod tests {
         let refs: Vec<&[u8]> = msgs.iter().map(|m| m.as_slice()).collect();
         h.on_packet(
             &packet::encode_packet(packet::delivery_flag::ORIGINAL, 1, 0, 0, &refs),
+            0,
             0,
         )
         .unwrap();

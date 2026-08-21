@@ -649,7 +649,11 @@ fn bench_end_to_end(c: &mut Criterion) {
             XdpFeedHandler::new,
             |mut handler| {
                 for pkt in &xdp_pkts {
-                    let _ = handler.on_packet(black_box(pkt), 0);
+                    // recv_ns = 0: this benchmark measures the decode path alone.
+                    // Passing a live stamp would fold the latency instrumentation
+                    // into the number, and 07_latency_recording measures that
+                    // separately for exactly that reason.
+                    let _ = handler.on_packet(black_box(pkt), 0, 0);
                     handler.clear_events();
                 }
                 handler

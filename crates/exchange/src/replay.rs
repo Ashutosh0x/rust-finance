@@ -237,7 +237,7 @@ impl Replayer {
         let Some(handler) = self.xdp.as_mut() else {
             return Vec::new();
         };
-        if handler.on_packet(datagram, 0).is_err() {
+        if handler.on_packet(datagram, 0, 0).is_err() {
             self.stats.decode_errors += 1;
             return Vec::new();
         }
