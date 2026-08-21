@@ -8,6 +8,7 @@
 // - Zoom (Shift+Up/Down) and scroll (Left/Right)
 // - Auto-centering when price drifts off-screen
 
+use crate::theme;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -19,7 +20,6 @@ use ratatui::{
     },
     Frame,
 };
-use crate::theme;
 
 // Local palette aliases -> crate::theme (single source of truth).
 const BG: Color = theme::BG;
@@ -29,7 +29,6 @@ const PRICE_TAG_BG: Color = theme::PRICE_TAG_BG;
 const TEXT_DIM: Color = theme::TEXT_FAINT;
 const TEXT_PRI: Color = theme::TEXT;
 const TEXT_SEC: Color = theme::TEXT_DIM;
-
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 

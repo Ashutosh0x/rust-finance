@@ -86,7 +86,10 @@ impl MarketDataSource for NasdaqItchSource {
                     .await
                     .map_err(|e| IngestionError::ConnectionFailed(e.to_string()))?;
                 tokio::spawn(async move {
-                    let err = run_mold(receiver, config, subscription, tx.clone()).await;
+                    // Boxed: the future owns the receiver's datagram buffers, so
+                    // it is large enough that clippy flags it. This runs once per
+                    // session, so the allocation is not on any hot path.
+                    let err = Box::pin(run_mold(receiver, config, subscription, tx.clone())).await;
                     report_exit(err, &tx).await;
                 });
             }
@@ -95,7 +98,8 @@ impl MarketDataSource for NasdaqItchSource {
                     .await
                     .map_err(|e| IngestionError::ConnectionFailed(e.to_string()))?;
                 tokio::spawn(async move {
-                    let err = run_soup(session, config, subscription, tx.clone()).await;
+                    // Boxed for the same reason as the MoldUDP64 arm above.
+                    let err = Box::pin(run_soup(session, config, subscription, tx.clone())).await;
                     report_exit(err, &tx).await;
                 });
             }
@@ -271,6 +275,12 @@ async fn run_soup(
     loop {
         // Copy the payload out of the session buffer so its borrow ends before the next
         // call; Soup reuses the buffer across reads.
+        // NOT boxed, deliberately. This awaits once per inbound message on
+        // the steady-state read path, and `Box::pin` here would put a heap
+        // allocation in front of every message on the tape. The future is
+        // large because it borrows the session's read buffer, which is the
+        // point — that buffer is reused rather than reallocated per read.
+        #[allow(clippy::large_futures)]
         let payload = match session.next_event().await.map_err(|e| e.to_string())? {
             SoupEvent::Message { payload, .. } => Some(payload.to_vec()),
             SoupEvent::Heartbeat => None,

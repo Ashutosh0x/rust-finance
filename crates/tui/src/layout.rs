@@ -42,8 +42,6 @@ const FG: Color = theme::TEXT;
 const GREEN: Color = theme::POSITIVE;
 const RED: Color = theme::NEGATIVE;
 
-
-
 /// Root render — called every frame from the Tokio draw loop
 pub fn render(f: &mut Frame, state: &AppState) {
     let area = f.area();

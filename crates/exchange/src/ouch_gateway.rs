@@ -126,7 +126,8 @@ impl OuchGateway {
 
         let task_pending = Arc::clone(&pending);
         tokio::spawn(async move {
-            if let Err(e) = run_session(session, outbound_rx, task_pending).await {
+            // Boxed: carries the OUCH session buffers. Once per connection.
+            if let Err(e) = Box::pin(run_session(session, outbound_rx, task_pending)).await {
                 tracing::error!(target: "exchange::ouch", error = %e, "OUCH session ended");
             }
         });

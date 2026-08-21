@@ -1,3 +1,4 @@
+use crate::theme;
 use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
@@ -5,7 +6,6 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
-use crate::theme;
 
 pub fn render_help_overlay(f: &mut Frame) {
     let area = centered_rect(60, 80, f.area());

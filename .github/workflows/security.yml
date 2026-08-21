@@ -28,8 +28,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
         with:
+          # No `arguments:` here. It used to pass `--all-features`, which
+          # cargo-deny removed from `check` in 0.20 — so the pinned action
+          # failed on argument parsing before evaluating a single advisory.
+          # The job reported "failing" for months while nothing was checked.
           command: check
-          arguments: --all-features
 
   # ── 2. cargo-audit: RustSec vulnerability scan ─────────────
   cargo-audit:

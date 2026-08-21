@@ -8,6 +8,7 @@
 // - Crosshair cursor support
 // - Time range cycling (1D / 1W / 1M / 1Y / ALL)
 
+use crate::theme;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -19,7 +20,6 @@ use ratatui::{
     },
     Frame,
 };
-use crate::theme;
 
 // Local palette aliases -> crate::theme (single source of truth).
 const BG: Color = theme::BG;
@@ -29,7 +29,6 @@ const RED: Color = theme::NEGATIVE;
 const TEXT_DIM: Color = theme::TEXT_FAINT;
 const TEXT_PRIMARY: Color = theme::TEXT;
 const TEXT_SECONDARY: Color = theme::TEXT_DIM;
-
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 
@@ -42,9 +41,7 @@ const VOLUME_AVG: Color = theme::POSITIVE_BRIGHT; // Volume SMAVG green
 #[allow(dead_code)]
 const BLUE_ACCENT: Color = theme::BLUE;
 #[allow(dead_code)]
-
 // ── Time Ranges ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TimeRange {
     Day1,

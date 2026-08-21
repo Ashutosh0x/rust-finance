@@ -182,7 +182,9 @@ pub fn render_setup(f: &mut Frame, state: &SetupState) {
     if let Some(ref err) = state.error_msg {
         let err_widget = Paragraph::new(Span::styled(
             format!("! {}", err),
-            Style::default().fg(theme::NEGATIVE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::NEGATIVE)
+                .add_modifier(Modifier::BOLD),
         ));
         f.render_widget(err_widget, chunks[error_idx]);
     }
@@ -208,8 +210,8 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::theme;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub enum SetupAction {
     Continue, // Stay on setup screen

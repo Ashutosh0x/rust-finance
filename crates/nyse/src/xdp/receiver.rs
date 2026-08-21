@@ -228,17 +228,14 @@ impl ChannelReceiver {
 
     /// Await the next datagram from either line and classify it.
     pub async fn recv(&mut self) -> Result<ChannelEvent> {
-        let line = match self.socket_b.as_ref() {
-            Some(sock_b) => {
-                tokio::select! {
-                    r = self.socket_a.recv(&mut self.buf_a) => { self.len = r?; Line::A }
-                    r = sock_b.recv(&mut self.buf_b) => { self.len = r?; Line::B }
-                }
+        let line = if let Some(sock_b) = self.socket_b.as_ref() {
+            tokio::select! {
+                r = self.socket_a.recv(&mut self.buf_a) => { self.len = r?; Line::A }
+                r = sock_b.recv(&mut self.buf_b) => { self.len = r?; Line::B }
             }
-            None => {
-                self.len = self.socket_a.recv(&mut self.buf_a).await?;
-                Line::A
-            }
+        } else {
+            self.len = self.socket_a.recv(&mut self.buf_a).await?;
+            Line::A
         };
         self.last_line = line;
         match line {

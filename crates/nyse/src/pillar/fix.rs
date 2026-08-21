@@ -865,7 +865,7 @@ mod tests {
             assert!(at >= last, "{needle} appears out of order in {text}");
             last = at;
         }
-        assert!(text.ends_with("|"), "message must end with SOH");
+        assert!(text.ends_with('|'), "message must end with SOH");
         assert!(text.contains("|10="), "checksum must be last");
     }
 

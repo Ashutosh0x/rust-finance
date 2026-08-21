@@ -80,25 +80,26 @@ impl MarketDataSource for NyseXdpSource {
 
         // Connect the Request Server up front. Discovering at the first gap that recovery is
         // unreachable is discovering it too late.
-        let request_client = match &self.config.request_server {
-            Some(cfg) => Some(
+        let request_client = if let Some(cfg) = &self.config.request_server {
+            Some(
                 RequestServerClient::connect(cfg.clone())
                     .await
                     .map_err(|e| IngestionError::ConnectionFailed(e.to_string()))?,
-            ),
-            None => {
-                tracing::warn!(
-                    target: "exchange::nyse",
-                    "no Request Server configured; a sequence gap will end the session"
-                );
-                None
-            }
+            )
+        } else {
+            tracing::warn!(
+                target: "exchange::nyse",
+                "no Request Server configured; a sequence gap will end the session"
+            );
+            None
         };
 
         let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
         let subscription = subscription.clone();
         tokio::spawn(async move {
-            let result = run(receiver, request_client, subscription, tx.clone()).await;
+            // Boxed: the future owns the A/B line datagram buffers. One
+            // allocation per session, never per message.
+            let result = Box::pin(run(receiver, request_client, subscription, tx.clone())).await;
             if let Err(reason) = result {
                 tracing::error!(target: "exchange::nyse", %reason, "XDP session ended");
                 let _ = tx.send(Err(IngestionError::ConnectionFailed(reason))).await;

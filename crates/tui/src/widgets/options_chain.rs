@@ -1,13 +1,13 @@
 // crates/tui/src/widgets/options_chain.rs
 // Interactive Ratatui widget rendering full options boards + GEX surface
 
+use crate::theme;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table},
     Frame,
 };
-use crate::theme;
 
 // We will mock the external structs here for pure UI widget separation
 #[derive(Clone, Debug)]

@@ -18,8 +18,8 @@ pub mod layout;
 mod live_feed;
 pub mod setup;
 pub mod state;
-pub mod widgets;
 pub mod theme;
+pub mod widgets;
 
 use app::App;
 use common::models::exchange::ExchangeStatus;
@@ -43,7 +43,6 @@ const TEXT_DIM: Color = theme::TEXT_FAINT;
 const TEXT_PRIMARY: Color = theme::TEXT;
 const TEXT_SECONDARY: Color = theme::TEXT_DIM;
 const YELLOW: Color = theme::YELLOW;
-
 
 /// Why the interface might render without colour, decided before anything is
 /// drawn.

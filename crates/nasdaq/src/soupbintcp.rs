@@ -404,7 +404,12 @@ impl SoupSession {
                 if Instant::now() >= deadline {
                     return Err(NasdaqError::Timeout("SoupBinTCP login response"));
                 }
-                session.fill().await?;
+                // Boxed: the future holds the session's whole read buffer, so
+                // awaiting it inline puts ~16KB on the caller's stack frame.
+                // This is the login path and runs once per connection, so the
+                // allocation costs nothing that matters; the steady-state read
+                // path in `next_event` is untouched.
+                Box::pin(session.fill()).await?;
                 continue;
             };
             let (start, len) = session.payload_bounds(frame);
@@ -535,7 +540,9 @@ impl SoupSession {
 
     /// Read at least once into the buffer.
     async fn fill(&mut self) -> Result<()> {
-        let n = read_more(&mut self.stream, &mut self.buf).await?;
+        // Boxed for the same reason as the call site above: the future carries
+        // the read buffer, and this only runs while establishing a session.
+        let n = Box::pin(read_more(&mut self.stream, &mut self.buf)).await?;
         if n == 0 {
             return Err(NasdaqError::SessionEnded(
                 "server closed the TCP connection during login".into(),

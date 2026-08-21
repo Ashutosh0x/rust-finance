@@ -203,12 +203,9 @@ impl Replayer {
             return Vec::new();
         };
         // Strict validation, so a malformed capture is reported rather than half-applied.
-        let messages = match packet.validate() {
-            Ok(m) => m,
-            Err(_) => {
-                self.stats.decode_errors += 1;
-                return Vec::new();
-            }
+        let Ok(messages) = packet.validate() else {
+            self.stats.decode_errors += 1;
+            return Vec::new();
         };
 
         let mut out = Vec::new();

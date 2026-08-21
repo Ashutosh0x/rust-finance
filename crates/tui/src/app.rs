@@ -232,18 +232,41 @@ impl App {
             candle_state: CandlestickState::default(),
 
             watchlist: vec![
-                WatchlistItem { symbol: "BTCUSDT".into(), name: "Bitcoin".into(), price: 0.0, change_pct: 0.0 },
-                WatchlistItem { symbol: "ETHUSDT".into(), name: "Ethereum".into(), price: 0.0, change_pct: 0.0 },
-                WatchlistItem { symbol: "SOLUSDT".into(), name: "Solana".into(), price: 0.0, change_pct: 0.0 },
-                WatchlistItem { symbol: "BNBUSDT".into(), name: "BNB".into(), price: 0.0, change_pct: 0.0 },
+                WatchlistItem {
+                    symbol: "BTCUSDT".into(),
+                    name: "Bitcoin".into(),
+                    price: 0.0,
+                    change_pct: 0.0,
+                },
+                WatchlistItem {
+                    symbol: "ETHUSDT".into(),
+                    name: "Ethereum".into(),
+                    price: 0.0,
+                    change_pct: 0.0,
+                },
+                WatchlistItem {
+                    symbol: "SOLUSDT".into(),
+                    name: "Solana".into(),
+                    price: 0.0,
+                    change_pct: 0.0,
+                },
+                WatchlistItem {
+                    symbol: "BNBUSDT".into(),
+                    name: "BNB".into(),
+                    price: 0.0,
+                    change_pct: 0.0,
+                },
             ],
             positions: Vec::new(),
             order_book: Vec::new(),
             news: VecDeque::new(),
             alerts: VecDeque::new(),
-            exchanges: vec![
-                ExchangeInfo { name: ExchangeName::CRYPTO, status: ExchangeStatus::Disconnected, latency_ms: 0.0, last_heartbeat: None },
-            ],
+            exchanges: vec![ExchangeInfo {
+                name: ExchangeName::CRYPTO,
+                status: ExchangeStatus::Disconnected,
+                latency_ms: 0.0,
+                last_heartbeat: None,
+            }],
 
             // Kill switch
             kill_switch_active: false,

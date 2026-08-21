@@ -126,9 +126,23 @@ mod tests {
         // Guards the invariant in the module docs: a named ANSI colour here
         // would silently pick up the user's terminal theme.
         for c in [
-            BG, PANEL, PANEL_ALT, BORDER, TEXT, TEXT_DIM, TEXT_FAINT, POSITIVE,
-            POSITIVE_BRIGHT, POSITIVE_DEEP, NEGATIVE, NEGATIVE_DEEP, BLUE, PURPLE,
-            ORANGE, CYAN, YELLOW,
+            BG,
+            PANEL,
+            PANEL_ALT,
+            BORDER,
+            TEXT,
+            TEXT_DIM,
+            TEXT_FAINT,
+            POSITIVE,
+            POSITIVE_BRIGHT,
+            POSITIVE_DEEP,
+            NEGATIVE,
+            NEGATIVE_DEEP,
+            BLUE,
+            PURPLE,
+            ORANGE,
+            CYAN,
+            YELLOW,
         ] {
             assert!(matches!(c, Color::Rgb(_, _, _)), "{c:?} is not true-colour");
         }
