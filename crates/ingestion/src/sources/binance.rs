@@ -80,6 +80,13 @@ impl BinanceSource {
             }
         }
 
+        // Quotes and OrderBookL1 both map to @bookTicker, so a subscription asking
+        // for both — which the daemon does — produced every stream twice. Binance
+        // counts duplicates against the connection limit, so a third of the budget
+        // was being spent subscribing to the same thing.
+        stream_names.sort_unstable();
+        stream_names.dedup();
+
         // Binance enforces max 1024 streams per connection
         if stream_names.len() > 1024 {
             return Err(IngestionError::Other(anyhow::anyhow!(
@@ -417,6 +424,47 @@ fn parse_depth_levels(value: &serde_json::Value) -> Option<Vec<PriceLevel>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quotes_and_book_l1_do_not_subscribe_twice() {
+        // Both map to @bookTicker. Asking for both used to emit the stream
+        // twice, and Binance counts duplicates against the 1024 limit.
+        let src = BinanceSource::new(Arc::new(SequenceGenerator::new()));
+        let sub = Subscription {
+            symbols: vec!["BTCUSDT".into()],
+            data_types: vec![DataType::Trades, DataType::Quotes, DataType::OrderBookL1],
+        };
+
+        let url = src.build_url(&sub).unwrap();
+        let streams: Vec<&str> = url.split("streams=").nth(1).unwrap().split('/').collect();
+
+        assert_eq!(
+            streams
+                .iter()
+                .filter(|s| **s == "btcusdt@bookTicker")
+                .count(),
+            1,
+            "bookTicker must appear once, got: {streams:?}"
+        );
+        assert_eq!(
+            streams.len(),
+            2,
+            "expected trade + bookTicker, got {streams:?}"
+        );
+    }
+
+    #[test]
+    fn symbols_are_normalised_for_the_venue() {
+        let src = BinanceSource::new(Arc::new(SequenceGenerator::new()));
+        let sub = Subscription {
+            symbols: vec!["BTC/USDT".into(), "ETH-USDT".into()],
+            data_types: vec![DataType::Trades],
+        };
+
+        let url = src.build_url(&sub).unwrap();
+        assert!(url.contains("btcusdt@trade"), "got {url}");
+        assert!(url.contains("ethusdt@trade"), "got {url}");
+    }
 
     #[test]
     fn parse_trade_message() {

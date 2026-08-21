@@ -9,9 +9,17 @@ use crate::source::{IngestionError, MarketDataSource, MarketStream, Subscription
 use futures::stream::{self, SelectAll, StreamExt};
 use tracing::{error, info, warn};
 
+/// One registered source and the symbols it is allowed to see.
+struct Registered {
+    source: Box<dyn MarketDataSource>,
+    /// `None` means "every symbol in the subscription", which is the right
+    /// default for a source that genuinely serves whatever it is asked for.
+    only_symbols: Option<Vec<String>>,
+}
+
 /// A collection of data sources that get merged into one stream.
 pub struct Multiplexer {
-    sources: Vec<Box<dyn MarketDataSource>>,
+    sources: Vec<Registered>,
 }
 
 impl Multiplexer {
@@ -21,9 +29,31 @@ impl Multiplexer {
         }
     }
 
-    /// Add a data source to the multiplexer.
+    /// Add a data source that receives every symbol in the subscription.
     pub fn add_source(mut self, source: impl MarketDataSource + 'static) -> Self {
-        self.sources.push(Box::new(source));
+        self.sources.push(Registered {
+            source: Box::new(source),
+            only_symbols: None,
+        });
+        self
+    }
+
+    /// Add a data source that only ever sees `symbols`.
+    ///
+    /// Without this every source received every symbol, so a crypto venue was
+    /// asked for `aapl@trade` and an equities venue for `BTCUSDT`. Those
+    /// subscriptions cannot be served, and the venue's response is to ignore
+    /// them silently — which looks identical to a working connection that
+    /// happens to be quiet.
+    pub fn add_source_for(
+        mut self,
+        source: impl MarketDataSource + 'static,
+        symbols: Vec<String>,
+    ) -> Self {
+        self.sources.push(Registered {
+            source: Box::new(source),
+            only_symbols: Some(symbols),
+        });
         self
     }
 
@@ -36,7 +66,11 @@ impl Multiplexer {
         let mut select_all: SelectAll<MarketStream> = SelectAll::new();
         let mut connected_count = 0;
 
-        for source in &self.sources {
+        for Registered {
+            source,
+            only_symbols,
+        } in &self.sources
+        {
             // Filter subscription to only include data types this source supports
             let supported = source.supported_data_types();
             let filtered_types: Vec<_> = subscription
@@ -51,8 +85,26 @@ impl Multiplexer {
                 continue;
             }
 
+            // Symbols this source can actually serve. Matching is
+            // case-insensitive because venues disagree about case and the
+            // configuration should not have to.
+            let symbols: Vec<String> = match only_symbols {
+                Some(allowed) => subscription
+                    .symbols
+                    .iter()
+                    .filter(|s| allowed.iter().any(|a| a.eq_ignore_ascii_case(s)))
+                    .cloned()
+                    .collect(),
+                None => subscription.symbols.clone(),
+            };
+
+            if symbols.is_empty() {
+                info!(source = source.name(), "Skipped - no matching symbols");
+                continue;
+            }
+
             let filtered_sub = Subscription {
-                symbols: subscription.symbols.clone(),
+                symbols,
                 data_types: filtered_types,
             };
 
@@ -91,7 +143,7 @@ impl Multiplexer {
     /// Health check all sources.
     pub async fn health_check(&self) -> Vec<(&str, bool)> {
         let mut results = Vec::new();
-        for source in &self.sources {
+        for Registered { source, .. } in &self.sources {
             let healthy = source.is_healthy().await;
             results.push((source.name(), healthy));
         }

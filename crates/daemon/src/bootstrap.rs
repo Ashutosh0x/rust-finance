@@ -114,7 +114,7 @@ pub async fn bootstrap(
             match FinnhubSource::from_env(Arc::clone(&seq_gen)) {
                 Ok(source) => {
                     info!("Finnhub source configured");
-                    mux = mux.add_source(source);
+                    mux = mux.add_source_for(source, config.symbols_equity.clone());
                 }
                 Err(e) => warn!(error = %e, "Finnhub unavailable, skipping"),
             }
@@ -122,7 +122,7 @@ pub async fn bootstrap(
             match AlpacaSource::from_env(Arc::clone(&seq_gen)) {
                 Ok(source) => {
                     info!("Alpaca data source configured");
-                    mux = mux.add_source(source);
+                    mux = mux.add_source_for(source, config.symbols_equity.clone());
                 }
                 Err(e) => warn!(error = %e, "Alpaca data unavailable, skipping"),
             }
@@ -136,14 +136,16 @@ pub async fn bootstrap(
                 BinanceSource::new(Arc::clone(&seq_gen))
             };
             info!("Binance source configured");
-            mux = mux.add_source(binance);
+            // Crypto only. Passing every symbol had this venue subscribing to
+            // aapl@trade, which it cannot serve and silently ignores.
+            mux = mux.add_source_for(binance, config.symbols_crypto.clone());
         }
 
         // Prediction market source (Polymarket)
         if !config.symbols_polymarket.is_empty() {
             let poly = PolymarketSource::new(Arc::clone(&seq_gen));
             info!("Polymarket source configured");
-            mux = mux.add_source(poly);
+            mux = mux.add_source_for(poly, config.symbols_polymarket.clone());
         }
     }
 

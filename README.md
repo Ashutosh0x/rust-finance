@@ -66,6 +66,8 @@ RustFinance Terminal, also called RustForge, is an open-source Rust trading term
 
 - **Try it locally:** `cargo run -p tui --release`
 - **Run the daemon:** `USE_MOCK=1 cargo run -p daemon --release`
+- **Live crypto, no API key:** `USE_MOCK=0 SYMBOLS_CRYPTO=BTCUSDT,ETHUSDT cargo run -p daemon --release` — Binance's public
+  WebSocket needs no credentials, so this is the shortest path to real market data flowing through the full pipeline
 - **Demo:** https://github.com/user-attachments/assets/c769b2c2-cfa0-44bd-a261-99786ea653e1
 - **Community:** [Roadmap](ROADMAP.md), [Contributing](CONTRIBUTING.md), [good first issues](https://github.com/Ashutosh0x/rust-finance/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - **Direct exchange connectivity:** [Nasdaq ITCH/OUCH + NYSE Pillar](docs/DIRECT_EXCHANGE_CONNECTIVITY.md) — native binary protocols, 294 tests
