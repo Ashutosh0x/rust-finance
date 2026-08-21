@@ -11,7 +11,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-tokio = { version = "1", features = ["net", "io-util", "sync", "time"] }
+# "macros" is required by the `tokio::select!` in session.rs. Without it this
+# crate only compiles inside the workspace, because a sibling crate pulls
+# tokio with "full" and Cargo unifies features across the build — so
+# `cargo test -p fix` failed while `cargo check --workspace` passed.
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros"] }
 tracing = "0.1"
 chrono = "0.4"
 thiserror = "1.0"

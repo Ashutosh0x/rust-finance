@@ -202,6 +202,42 @@ pub mod serializer {
     /// to extract complete messages using the BodyLength (tag 9) framing.
     ///
     /// This replaces the v0.2 stub that returned dummy Heartbeats.
+    /// The longest BodyLength this parser will accept.
+    ///
+    /// FIX application messages are small; the largest realistic frames are
+    /// mass-quote and security-list responses, and 1 MiB is far above any of
+    /// them. The cap is not about tuning — the value comes off the wire and is
+    /// used both in pointer arithmetic and in a "wait for this many bytes"
+    /// decision, so without a bound an attacker controls a usize overflow and
+    /// the buffer's growth at the same time.
+    const MAX_BODY_LENGTH: usize = 1024 * 1024;
+
+    /// Bytes after "8=" within which BodyLength must appear.
+    const MAX_HEADER_SCAN: usize = 64;
+
+    /// "10=XXX\x01"
+    const CHECKSUM_FIELD_LEN: usize = 7;
+
+    /// Shortest thing that could be a message: "8=FIX.X.X\x019=N\x0135=X\x0110=XXX\x01"
+    const MIN_FRAME_LEN: usize = 20;
+
+    /// Longest partial "8=FIX.4.4\x01" that could be split across two reads.
+    const MAX_TAG8_PREFIX: usize = 16;
+
+    /// What one parse attempt concluded.
+    ///
+    /// Three outcomes rather than `Option`, because "wait for more bytes" and
+    /// "these bytes are not a message" need opposite handling and were
+    /// previously both `None` — which is precisely how a malformed frame came
+    /// to stall a session permanently.
+    enum Frame {
+        Message(FixMessage),
+        /// Incomplete but plausible. Leave the buffer alone.
+        NeedMore,
+        /// Undecodable. Bytes have already been removed; try again.
+        Discard,
+    }
+
     pub struct FixParser {
         buffer: Vec<u8>,
     }
@@ -223,7 +259,42 @@ pub mod serializer {
             self.buffer.extend_from_slice(bytes);
         }
 
+        /// Bytes still buffered, waiting to form a message.
+        ///
+        /// Exposed because "did this malformed frame get dropped" is not
+        /// answerable from `next_message`'s return value — both a stall and a
+        /// legitimate wait-for-more-bytes return `None`. A read loop can also
+        /// use this to notice a peer that is filling the buffer without ever
+        /// completing a message.
+        pub fn buffer_len(&self) -> usize {
+            self.buffer.len()
+        }
+
         /// Extract the next complete FIX message from the buffer.
+        ///
+        /// Loops internally: a malformed frame is discarded and parsing
+        /// continues, so `None` means only "not enough bytes yet".
+        ///
+        /// That distinction is the whole contract. Callers drain with
+        /// `while let Some(msg) = parser.next_message()`, so a `None` that
+        /// leaves undecodable bytes in place stops the loop forever — every
+        /// later read appends bytes that are never looked at again. One
+        /// malformed frame from the counterparty would silently kill the
+        /// session. Discarding here rather than returning is what keeps that
+        /// from being remotely triggerable.
+        pub fn next_message(&mut self) -> Option<FixMessage> {
+            loop {
+                match self.try_next_frame() {
+                    Frame::Message(msg) => return Some(msg),
+                    Frame::NeedMore => return None,
+                    // `resync` and `discard_through` always remove at least
+                    // one byte, so this terminates.
+                    Frame::Discard => continue,
+                }
+            }
+        }
+
+        /// One attempt at the front of the buffer.
         ///
         /// Algorithm:
         ///   1. Find "8=" prefix (BeginString start)
@@ -232,60 +303,106 @@ pub mod serializer {
         ///   4. Expect "10=<checksum>" immediately after
         ///   5. Validate checksum
         ///   6. Parse all tag=value pairs
-        pub fn next_message(&mut self) -> Option<FixMessage> {
-            // We need at minimum "8=FIX.X.X\x019=N\x0135=X\x0110=XXX\x01"
-            if self.buffer.len() < 20 {
-                return None;
+        fn try_next_frame(&mut self) -> Frame {
+            if self.buffer.len() < MIN_FRAME_LEN {
+                return Frame::NeedMore;
             }
 
             // Step 1: Find start of message (tag 8)
-            let msg_start = self.find_tag_start(8)?;
+            let Some(msg_start) = self.find_tag_start(8) else {
+                // No BeginString anywhere. Everything buffered is noise, but
+                // the tail may be a "8=FIX..." split across two reads, so keep
+                // back enough bytes for the longest prefix we could be part
+                // way through.
+                let keep = MAX_TAG8_PREFIX.min(self.buffer.len());
+                let drop_to = self.buffer.len() - keep;
+                if drop_to > 0 {
+                    self.buffer.drain(..drop_to);
+                }
+                return Frame::NeedMore;
+            };
+
+            // Anything before the BeginString is not part of a message.
+            if msg_start > 0 {
+                self.buffer.drain(..msg_start);
+                return Frame::Discard;
+            }
 
             // Step 2: Find BodyLength (tag 9)
-            let tag9_start = self.find_tag_in_range(9, msg_start)?;
-            let tag9_val_start = self.skip_past_equals(tag9_start)?;
-            let tag9_soh = self.find_soh_after(tag9_val_start)?;
+            let Some(tag9_start) = self.find_tag_in_range(9, 0) else {
+                return self.need_more_or_resync();
+            };
+            let Some(tag9_val_start) = self.skip_past_equals(tag9_start) else {
+                return self.need_more_or_resync();
+            };
+            let Some(tag9_soh) = self.find_soh_after(tag9_val_start) else {
+                return self.need_more_or_resync();
+            };
 
-            let body_len_str = std::str::from_utf8(&self.buffer[tag9_val_start..tag9_soh]).ok()?;
-            let body_length: usize = body_len_str.parse().ok()?;
+            // A BodyLength that is not a number cannot be recovered by
+            // waiting for more bytes.
+            let Ok(body_len_str) = std::str::from_utf8(&self.buffer[tag9_val_start..tag9_soh])
+            else {
+                return self.resync();
+            };
+            let Ok(body_length) = body_len_str.parse::<usize>() else {
+                return self.resync();
+            };
+
+            // Bounded BEFORE it is used in arithmetic. An unbounded value off
+            // the wire is two separate faults: `body_start + body_length`
+            // overflows usize — a remote panic in a debug build, a silent wrap
+            // in release — and any value larger than a real message makes the
+            // parser wait for bytes that will never arrive while the buffer
+            // grows without limit.
+            if body_length > MAX_BODY_LENGTH {
+                return self.resync();
+            }
 
             // Step 3: Body starts after "9=N\x01"
             let body_start = tag9_soh + 1;
-            let body_end = body_start + body_length;
-
-            // Do we have enough bytes? body + "10=XXX\x01" (minimum 8 bytes)
-            if self.buffer.len() < body_end + 7 {
-                return None; // incomplete message, wait for more bytes
+            let Some(body_end) = body_start.checked_add(body_length) else {
+                return self.resync();
+            };
+            let Some(needed) = body_end.checked_add(CHECKSUM_FIELD_LEN) else {
+                return self.resync();
+            };
+            if self.buffer.len() < needed {
+                return Frame::NeedMore; // incomplete message, wait for more bytes
             }
 
-            // Step 4: Find checksum field "10=" after body
+            // Step 4: Expect "10=" exactly at body_end
             let checksum_region_start = body_end;
-            if checksum_region_start + 7 > self.buffer.len() {
-                return None;
-            }
-
-            // Expect "10=" at body_end
             if self
                 .buffer
                 .get(checksum_region_start..checksum_region_start + 3)
                 != Some(b"10=")
             {
-                // Malformed — skip this message start and try again
-                self.buffer.drain(..=msg_start);
-                return None;
+                // BodyLength did not point at the checksum field, so the frame
+                // is malformed however plausible it looked.
+                return self.resync();
             }
 
             let cs_val_start = checksum_region_start + 3;
-            let cs_soh = self.find_soh_after(cs_val_start)?;
+            let Some(cs_soh) = self.find_soh_after(cs_val_start) else {
+                return Frame::NeedMore;
+            };
             let msg_end = cs_soh + 1;
 
             // Step 5: Validate checksum
-            let expected_checksum_str =
-                std::str::from_utf8(&self.buffer[cs_val_start..cs_soh]).ok()?;
-            let expected_checksum: u8 = expected_checksum_str.parse().ok()?;
+            let Ok(expected_checksum_str) = std::str::from_utf8(&self.buffer[cs_val_start..cs_soh])
+            else {
+                return self.discard_through(msg_end);
+            };
+            // A checksum that is not a number, or does not fit in a byte,
+            // can never match. Discarding the frame is the only way forward;
+            // returning early here is what stalled the session.
+            let Ok(expected_checksum) = expected_checksum_str.parse::<u8>() else {
+                return self.discard_through(msg_end);
+            };
 
             let actual_checksum: u8 = {
-                let sum: u32 = self.buffer[msg_start..checksum_region_start]
+                let sum: u32 = self.buffer[..checksum_region_start]
                     .iter()
                     .map(|b| *b as u32)
                     .sum();
@@ -293,16 +410,51 @@ pub mod serializer {
             };
 
             if expected_checksum != actual_checksum {
-                // Malformed checksum - drain up to msg_end to continue
-                self.buffer.drain(..msg_end);
-                return None;
+                return self.discard_through(msg_end);
             }
 
             // Step 6: Extract the full message bytes and parse
             let msg_bytes: Vec<u8> = self.buffer.drain(..msg_end).collect();
 
-            // Parse all tag-value pairs from the entire message
-            FixMessage::from_tag_values(&msg_bytes).ok()
+            match FixMessage::from_tag_values(&msg_bytes) {
+                Ok(msg) => Frame::Message(msg),
+                // The bytes are already gone, so this cannot loop.
+                Err(_) => Frame::Discard,
+            }
+        }
+
+        /// Wait for more header bytes, unless we have already seen more than a
+        /// FIX header could possibly be.
+        ///
+        /// BeginString is followed immediately by BodyLength in every FIX
+        /// version. Scanning further would mean treating arbitrary data that
+        /// happens to contain "8=" as a message header and waiting on it
+        /// forever.
+        fn need_more_or_resync(&mut self) -> Frame {
+            if self.buffer.len() > MAX_HEADER_SCAN {
+                self.resync()
+            } else {
+                Frame::NeedMore
+            }
+        }
+
+        /// Drop one byte so the next "8=" can be found.
+        ///
+        /// Always removes at least one byte, which is what makes the loop in
+        /// [`FixParser::next_message`] terminate.
+        fn resync(&mut self) -> Frame {
+            if self.buffer.is_empty() {
+                return Frame::NeedMore;
+            }
+            self.buffer.drain(..1);
+            Frame::Discard
+        }
+
+        /// Drop a whole framed message that turned out to be undecodable.
+        fn discard_through(&mut self, end: usize) -> Frame {
+            let end = end.clamp(1, self.buffer.len());
+            self.buffer.drain(..end);
+            Frame::Discard
         }
 
         // ── Helper methods ───────────────────────────────────────
@@ -484,6 +636,119 @@ pub mod serializer {
         fn test_empty_buffer_returns_none() {
             let mut parser = FixParser::new();
             assert!(parser.next_message().is_none());
+        }
+
+        // ─── Malformed input (issue #43) ──────────────────────────
+        //
+        // A FIX session reads from a socket. Every one of these inputs can
+        // arrive from the counterparty, so "the parser returns None" is not
+        // sufficient — the bytes must also LEAVE the buffer. A None that
+        // leaves the input in place makes the next call re-parse the same
+        // bytes, which stalls the session forever and grows the buffer
+        // without bound as more data arrives.
+        //
+        // `buffer_len()` is what these assert on, because the stall is
+        // invisible from the return value alone.
+
+        /// Feed one message after garbage and require the good one to arrive.
+        ///
+        /// This is the property that matters: a malformed message must not
+        /// prevent the session from recovering.
+        fn assert_recovers_after(garbage: &[u8]) {
+            let good = build_fix_message(&[(8, "FIX.4.4"), (35, "0"), (49, "A"), (56, "B")]);
+
+            let mut parser = FixParser::new();
+            parser.push_bytes(garbage);
+            parser.push_bytes(&good);
+
+            // Drive the parser the way a read loop does: call until it either
+            // yields a message or stops making progress.
+            let mut last_len = parser.buffer_len();
+            for _ in 0..64 {
+                if let Some(msg) = parser.next_message() {
+                    assert_eq!(msg.msg_type(), MsgType::Heartbeat);
+                    return;
+                }
+                let now = parser.buffer_len();
+                assert!(
+                    now < last_len,
+                    "parser stalled: buffer stuck at {now} bytes and no message produced"
+                );
+                last_len = now;
+            }
+            panic!("parser never recovered after malformed input");
+        }
+
+        #[test]
+        fn non_numeric_body_length_does_not_stall() {
+            // "9=abc" fails to parse as a number.
+            assert_recovers_after(b"8=FIX.4.49=abc35=010=000");
+        }
+
+        #[test]
+        fn oversized_body_length_does_not_stall() {
+            // A BodyLength far larger than anything that will ever arrive.
+            // The parser must not wait for it forever.
+            assert_recovers_after(b"8=FIX.4.49=99999999935=010=000");
+        }
+
+        #[test]
+        fn body_length_near_usize_max_does_not_overflow() {
+            // body_start + body_length must not wrap. In a debug build an
+            // overflow panics, which in a network parser is a remote crash.
+            let huge = usize::MAX.to_string();
+            let raw = format!("8=FIX.4.49={huge}35=010=000");
+            assert_recovers_after(raw.as_bytes());
+        }
+
+        #[test]
+        fn checksum_value_out_of_range_does_not_stall() {
+            // "10=999" does not fit in a u8. The parse fails.
+            let body = "35=049=A56=B";
+            let raw = format!("8=FIX.4.49={}{body}10=999", body.len());
+            assert_recovers_after(raw.as_bytes());
+        }
+
+        #[test]
+        fn non_numeric_checksum_does_not_stall() {
+            let body = "35=049=A56=B";
+            let raw = format!("8=FIX.4.49={}{body}10=xyz", body.len());
+            assert_recovers_after(raw.as_bytes());
+        }
+
+        #[test]
+        fn wrong_checksum_is_rejected_and_recovers() {
+            let body = "35=049=A56=B";
+            // 000 is almost certainly not the real checksum.
+            let raw = format!("8=FIX.4.49={}{body}10=000", body.len());
+            assert_recovers_after(raw.as_bytes());
+        }
+
+        #[test]
+        fn body_length_pointing_into_the_middle_of_a_field_recovers() {
+            // BodyLength too short, so "10=" is not where it should be.
+            let body = "35=049=A56=B";
+            let raw = format!("8=FIX.4.49=4{body}10=000");
+            assert_recovers_after(raw.as_bytes());
+        }
+
+        #[test]
+        fn buffer_does_not_grow_without_bound_on_repeated_garbage() {
+            // The DoS shape: a peer streaming malformed frames must not make
+            // the parser accumulate them forever.
+            let mut parser = FixParser::new();
+            let junk = b"8=FIX.4.49=99999999935=010=000";
+
+            for _ in 0..200 {
+                parser.push_bytes(junk);
+                while parser.next_message().is_some() {}
+            }
+
+            assert!(
+                parser.buffer_len() < 64 * 1024,
+                "buffer grew to {} bytes on malformed input",
+                parser.buffer_len()
+            );
         }
     }
 }
