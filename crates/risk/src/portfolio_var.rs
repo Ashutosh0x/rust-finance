@@ -43,6 +43,41 @@ pub struct PortfolioVarResult {
     pub shrinkage_intensity: f64,
 }
 
+impl PortfolioVarResult {
+    /// The strongest correlation between any two distinct holdings.
+    ///
+    /// `None` when fewer than two symbols have data, because "the worst pair"
+    /// is not defined for a single position — and a caller must be able to tell
+    /// that apart from "the worst pair is 0.0", which would look like perfect
+    /// diversification.
+    ///
+    /// Reads the upper triangle only. The matrix is symmetric and its diagonal
+    /// is 1.0 by construction, so including either would report every portfolio
+    /// as maximally correlated with itself.
+    pub fn max_pairwise_correlation(&self) -> Option<f64> {
+        let n = self.symbols.len();
+        if n < 2 || self.correlation_matrix.len() < n * n {
+            return None;
+        }
+
+        let mut worst: Option<f64> = None;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let c = self.correlation_matrix[i * n + j];
+                if !c.is_finite() {
+                    continue;
+                }
+                // Magnitude: -0.9 is as concentrated a bet as +0.9, just in the
+                // opposite direction. A signed comparison would wave through a
+                // portfolio that is short one side of a tight pair.
+                let c = c.abs();
+                worst = Some(worst.map_or(c, |w: f64| w.max(c)));
+            }
+        }
+        worst
+    }
+}
+
 /// Correlated Portfolio VaR Calculator.
 ///
 /// Implements:
