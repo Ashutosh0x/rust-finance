@@ -941,7 +941,7 @@ mod tests {
             vec![&s1, &s2, &s3];
         let report = probability_of_backtest_overfitting(&bars, &strategies, &config, 3);
         // With only 3 strategies and 3 splits, PBO should be low (not heavily data-snooped)
-        assert!(report.strategies_tested == 3);
+        assert_eq!(report.strategies_tested, 3);
     }
 
     #[test]

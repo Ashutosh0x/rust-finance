@@ -396,7 +396,7 @@ mod tests {
         let mut engine = BacktestEngine::new(BacktestConfig::default());
         let mut strategy = SimpleMovingAverageCrossover::new(5, 20);
         let metrics = engine.run(&bars, &mut strategy);
-        assert!(metrics.equity_curve.len() == 100);
+        assert_eq!(metrics.equity_curve.len(), 100);
     }
 
     #[test]
