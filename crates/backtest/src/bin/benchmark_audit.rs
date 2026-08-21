@@ -316,7 +316,14 @@ fn generate_realistic_bars(n: usize) -> Vec<Bar> {
         // Volatility clustering (GARCH-like)
         vol =
             0.001 + 0.8 * vol + 0.15 * (((i * 7919 + 13) % 100) as f64 / 100.0 - 0.5).abs() * 0.02;
-        // Deterministic pseudo-random noise
+        // Deterministic pseudo-random noise.
+        //
+        // The multiplier is an arbitrary irrational, chosen so successive `i`
+        // land at unrelated points on the sine curve. Clippy reads it as a
+        // fumbled `f64::consts::E`, but no value of Euler's number is being
+        // used here — swapping in the exact constant would silently change
+        // every generated series while meaning the same thing.
+        #[allow(clippy::approx_constant)]
         let noise = ((i as f64 * 2.71828).sin() * 1000.0).fract() * vol * 2.0 - vol;
 
         price += price * (trend + mr + noise);

@@ -267,33 +267,55 @@ impl App {
             dexter_recommendation: Some("BUY".to_string()),
             dexter_loading: false,
             dexter_confidence: 0.74,
-            dexter_conviction: "HIGH".to_string(),
-            dexter_stop_loss_pct: 3.2,
-            dexter_take_profit_pct: 8.5,
-            dexter_kelly_fraction: 0.042,
-            dexter_position_size_pct: 4.2,
-            dexter_rationale: "Strong institutional accumulation pattern with RSI 62.4 confirming momentum. Swarm consensus at 77% rally probability with high conviction.".to_string(),
-            dexter_regime: "Trending".to_string(),
-            dexter_safety_gate_pass: true,
+            // Every field below is empty until an analysis produces one.
+            //
+            // These were seeded with a complete fake thesis — "HIGH" conviction,
+            // a 3.2% stop, a 4.2% Kelly size and a paragraph about
+            // "institutional accumulation with RSI 62.4" — and NOTHING in the
+            // program ever wrote them again. The panel therefore showed the
+            // same invented trade idea for the whole session, on every symbol,
+            // with no connection required.
+            dexter_conviction: String::new(),
+            dexter_stop_loss_pct: 0.0,
+            dexter_take_profit_pct: 0.0,
+            dexter_kelly_fraction: 0.0,
+            dexter_position_size_pct: 0.0,
+            dexter_rationale: String::new(),
+            dexter_regime: String::new(),
+            // False until an analysis actually passes the gate. A safety
+            // indicator that starts green and is never set false is a light
+            // that cannot warn.
+            dexter_safety_gate_pass: false,
             dexter_call_count: 0,
 
-            // Mirofish (enhanced) — fixed to sum to 100%
-            mirofish_running: true,
-            mirofish_rally_pct: 70.0,
-            mirofish_sideways_pct: 27.0,
-            mirofish_dip_pct: 3.0,
+            // No simulation has run, so there is no distribution to show.
+            // `mirofish_running: true` was especially misleading: the panel
+            // rendered as though a 5,000-agent swarm were live from the moment
+            // the terminal opened.
+            mirofish_running: false,
+            mirofish_rally_pct: 0.0,
+            mirofish_sideways_pct: 0.0,
+            mirofish_dip_pct: 0.0,
+            // Configuration, not a result — this one is a real setting.
             mirofish_agent_count: 5_000,
-            mirofish_sim_time_ms: 847.3,
-            mirofish_order_imbalance: 0.23,
-            mirofish_simulated_vol: 0.019,
-            mirofish_agent_agreement: 72.0,
+            mirofish_sim_time_ms: 0.0,
+            mirofish_order_imbalance: 0.0,
+            mirofish_simulated_vol: 0.0,
+            mirofish_agent_agreement: 0.0,
             mirofish_bias_detected: false,
 
             // Trading
-            day_pnl: 10.90,
-            available_power: 1729.8,
-            orders_sent: 15,
-            fills_count: 12,
+            //
+            // A terminal that opens showing a $10.90 day P&L, $1,729.80 of
+            // buying power, 15 orders and 12 fills is describing a trading
+            // session that never happened — and none of these were written
+            // again anywhere in the program, so the numbers stood for the
+            // entire run. Zero is the only honest starting value; the daemon
+            // link fills them in once there is one.
+            day_pnl: 0.0,
+            available_power: 0.0,
+            orders_sent: 0,
+            fills_count: 0,
             rejections_count: 0,
 
             // Session
@@ -374,15 +396,27 @@ impl App {
 
     // ── Kill Switch ───────────────────────────────────────────────────────────
 
+    /// Flag the kill switch locally.
+    ///
+    /// This halts nothing. The daemon link is receive-only, so pressing this
+    /// cannot cancel an order or flatten a position anywhere — and the counts
+    /// it used to report were invented twice over: `orders_cancelled` was set
+    /// to the running order count, and `positions_closed` to however many rows
+    /// the table happened to hold.
+    ///
+    /// "ALL TRADING HALTED" is the single most consequential thing this program
+    /// can display. Someone reading it stops managing their exposure. It now
+    /// says what it actually did.
     pub fn activate_kill_switch(&mut self) {
         self.kill_switch_active = true;
         let now = chrono::Local::now();
         self.kill_switch_timestamp = Some(now.format("%Y-%m-%d %H:%M:%S%.3f").to_string());
-        self.kill_switch_orders_cancelled = self.orders_sent;
-        self.kill_switch_positions_closed = self.positions.len() as u32;
+        // Nothing was cancelled or closed by this process.
+        self.kill_switch_orders_cancelled = 0;
+        self.kill_switch_positions_closed = 0;
         self.sequence_id += 1;
         self.push_alert_severity(
-            "!!! KILL SWITCH ACTIVATED -- ALL TRADING HALTED",
+            "KILL SWITCH FLAGGED LOCALLY -- this TUI cannot halt trading. Stop the engine directly.",
             AlertSeverity::Critical,
         );
     }
@@ -397,6 +431,25 @@ impl App {
         if self.alerts.len() > 20 {
             self.alerts.pop_back();
         }
+    }
+
+    /// Report an action the TUI cannot perform, and say why.
+    ///
+    /// The daemon link at 127.0.0.1:7001 is **receive-only** — `main.rs` splits
+    /// the socket and drops the writer (`let (mut reader, _writer) = ...`).
+    /// There is no command protocol from this process to the engine, so no key
+    /// press here can cancel an order, flatten a position or reach a broker.
+    ///
+    /// These actions previously pushed a success alert. "All pending orders
+    /// cancelled" when nothing was cancelled is the most dangerous sentence
+    /// this program can print: an operator reads it during a drawdown, believes
+    /// their exposure is flat, and stops acting. Saying nothing would be better
+    /// than that, and saying what is actually true is better still.
+    fn push_unavailable(&mut self, action: &str) {
+        self.push_alert_severity(
+            &format!("{action} is not available: this TUI has no command channel to the engine."),
+            AlertSeverity::Warning,
+        );
     }
 
     pub fn push_alert_severity(&mut self, text: &str, severity: AlertSeverity) {
@@ -432,48 +485,57 @@ impl App {
     }
 
     pub fn cancel_selected(&mut self) {
-        self.push_alert("Selected order cancelled.");
+        self.push_unavailable("Cancelling an order");
     }
 
     pub fn cancel_all(&mut self) {
-        self.push_alert_severity(
-            "WARNING: All pending orders cancelled.",
-            AlertSeverity::Warning,
-        );
+        self.push_unavailable("Cancelling all orders");
     }
 
     #[allow(dead_code)]
     pub fn halve_position(&mut self) {
-        self.push_alert("Position halved. Routing market sell for 50%.");
+        self.push_unavailable("Reducing a position");
     }
 
     pub fn close_full_position(&mut self) {
-        self.push_alert("Position closed completely.");
+        self.push_unavailable("Closing a position");
     }
 
+    /// Confirm the order dialog.
+    ///
+    /// Counts the attempt and closes the dialog, but does NOT claim the order
+    /// was sent — see [`Self::push_unavailable`]. `orders_sent` is renamed in
+    /// spirit if not in name: it is the number of submissions attempted from
+    /// this screen, and the status line must not present it as fills.
     pub fn confirm_order(&mut self) {
-        self.sequence_id += 1;
-        if self.show_buy_dialog {
-            self.orders_sent += 1;
-            self.push_alert(&format!(
-                "BUY {} submitted: {} qty @ {} [seq:{}]",
-                self.active_symbol,
-                self.order_qty_input,
-                self.dialog_order_type.label(),
-                self.sequence_id
-            ));
+        // The order details are echoed back so the operator can see what they
+        // asked for, but the wording never says "submitted" - nothing was.
+        // `orders_sent` is deliberately NOT incremented: a counter that climbs
+        // for orders that were never placed turns one misleading alert into a
+        // running total that looks like a position.
+        let side = if self.show_buy_dialog {
+            Some("BUY")
         } else if self.show_sell_dialog {
-            self.orders_sent += 1;
-            self.push_alert(&format!(
-                "SELL {} submitted: {} qty @ {} [seq:{}]",
-                self.active_symbol,
-                self.order_qty_input,
-                self.dialog_order_type.label(),
-                self.sequence_id
-            ));
+            Some("SELL")
         } else {
-            self.push_alert("Order submitted to execution engine.");
+            None
+        };
+
+        match side {
+            Some(side) => {
+                let qty = self.order_qty_input.clone();
+                let order_type = self.dialog_order_type.label();
+                let symbol = self.active_symbol.clone();
+                self.push_alert_severity(
+                    &format!(
+                        "NOT SENT - {side} {symbol} {qty} @ {order_type}: this TUI has no command channel to the engine."
+                    ),
+                    AlertSeverity::Critical,
+                );
+            }
+            None => self.push_unavailable("Submitting an order"),
         }
+
         self.show_buy_dialog = false;
         self.show_sell_dialog = false;
     }
@@ -485,48 +547,73 @@ impl App {
 
     // ── AI ─────────────────────────────────────────────────────────────────────
 
+    /// Request a Dexter analysis.
+    ///
+    /// This used to print a fixed "BUY" at 74% confidence with invented
+    /// valuation multiples (`P/E: 10.53`, `DCF fair value: $3.30`) for
+    /// whatever symbol happened to be selected, under a comment saying it was
+    /// simulating what a real async task would do.
+    ///
+    /// A trading terminal that shows a fabricated recommendation is worse than
+    /// one that shows nothing: the numbers look like analysis, they are
+    /// specific enough to act on, and nothing on screen says they are made up.
+    ///
+    /// The real implementation is `ai::dexter::analyse`, which calls an LLM and
+    /// returns a `DexterSignal` — the `ValuationMetrics` struct there even
+    /// carries the comment "Matches what you see in the TUI Dexter panel". It
+    /// needs two things this process does not yet have: a `FusedContextLike`
+    /// built from live engine state, and a configured model key. Until both
+    /// exist, this reports that it cannot run.
     pub fn trigger_dexter(&mut self) {
         self.dexter_call_count += 1;
-        self.dexter_loading = true;
-        self.dexter_output = vec!["Analyzing market conditions...".to_string()];
-        self.dexter_recommendation = None;
-        self.push_alert(&format!(
-            "Dexter Analysis #{} requested for {}...",
-            self.dexter_call_count, self.active_symbol
-        ));
-
-        // Simulate completion after a brief moment (in real app, async task would update)
         self.dexter_loading = false;
+        self.dexter_recommendation = None;
+        self.dexter_confidence = 0.0;
+        self.dexter_conviction = "—".to_string();
+        self.dexter_safety_gate_pass = false;
         self.dexter_output = vec![
-            format!("Revenue impact estimates — $44M in"),
-            format!("showing revenue cooperates. +35% revenue"),
-            format!("margin insert scenario, most L, 42% on"),
-            format!("margin comparison 50% ≈ 34% on margin."),
+            "Dexter analysis is not wired up in this build.".to_string(),
             "".to_string(),
-            "Key valuation multiples:".to_string(),
-            format!("  P/E: 10.53  |  P/S: 2.98"),
-            format!("  EV/EBITDA: 2.99"),
-            format!("  DCF fair value: $3.30 — $7.6B"),
+            "The analyst lives in crates/ai/src/dexter.rs and needs:".to_string(),
+            "  - a fused context built from live engine state".to_string(),
+            "  - a configured model key".to_string(),
+            "".to_string(),
+            "No recommendation is shown because none was produced.".to_string(),
         ];
-        self.dexter_recommendation = Some("BUY".to_string());
-        self.dexter_confidence = 0.74;
-        self.dexter_conviction = "HIGH".to_string();
-        self.dexter_safety_gate_pass = true;
+        self.push_alert_severity(
+            &format!(
+                "Dexter analysis unavailable for {} - analyst not wired to this TUI.",
+                self.active_symbol
+            ),
+            AlertSeverity::Warning,
+        );
     }
 
+    /// Request a Mirofish swarm simulation.
+    ///
+    /// Previously announced "simulation started" and immediately assigned a
+    /// fixed 70/27/3 outcome with 72% agreement and an 847.3ms runtime, none
+    /// of which came from running anything.
+    ///
+    /// A real engine exists — `swarm_sim::default_engine` with `step_round`
+    /// and `run_forever`, and `ai::mirofish::run_swarm` above it. Driving it
+    /// needs a market snapshot from live state and somewhere to run the rounds
+    /// off the render thread. Until that is built, the panel reports no result
+    /// rather than a plausible one.
     pub fn trigger_mirofish(&mut self) {
-        self.push_alert(&format!(
-            "Mirofish {}-agent simulation started.",
-            self.mirofish_agent_count
-        ));
-        self.mirofish_running = true;
-        // Simulate realistic scenario probabilities summing to 100%
-        self.mirofish_rally_pct = 70.0;
-        self.mirofish_sideways_pct = 27.0;
-        self.mirofish_dip_pct = 3.0;
-        self.mirofish_agent_agreement = 72.0;
+        self.mirofish_running = false;
+        // Zeroed, not left at the previous values: a stale distribution from an
+        // earlier press would read as this run's answer.
+        self.mirofish_rally_pct = 0.0;
+        self.mirofish_sideways_pct = 0.0;
+        self.mirofish_dip_pct = 0.0;
+        self.mirofish_agent_agreement = 0.0;
         self.mirofish_bias_detected = false;
-        self.mirofish_sim_time_ms = 847.3;
+        self.mirofish_sim_time_ms = 0.0;
+        self.push_alert_severity(
+            "Mirofish swarm is not wired to this TUI - no simulation was run.",
+            AlertSeverity::Warning,
+        );
     }
 
     pub fn cycle_confidence(&mut self) {
@@ -550,21 +637,29 @@ impl App {
 
     // ── Data ──────────────────────────────────────────────────────────────────
 
+    /// Export the visible data.
+    ///
+    /// Named a destination file that was never created. Someone reading
+    /// "Data exported to logs/export.csv" goes looking for it, finds nothing,
+    /// and has no way to tell whether the export or their shell was at fault.
     pub fn export_csv(&mut self) {
-        self.push_alert("Data exported to logs/export.csv");
+        self.push_unavailable("Exporting to CSV");
     }
 
     pub fn run_backtest(&mut self) {
-        self.push_alert("Backtest engine warming up...");
+        // crates/backtest is real, but nothing here starts it.
+        self.push_unavailable("Running a backtest");
     }
 
     #[allow(dead_code)]
     pub fn toggle_data_source(&mut self) {
-        self.push_alert("Switched data source (Mock <-> Live)");
+        // The feed is whatever main.rs connected; nothing here switches it.
+        self.push_unavailable("Switching the data source");
     }
 
     pub fn refresh_portfolio(&mut self) {
-        self.push_alert("Refreshing portfolio via broker REST API...");
+        // There is no broker REST client in this process.
+        self.push_unavailable("Refreshing the portfolio");
     }
 
     // ── Live Data Ingestion ───────────────────────────────────────────────────
