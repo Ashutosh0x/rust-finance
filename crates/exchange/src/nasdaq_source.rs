@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::events::{Envelope, MarketEvent};
+use exchange_core::latency::now_monotonic_ns;
 use ingestion::source::{DataType, IngestionError, MarketDataSource, MarketStream, Subscription};
 use nasdaq::itch::{ItchFeedHandler, SessionClock};
 use nasdaq::moldudp64::{MoldEvent, MoldReceiver};
@@ -148,8 +149,19 @@ impl Pipeline {
     /// packet it means one message type this build does not understand, and killing the
     /// session over it would be worse than dropping it. A *framing* failure is caught one
     /// level up, where the whole packet is discarded and recovery is requested.
-    async fn on_message(&mut self, raw: &[u8], tx: &EventSender) -> Result<(), String> {
-        let applied = match self.handler.on_message(raw, 0) {
+    ///
+    /// `recv_ns` is the monotonic reading taken when the datagram arrived. It
+    /// used to be hardcoded to 0 here, and `ItchFeedHandler` skips recording
+    /// when it is 0 — so the latency histograms were fed nothing at the only
+    /// call site that carries live traffic, while still being advertised as a
+    /// feature. Passing the real timestamp is what makes them measure anything.
+    async fn on_message(
+        &mut self,
+        raw: &[u8],
+        recv_ns: u64,
+        tx: &EventSender,
+    ) -> Result<(), String> {
+        let applied = match self.handler.on_message(raw, recv_ns) {
             Ok(Some(event)) => event,
             Ok(None) => {
                 self.resolve_symbols();
@@ -211,6 +223,9 @@ async fn run_mold(
 
     loop {
         let event = receiver.recv().await.map_err(|e| e.to_string())?;
+        // Stamped here, before any decoding, so the span covers this process's
+        // whole share of the path rather than starting part way through it.
+        let recv_ns = now_monotonic_ns();
 
         match event {
             MoldEvent::Data { skip, .. } => {
@@ -237,7 +252,10 @@ async fn run_mold(
                     }
                 };
                 for raw in &messages {
-                    pipeline.on_message(raw, &tx).await?;
+                    // Every message in a packet carries the packet's arrival
+                    // stamp: they did arrive together, and re-stamping each one
+                    // would hide the cost of the messages decoded before it.
+                    pipeline.on_message(raw, recv_ns, &tx).await?;
                 }
             }
             MoldEvent::Duplicate | MoldEvent::Heartbeat => {}
@@ -281,7 +299,9 @@ async fn run_soup(
         // large because it borrows the session's read buffer, which is the
         // point — that buffer is reused rather than reallocated per read.
         #[allow(clippy::large_futures)]
-        let payload = match session.next_event().await.map_err(|e| e.to_string())? {
+        let event = session.next_event().await.map_err(|e| e.to_string())?;
+        let recv_ns = now_monotonic_ns();
+        let payload = match event {
             SoupEvent::Message { payload, .. } => Some(payload.to_vec()),
             SoupEvent::Heartbeat => None,
             SoupEvent::Debug(text) => {
@@ -299,7 +319,7 @@ async fn run_soup(
         };
 
         if let Some(raw) = payload {
-            pipeline.on_message(&raw, &tx).await?;
+            pipeline.on_message(&raw, recv_ns, &tx).await?;
         }
     }
 }
@@ -429,7 +449,7 @@ mod tests {
             encode::order_executed(header(1, 4), 101, 100, 900),
         ];
         for m in &msgs {
-            p.on_message(m, &tx).await.unwrap();
+            p.on_message(m, 0, &tx).await.unwrap();
         }
         drop(tx);
 
@@ -458,7 +478,7 @@ mod tests {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
         let mut p = Pipeline::new(&config(), &subscription(&[], &[DataType::Quotes]));
-        p.on_message(&directory(1, "AAPL"), &tx).await.unwrap();
+        p.on_message(&directory(1, "AAPL"), 0, &tx).await.unwrap();
         let err = p
             .on_message(
                 &encode::add_order(
@@ -470,6 +490,7 @@ mod tests {
                     exchange_core::Price::from_price4(1_000_000),
                     None,
                 ),
+                0,
                 &tx,
             )
             .await
@@ -481,7 +502,7 @@ mod tests {
     async fn an_undecodable_message_is_skipped_without_killing_the_session() {
         let (tx, _rx) = mpsc::channel(64);
         let mut p = Pipeline::new(&config(), &subscription(&[], &[DataType::Quotes]));
-        assert!(p.on_message(&[b'z'; 19], &tx).await.is_ok());
+        assert!(p.on_message(&[b'z'; 19], 0, &tx).await.is_ok());
         assert_eq!(p.handler.stats().decode_errors, 1);
     }
 

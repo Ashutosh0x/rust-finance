@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use exchange_core::book::BookSet;
 use exchange_core::feed::{BookEvent, ImbalanceSide, Side, TradeCondition, TradingState};
-use exchange_core::latency::FeedLatency;
+use exchange_core::latency::{now_monotonic_ns, FeedLatency};
 use exchange_core::{InstrumentKey, Nanos, WireResult};
 
 pub use messages::{
@@ -413,6 +413,11 @@ impl ItchFeedHandler {
             _ => {}
         }
 
+        // Split so the two stages are attributable separately: decoding is
+        // this crate's parser, applying is the shared book. Reporting them as
+        // one number hides which of the two regressed.
+        let decoded_ns = if recv_ns != 0 { now_monotonic_ns() } else { 0 };
+
         let applied = to_book_event(&msg, self.clock);
         if let Some(event) = &applied {
             self.stats.book_events += 1;
@@ -422,22 +427,22 @@ impl ItchFeedHandler {
         }
 
         if recv_ns != 0 {
-            self.latency.decode.record_span(recv_ns, now_monotonic_ns());
+            self.latency.decode.record_span(recv_ns, decoded_ns);
+            // Only when a book event was actually produced — charging the book
+            // stage for a message that never touched it would dilute the very
+            // tail the histogram exists to expose.
+            if applied.is_some() {
+                self.latency
+                    .book
+                    .record_span(decoded_ns, now_monotonic_ns());
+            }
         }
         Ok(applied)
     }
 }
 
-/// Monotonic clock reading in nanoseconds, for latency spans only.
-///
-/// Deliberately not wall-clock: NTP steps would produce negative or absurd intervals.
-fn now_monotonic_ns() -> u64 {
-    use std::sync::OnceLock;
-    use std::time::Instant;
-    static ORIGIN: OnceLock<Instant> = OnceLock::new();
-    let origin = ORIGIN.get_or_init(Instant::now);
-    origin.elapsed().as_nanos() as u64
-}
+// `now_monotonic_ns` moved to exchange_core::latency so every crate in a
+// tick-to-trade span reads from one origin.
 
 #[cfg(test)]
 mod tests {

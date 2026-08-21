@@ -226,6 +226,24 @@ impl FeedLatency {
     }
 }
 
+/// Monotonic clock reading in nanoseconds, for latency spans only.
+///
+/// Deliberately not wall-clock: an NTP step would produce a negative or absurd
+/// interval, and `record_span` would silently drop the sample — so a clock
+/// correction would look like a quiet gap in measurement rather than an error.
+///
+/// Lives here rather than in a feed handler so that every stage of a span is
+/// read from the SAME origin. Two crates each with their own `Instant` origin
+/// produce readings that cannot be subtracted from one another, which is
+/// exactly what a tick-to-trade span does across crate boundaries.
+pub fn now_monotonic_ns() -> u64 {
+    use std::sync::OnceLock;
+    use std::time::Instant;
+    static ORIGIN: OnceLock<Instant> = OnceLock::new();
+    let origin = ORIGIN.get_or_init(Instant::now);
+    origin.elapsed().as_nanos() as u64
+}
+
 /// The execution half of the round trip.
 ///
 /// [`FeedLatency`] stops once the book is updated, which is only half the number

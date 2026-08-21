@@ -69,6 +69,7 @@ RustFinance Terminal, also called RustForge, is an open-source Rust trading term
 - **Demo:** https://github.com/user-attachments/assets/c769b2c2-cfa0-44bd-a261-99786ea653e1
 - **Community:** [Roadmap](ROADMAP.md), [Contributing](CONTRIBUTING.md), [good first issues](https://github.com/Ashutosh0x/rust-finance/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - **Direct exchange connectivity:** [Nasdaq ITCH/OUCH + NYSE Pillar](docs/DIRECT_EXCHANGE_CONNECTIVITY.md) — native binary protocols, 294 tests
+- **Latency measurement:** [docs/latency.md](docs/latency.md) — the tick-to-trade model, what instrumentation costs, and which stages are still not wired
 - **Research Paper:** [📄 RustFinance Research Paper 2026 (PDF)](rustfinance.pdf) — 1,400+ line LaTeX paper covering architecture, 18 research papers, quantitative models, and benchmarks
 - **Funding:** [GitHub Sponsors](https://github.com/sponsors/Ashutosh0x), [Buy Me a Coffee](https://buymeacoffee.com/Ashutosh0x), [funding.json](funding.json)
 - **Recognition:** [Listed in awesome-rust Finance applications](https://github.com/rust-unofficial/awesome-rust/pull/2447)
@@ -201,7 +202,7 @@ graph TD;
 
 ```
 common           Nanosecond timestamps, events, config, models
-exchange-core    Wire primitives, exact fixed-point Price, L3 order book, gap tracker, latency histogram
+exchange-core    Wire primitives, exact fixed-point Price, L3 order book, gap tracker, tick-to-trade latency
 nasdaq           TotalView-ITCH 5.0 + OUCH 4.2 + SoupBinTCP 3.00 + MoldUDP64
 nyse             XDP Integrated Feed + Pillar Request Server + Pillar Binary Gateway + Pillar FIX 4.2
 exchange         Direct-feed MarketDataSource/ExecutionGateway adapters, preflight, capture replay
@@ -281,7 +282,7 @@ binary protocols, implemented from the published specifications. No vendor SDK, 
 | **Byte order** | Big endian, space-padded | Little endian, NUL-padded |
 
 ```
-exchange-core   Wire primitives · exact fixed-point Price · L3 order book · gap tracker · latency histogram
+exchange-core   Wire primitives · exact fixed-point Price · L3 order book · gap tracker · tick-to-trade latency
    ├─ nasdaq    ITCH 5.0 · OUCH 4.2 · SoupBinTCP · MoldUDP64
    ├─ nyse      XDP packet/common/Integrated · Request Server · Pillar Binary · Pillar FIX 4.2
    └─ exchange  MarketDataSource + ExecutionGateway adapters · config · colo preflight · replay
@@ -546,8 +547,19 @@ cargo run -p tui --release
 | Swarm Sim | 100K agents | Rayon parallel |
 | Timestamps | `UnixNanos` precision | Nanosecond |
 | Event Ordering | `AtomicU64` sequence | Lock-free |
+| Latency histogram | `record_span` | ~6.6 ns |
+| Latency histogram | `now_monotonic_ns` (clock read) | ~42 ns |
+| Latency histogram | `record_path` (6 stages + total) | ~24.8 ns |
+| Latency histogram | `summary` (6 quantiles + min/max/mean) | ~181 ns |
 
 Release profile: `opt-level=3`, `lto=fat`, `codegen-units=1`, `strip=true`
+
+**Reading the clock costs ~6x more than recording a sample**, and a span needs
+two readings — so instrumentation cost is dominated by timestamping, not by the
+histogram. That is why `record_path` takes its six timestamps as arguments
+rather than reading the clock itself. Measured on Windows, where `Instant` reads
+`QueryPerformanceCounter`; re-run before quoting on a production host. See
+[docs/latency.md](docs/latency.md).
 
 ---
 

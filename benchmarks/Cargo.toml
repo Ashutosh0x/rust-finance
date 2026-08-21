@@ -53,3 +53,8 @@ harness = false
 name = "06_direct_exchange_feeds"
 path = "benches/06_direct_exchange_feeds.rs"
 harness = false
+
+[[bench]]
+name = "07_latency_recording"
+path = "benches/07_latency_recording.rs"
+harness = false
