@@ -3,6 +3,7 @@ pub mod alpaca;
 pub mod alpaca_ws;
 pub mod finnhub_rest;
 pub mod finnhub_ws;
+pub mod fxmacrodata;
 pub mod gap_detector;
 pub mod multiplexer;
 pub mod news;
