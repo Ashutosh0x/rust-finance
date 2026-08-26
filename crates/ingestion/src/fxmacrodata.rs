@@ -2,7 +2,7 @@
 //! release-calendar context.
 //!
 //! API docs: <https://fxmacrodata.com/documentation>
-//! Base URL: `https://fxmacrodata.com/api/v1`
+//! Base URL: `https://api.fxmacrodata.com/v1`
 
 use anyhow::{Context, Result};
 use reqwest::header::{HeaderValue, InvalidHeaderValue};
@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::fmt;
 use tracing::debug;
 
-const DEFAULT_BASE_URL: &str = "https://fxmacrodata.com/api/v1/";
+const DEFAULT_BASE_URL: &str = "https://api.fxmacrodata.com/v1/";
 
 /// Lightweight FXMacroData client.
 ///
