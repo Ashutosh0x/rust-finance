@@ -68,3 +68,25 @@ In a separate terminal, launch the Terminal User Interface:
 ```sh
 cargo run -p tui --release
 ```
+
+## Required Checks
+
+Run the focused checks for your change first:
+
+```powershell
+cargo fmt --all -- --check
+cargo test --workspace --all-features --no-fail-fast
+```
+
+Before opening a larger PR, run the stricter project gate:
+
+```powershell
+cargo clippy --workspace --all-features --all-targets -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::cargo
+cargo deny check --all-features
+cargo audit
+cargo test --workspace --doc
+```
+
+## Contributor Quality Checks
+
+For the full contribution workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md).
