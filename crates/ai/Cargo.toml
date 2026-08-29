@@ -22,4 +22,4 @@ thiserror = "1.0"
 chumsky = "0.9" # Optional depending on parsing needs
 event_bus = { path = "../event_bus" }
 schemars = "1.2.1"
-jsonschema = { version = "0.33", default-features = false }
+jsonschema = { version = "0.46", default-features = false }
