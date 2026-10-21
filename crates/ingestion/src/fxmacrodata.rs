@@ -249,6 +249,10 @@ impl FxMacroDataClient {
             .join(relative_path)
             .context("failed to build FXMacroData endpoint URL")?;
 
+        if url.origin() != self.base_url.origin() {
+            anyhow::bail!("FXMacroData endpoint must remain on the configured origin");
+        }
+
         {
             let mut query = url.query_pairs_mut();
             for (key, value) in params {
@@ -263,7 +267,8 @@ impl FxMacroDataClient {
         &self,
         request: reqwest::RequestBuilder,
     ) -> Result<reqwest::RequestBuilder, InvalidHeaderValue> {
-        let value = HeaderValue::from_str(&self.api_key)?;
+        let mut value = HeaderValue::from_str(&self.api_key)?;
+        value.set_sensitive(true);
         Ok(request.header("X-API-Key", value))
     }
 
@@ -364,5 +369,45 @@ mod tests {
             );
             assert!(!url.as_str().contains("api_key"), "{url}");
         }
+    }
+}
+
+
+#[cfg(test)]
+mod maintenance_regressions {
+    use super::*;
+
+    #[test]
+    fn rejects_endpoint_origin_change() {
+        let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
+            .unwrap();
+        assert!(client.build_url("https://other.example/calendar/usd", &[]).is_err());
+    }
+
+    #[test]
+    fn rejects_endpoint_port_change() {
+        let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
+            .unwrap();
+        assert!(client.build_url("https://example.com:8443/calendar/usd", &[]).is_err());
+    }
+
+    #[test]
+    fn rejects_endpoint_scheme_change() {
+        let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
+            .unwrap();
+        assert!(client.build_url("http://example.com/calendar/usd", &[]).is_err());
+    }
+
+    #[test]
+    fn api_key_header_is_sensitive_in_request_debug() {
+        let client = FxMacroDataClient::with_base_url("test-key", "https://example.com/api/v1/")
+            .unwrap();
+        let request = client
+            .with_api_key(client.client.get("https://example.com/api/v1/calendar/usd"))
+            .unwrap()
+            .build()
+            .unwrap();
+        assert!(request.headers().get("X-API-Key").unwrap().is_sensitive());
+        assert!(!format!("{:?}", request.headers()).contains("test-key"));
     }
 }
