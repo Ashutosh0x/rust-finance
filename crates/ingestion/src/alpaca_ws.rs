@@ -164,8 +164,20 @@ impl AlpacaWs {
                                 match msg_type {
                                     "t" => {
                                         let symbol = item["S"].as_str().unwrap_or("").to_string();
-                                        let price = item["p"].as_f64().unwrap_or(0.0);
-                                        let volume = item["s"].as_f64();
+                                        #[cfg(feature = "fin-stream")]
+                                        let (price, volume) = match normalize_trade(&symbol, item) {
+                                            Ok(trade) => trade,
+                                            Err(e) => {
+                                                warn!(
+                                                    "Dropping Alpaca trade for {}: {}",
+                                                    symbol, e
+                                                );
+                                                continue;
+                                            }
+                                        };
+                                        #[cfg(not(feature = "fin-stream"))]
+                                        let (price, volume) =
+                                            (item["p"].as_f64().unwrap_or(0.0), item["s"].as_f64());
                                         let _ = tx.send(BotEvent::MarketEvent {
                                             symbol,
                                             price,
@@ -259,5 +271,60 @@ impl AlpacaWs {
             }
         }
         Ok(())
+    }
+}
+
+/// Validate an Alpaca `T`=`t` trade with fin-stream's normaliser and return
+/// `(price, size)`. A missing, malformed or non-positive price, or a missing or
+/// negative size, is an error rather than a $0 print.
+#[cfg(feature = "fin-stream")]
+fn normalize_trade(
+    symbol: &str,
+    item: &serde_json::Value,
+) -> Result<(f64, Option<f64>), fin_stream::StreamError> {
+    use rust_decimal::prelude::ToPrimitive;
+
+    let raw = fin_stream::RawTick::new(fin_stream::Exchange::Alpaca, symbol, item.clone());
+    let tick = fin_stream::TickNormalizer::new().normalize(raw)?;
+    let price = tick
+        .price
+        .to_f64()
+        .ok_or_else(|| fin_stream::StreamError::InvalidTick {
+            reason: format!("price {} does not fit in f64", tick.price),
+        })?;
+    Ok((price, tick.quantity.to_f64()))
+}
+
+#[cfg(all(test, feature = "fin-stream"))]
+mod tests {
+    use super::normalize_trade;
+    use serde_json::json;
+
+    #[test]
+    fn trade_passes_through() {
+        let item = json!({"T": "t", "S": "AAPL", "i": 9_001, "p": 187.42, "s": 100,
+            "t": "2024-03-04T14:30:00.123Z", "x": "V", "z": "C"});
+        let (price, volume) = normalize_trade("AAPL", &item).unwrap();
+        assert!((price - 187.42).abs() < 1e-9);
+        assert_eq!(volume, Some(100.0));
+    }
+
+    #[test]
+    fn missing_or_bad_price_is_rejected() {
+        for item in [
+            json!({"T": "t", "S": "AAPL", "s": 100}),
+            json!({"T": "t", "S": "AAPL", "p": null, "s": 100}),
+            json!({"T": "t", "S": "AAPL", "p": "abc", "s": 100}),
+            json!({"T": "t", "S": "AAPL", "p": 0, "s": 100}),
+            json!({"T": "t", "S": "AAPL", "p": -1.5, "s": 100}),
+        ] {
+            assert!(normalize_trade("AAPL", &item).is_err(), "accepted {item}");
+        }
+    }
+
+    #[test]
+    fn missing_size_is_rejected() {
+        let item = json!({"T": "t", "S": "AAPL", "p": 187.42});
+        assert!(normalize_trade("AAPL", &item).is_err());
     }
 }
