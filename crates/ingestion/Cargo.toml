@@ -47,6 +47,13 @@ anyhow = "1.0"
 databento = { version = "0.59", default-features = false, features = ["live"], optional = true }
 tokio-stream = { version = "0.1", optional = true }
 
+# Validating trade normaliser for the Alpaca stream. Optional: with it, a trade
+# whose `p` or `s` is missing, malformed or not positive is dropped with a
+# warning instead of going out as a $0 print. Enable with `--features fin-stream`.
+# `default-features = false` drops fin-primitives, which this path never uses.
+fin-stream = { version = "2.13", default-features = false, optional = true }
+rust_decimal = { version = "1.36", optional = true }
+
 # Logging
 tracing = "0.1"
 
@@ -59,6 +66,7 @@ tokio = { version = "1.35", features = ["test-util"] }
 [features]
 default = []
 databento = ["dep:databento", "dep:tokio-stream"]
+fin-stream = ["dep:fin-stream", "dep:rust_decimal"]
 
 [[example]]
 name = "databento_probe"
